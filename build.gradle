@@ -1,0 +1,36 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.0.8'
+}
+
+javafx {
+    version = "14"
+    modules = [ 'javafx.controls', 'javafx.graphics', 'javafx.fxml', 'javafx.base' ]
+}
+
+group 'com.maxwen'
+version '1.0-SNAPSHOT'
+mainClassName = 'com.maxwen.osmviewer.Main'
+applicationDefaultJvmArgs = ["-Dosm.db.path=/home/maxl/Maps/osm/db"]
+
+sourceSets.main {
+    java {
+        srcDir 'src/main/java'
+    }
+    resources {
+        srcDirs = ['src/main/java', 'src/main/resources']
+        exclude "**/*.java"
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    compile group: 'com.github.cliftonlabs', name: 'json-simple', version: '3.1.1'
+    compile group: 'com.fazecast', name: 'jSerialComm', version: '2.6.0'
+    compile fileTree(include: ['*.jar'], dir: 'libs')
+}
