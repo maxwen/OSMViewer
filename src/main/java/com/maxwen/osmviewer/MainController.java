@@ -440,6 +440,8 @@ public class MainController implements Initializable, NMEAHandler {
 
         mGPSDot = new Circle();
         mGPSDot.setRadius(30);
+        mGPSDot.setFill(Color.TRANSPARENT);
+        mGPSDot.setStrokeWidth(2);
 
         mRotate = new Rotate(-ROTATE_X_VALUE, Rotate.X_AXIS);
         mZRotate = new Rotate();
@@ -1323,8 +1325,7 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private void addGPSDot() {
-        mGPSDot.setFill(new ImagePattern(new Image(mTrackReplayMode ? "/images/gps-circle-red.png" : "/images/gps-circle.png"),
-                15, 15, 60, 60, false));
+        mGPSDot.setStroke(mTrackReplayMode ? Color.RED : Color.BLACK);
         mainPane.getChildren().add(mGPSDot);
     }
 
