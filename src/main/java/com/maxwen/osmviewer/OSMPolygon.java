@@ -26,9 +26,9 @@ public class OSMPolygon extends Polygon implements OSMShape {
 
     @Override
     public void setSelected() {
-        setStroke(Color.rgb(255, 20, 20, 0.8));
+        setStroke(Color.rgb(255, 20, 20, 0.5));
         setFill(Color.TRANSPARENT);
-        setStrokeWidth(4);
+        setStrokeWidth(3);
     }
 
     @Override

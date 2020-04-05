@@ -7,5 +7,7 @@ public interface OSMShape {
 
     void setSelected();
 
+    default void setTracking() {}
+
     Shape getShape();
 }

@@ -84,6 +84,12 @@ public class MainController implements Initializable, NMEAHandler {
     VBox rightPane;
     @FXML
     VBox rightButtons;
+    @FXML
+    HBox infoBox;
+    @FXML
+    Label infoLabel;
+    @FXML
+    Pane infoPane;
 
     private static final int MIN_ZOOM = 10;
     private static final int MAX_ZOOM = 20;
@@ -101,7 +107,6 @@ public class MainController implements Initializable, NMEAHandler {
     private Popup mContextPopup;
     private Stage mPrimaryStage;
     private boolean mShow3D;
-    private boolean isShow3D;
     private Scene mScene;
     private boolean mHeightUpdated;
     private BoundingBox mFetchBBox;
@@ -128,7 +133,8 @@ public class MainController implements Initializable, NMEAHandler {
     private long mNextRefId = -1;
     private File mCurrentTrackFile;
     private JsonObject mLastUsedEdge;
-
+    private OSMShape mTrackingShape;
+    private long mTrackingOSMId = -1;
     public static final int TUNNEL_LAYER_LEVEL = -1;
     public static final int AREA_LAYER_LEVEL = 0;
     public static final int ADMIN_AREA_LAYER_LEVEL = 1;
@@ -181,12 +187,10 @@ public class MainController implements Initializable, NMEAHandler {
                         Platform.runLater(() -> {
                             LogUtils.log(osmObject.toString());
 
-                            if (!mTrackMode && !mTrackReplayMode) {
-                                String name = (String) osmObject.get("name");
-                                String nameRef = (String) osmObject.get("nameRef");
-                                if (name != null) {
-                                    wayLabel.setText(name);
-                                }
+                            String name = (String) osmObject.get("name");
+                            String nameRef = (String) osmObject.get("nameRef");
+                            if (name != null) {
+                                infoLabel.setText(name);
                             }
                         });
                     }
@@ -287,8 +291,10 @@ public class MainController implements Initializable, NMEAHandler {
         trackModeButton.setGraphic(new ImageView(new Image(mTrackMode ? "/images/gps.png" : "/images/gps-circle.png")));
         trackModeButton.setShape(new Circle(30));
         trackModeButton.setOnAction(event -> {
-            mTrackMode = trackModeButton.isSelected();
-            updateTrackMode();
+            if (!mTrackReplayMode) {
+                mTrackMode = trackModeButton.isSelected();
+                updateTrackMode();
+            }
         });
 
         startReplayButton.setGraphic(new ImageView(new Image("/images/play.png")));
@@ -306,7 +312,6 @@ public class MainController implements Initializable, NMEAHandler {
                     if (!mTrackReplayThread.setupReplay(mCurrentTrackFile, this)) {
                         LogUtils.error("failed to setup replay thread");
                         mTrackReplayThread = null;
-                        borderPane.setBottom(null);
                     } else {
                         mTrackReplayMode = true;
                         mTrackReplayThread.startThread();
@@ -321,16 +326,13 @@ public class MainController implements Initializable, NMEAHandler {
         stopReplayButton.setGraphic(new ImageView(new Image("/images/stop.png")));
         stopReplayButton.setShape(new Circle(30));
         stopReplayButton.setOnAction(event -> {
-            stopReplay();
-
             startReplayButton.setDisable(false);
             stopReplayButton.setDisable(true);
             pauseReplayButton.setDisable(true);
             stepReplayButton.setDisable(true);
 
-            // reset state
+            stopReplay();
             resetTracking();
-
             drawShapes();
         });
         pauseReplayButton.setGraphic(new ImageView(new Image("/images/pause.png")));
@@ -388,7 +390,7 @@ public class MainController implements Initializable, NMEAHandler {
             fileChooser.setInitialDirectory(logDir);
             mCurrentTrackFile = fileChooser.showOpenDialog(mPrimaryStage);
             if (mCurrentTrackFile != null) {
-                borderPane.setBottom(bottomPane);
+                // stop current first
                 if (mTrackReplayThread != null) {
                     mTrackReplayMode = false;
                     mTrackReplayThread.stopThread();
@@ -399,35 +401,33 @@ public class MainController implements Initializable, NMEAHandler {
                     mTrackReplayThread = null;
                 }
 
-                mTrackMode = false;
-                updateTrackMode();
-
                 mTrackReplayThread = new TrackReplayThread();
-                mTrackReplayMode = true;
-
-                resetTracking();
-
                 if (!mTrackReplayThread.setupReplay(mCurrentTrackFile, this)) {
                     LogUtils.error("failed to setup replay thread");
                     mTrackReplayThread = null;
                     mTrackReplayMode = false;
-                    borderPane.setBottom(null);
                 } else {
+                    borderPane.setBottom(bottomPane);
+                    mTrackMode = false;
+                    updateTrackMode();
+                    mTrackReplayMode = true;
                     startReplayButton.setDisable(false);
                     stopReplayButton.setDisable(true);
                     pauseReplayButton.setDisable(true);
                     stepReplayButton.setDisable(true);
+                    trackModeButton.setDisable(true);
+                    resetTracking();
                 }
-            } else {
-                borderPane.setBottom(null);
             }
         });
         menuItem.setStyle("-fx-font-size: 20");
         mContextMenu.getItems().add(menuItem);
         menuItem = new MenuItem(" Clear track ");
         menuItem.setOnAction(ev -> {
+            trackModeButton.setDisable(false);
+            borderPane.setBottom(infoPane);
             stopReplay();
-            borderPane.setBottom(null);
+            resetTracking();
             drawShapes();
         });
         menuItem.setStyle("-fx-font-size: 20");
@@ -449,11 +449,13 @@ public class MainController implements Initializable, NMEAHandler {
         borderPane.setTop(topPane);
         borderPane.setLeft(leftPane);
         borderPane.setRight(rightPane);
+        borderPane.setBottom(infoPane);
 
         buttons.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
         trackButtons.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
         mapButtons.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
         rightButtons.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
+        infoBox.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
 
         Rectangle rectangle = new Rectangle();
         rectangle.setWidth(100);
@@ -483,6 +485,13 @@ public class MainController implements Initializable, NMEAHandler {
         rectangle.setArcHeight(100);
         buttons.setShape(rectangle);
 
+        rectangle = new Rectangle();
+        rectangle.setWidth(500);
+        rectangle.setHeight(100);
+        rectangle.setArcWidth(100);
+        rectangle.setArcHeight(100);
+        infoBox.setShape(rectangle);
+
         zoomLabel.setTextFill(Color.WHITE);
         zoomLabel.setEffect(new DropShadow(
                 BlurType.ONE_PASS_BOX, Color.BLACK, 2, 2, 0, 0));
@@ -502,17 +511,14 @@ public class MainController implements Initializable, NMEAHandler {
         wayLabel.setTextFill(Color.WHITE);
         wayLabel.setEffect(new DropShadow(
                 BlurType.ONE_PASS_BOX, Color.BLACK, 2, 2, 0, 0));
+
+        infoLabel.setTextFill(Color.WHITE);
+        infoLabel.setEffect(new DropShadow(
+                BlurType.ONE_PASS_BOX, Color.BLACK, 2, 2, 0, 0));
     }
 
     public void stop() {
-        if (mGPSThread != null) {
-            GPSUtils.stopTrackLog();
-            mGPSThread.stopThread();
-            try {
-                mGPSThread.join();
-            } catch (InterruptedException e) {
-            }
-        }
+        stopGPSTracking();
         Config.getInstance().put("zoom", mMapZoom);
         Config.getInstance().put("lon", mCenterLon);
         Config.getInstance().put("lat", mCenterLat);
@@ -674,11 +680,22 @@ public class MainController implements Initializable, NMEAHandler {
             }
         }
 
+        if (mTrackingOSMId != -1) {
+            mTrackingShape = findShapeOfOSMId(mTrackingOSMId);
+            if (mTrackingShape == null) {
+                mTrackingOSMId = -1;
+            } else {
+                mTrackingShape.setTracking();
+            }
+        }
         for (List<Shape> polyList : mPolylines.values()) {
             mainPane.getChildren().addAll(polyList);
         }
         if (mSelectdShape != null) {
             mainPane.getChildren().add(mSelectdShape.getShape());
+        }
+        if (mTrackingShape != null) {
+            mainPane.getChildren().add(mTrackingShape.getShape());
         }
         if (mTrackMode || mTrackReplayMode) {
             if (isPositionVisible(mMapGPSPos)) {
@@ -711,11 +728,18 @@ public class MainController implements Initializable, NMEAHandler {
             mSelectdShape.getShape().setTranslateX(-mMapZeroX);
             mSelectdShape.getShape().setTranslateY(-mMapZeroY);
         }
+        if (mTrackingShape != null) {
+            mTrackingShape.getShape().setTranslateX(-mMapZeroX);
+            mTrackingShape.getShape().setTranslateY(-mMapZeroY);
+        }
         for (List<Shape> polyList : mPolylines.values()) {
             mainPane.getChildren().addAll(polyList);
         }
         if (mSelectdShape != null) {
             mainPane.getChildren().add(mSelectdShape.getShape());
+        }
+        if (mTrackingShape != null) {
+            mainPane.getChildren().add(mTrackingShape.getShape());
         }
         if (mTrackMode || mTrackReplayMode) {
             if (isPositionVisible(mMapGPSPos)) {
@@ -926,6 +950,19 @@ public class MainController implements Initializable, NMEAHandler {
                         return polyline;
                     }
                 }
+            }
+        }
+        return null;
+    }
+
+    private OSMPolyline findWayAtPoint(Point2D gpsPos) {
+        JsonArray edgeList = DatabaseController.getInstance().getEdgeOnPos(gpsPos.getX(), gpsPos.getY(), 0.0005, 30, 20);
+        if (edgeList.size() != 0) {
+            JsonObject edge = (JsonObject) edgeList.get(0);
+            long osmId = (long) edge.get("osmId");
+            OSMPolyline shape = findWayOfOSMId(osmId);
+            if (shape != null) {
+                return shape;
             }
         }
         return null;
@@ -1214,20 +1251,16 @@ public class MainController implements Initializable, NMEAHandler {
                 if (!foundEdge || mCurrentEdge == null) {
                     System.err.println("no matching next edge found");
                     mCurrentEdge = null;
-                    return null;
-                    /*mLastUsedEdge = mCurrentEdge;
-                    mSelectdShape = null;
-                    mSelectdOSMId = -1;*/
                 } else {
                     if (mCurrentEdge != null) {
                         long osmId = (long) mCurrentEdge.get("osmId");
                         OSMPolyline shape = findWayOfOSMId(osmId);
                         if (shape != null) {
-                            mSelectdOSMId = osmId;
-                            mSelectdShape = shape;
-                            mSelectdShape.setSelected();
+                            mTrackingOSMId = osmId;
+                            mTrackingShape = shape;
+                            mTrackingShape.setTracking();
 
-                            JsonObject way = mOSMObjects.get(mSelectdOSMId);
+                            JsonObject way = mOSMObjects.get(mTrackingOSMId);
                             if (way != null) {
                                 String name = (String) way.get("name");
                                 String nameRef = (String) way.get("nameRef");
@@ -1372,8 +1405,7 @@ public class MainController implements Initializable, NMEAHandler {
             }
         } else {
             if (mGPSThread != null) {
-                GPSUtils.stopTrackLog();
-                mGPSThread.stopThread();
+                stopGPSTracking();
                 mMapGPSPos = new Point2D(0, 0);
                 mGPSData = null;
                 mZRotate.setAngle(0);
@@ -1392,6 +1424,22 @@ public class MainController implements Initializable, NMEAHandler {
             } catch (InterruptedException e) {
             }
             mTrackReplayThread = null;
+        }
+        posLabel.setText("");
+        speedLabel.setText("");
+        altLabel.setText("");
+        wayLabel.setText("");
+    }
+
+    private void stopGPSTracking() {
+        if (mGPSThread != null) {
+            GPSUtils.stopTrackLog();
+            mTrackMode = false;
+            mGPSThread.stopThread();
+            try {
+                mGPSThread.join();
+            } catch (InterruptedException e) {
+            }
         }
         posLabel.setText("");
         speedLabel.setText("");
@@ -1494,7 +1542,7 @@ public class MainController implements Initializable, NMEAHandler {
         if (mPredictionWays != null) {
             mPredictionWays.clear();
         }
-        mSelectdShape = null;
+        mTrackingShape = null;
     }
 
     // find out which way we are going on mCurrentEdge

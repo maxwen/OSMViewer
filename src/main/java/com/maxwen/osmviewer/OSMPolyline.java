@@ -33,4 +33,9 @@ public class OSMPolyline extends Polyline implements OSMShape {
     public Shape getShape() {
         return this;
     }
+
+    @Override
+    public void setTracking() {
+        setStroke(Color.rgb(0, 200, 0, 0.8));
+    }
 }

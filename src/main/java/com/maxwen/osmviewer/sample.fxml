@@ -92,6 +92,25 @@
                 <Pane HBox.hgrow="ALWAYS"/>
             </children>
         </HBox>
+        <HBox fx:id="infoPane" alignment="CENTER" minHeight="100.0">
+            <children>
+                <Pane HBox.hgrow="ALWAYS"/>
+                <HBox fx:id="infoBox" alignment="CENTER" minHeight="100.0">
+                    <children>
+                        <Label fx:id="infoLabel" HBox.hgrow="ALWAYS" alignment="CENTER_LEFT"
+                               minWidth="500.0">
+                            <font>
+                                <Font name="System Bold" size="28.0"/>
+                            </font>
+                            <HBox.margin>
+                                <Insets left="30.0"/>
+                            </HBox.margin>
+                        </Label>
+                    </children>
+                </HBox>
+                <Pane HBox.hgrow="ALWAYS"/>
+            </children>
+        </HBox>
         <VBox fx:id="leftPane" alignment="CENTER" minWidth="100.0">
             <children>
                 <Pane VBox.vgrow="ALWAYS"/>
