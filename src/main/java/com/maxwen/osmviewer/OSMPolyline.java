@@ -11,8 +11,8 @@ public class OSMPolyline extends Polyline implements OSMShape {
         mOSMId = osmId;
     }
 
-    public OSMPolyline(long osmId, OSMPolyline parent) {
-        mOSMId = osmId;
+    public OSMPolyline(OSMPolyline parent) {
+        mOSMId = parent.getOSMId();
         setStrokeWidth(parent.getStrokeWidth());
         setStrokeLineCap(parent.getStrokeLineCap());
         setStrokeLineJoin(parent.getStrokeLineJoin());
@@ -37,5 +37,10 @@ public class OSMPolyline extends Polyline implements OSMShape {
     @Override
     public void setTracking() {
         setStroke(Color.rgb(0, 200, 0, 0.8));
+    }
+
+    @Override
+    public int getAreaType() {
+        return -1;
     }
 }

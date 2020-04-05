@@ -4,6 +4,7 @@ import com.github.cliftonlabs.json_simple.JsonArray;
 import com.github.cliftonlabs.json_simple.JsonException;
 import com.github.cliftonlabs.json_simple.JsonObject;
 import com.github.cliftonlabs.json_simple.Jsoner;
+import javafx.scene.Node;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Polyline;
 import javafx.scene.shape.Shape;
@@ -99,7 +100,7 @@ public class DatabaseController {
     }
 
     public JsonArray getWaysInBboxWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax,
-                                           List<Integer> typeFilterList, Map<Integer, List<Shape>> polylines,
+                                           List<Integer> typeFilterList, Map<Integer, List<Node>> polylines,
                                            MainController controller) {
         Statement stmt = null;
         JsonArray ways = new JsonArray();
@@ -201,7 +202,7 @@ public class DatabaseController {
 
     public JsonArray getAreasInBboxWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax,
                                             List<Integer> typeFilterList, boolean withSimplify, double tolerance,
-                                            Map<Integer, List<Shape>> polylines, MainController controller) {
+                                            Map<Integer, List<Node>> polylines, MainController controller) {
         Statement stmt = null;
         JsonArray areas = new JsonArray();
 
@@ -244,7 +245,7 @@ public class DatabaseController {
                 JsonArray coords = createCoordsFromPolygonString(rs.getString(5));
                 for (int j = 0; j < coords.size(); j++) {
                     JsonArray innerCoords = (JsonArray) coords.get(j);
-                    Polygon polygon = controller.displayCoordsPolygon(osmId, innerCoords);
+                    Polygon polygon = controller.displayCoordsPolygon(osmId, areaType, innerCoords);
                     if (isBuilding) {
                         OSMStyle.amendBuilding(area, polygon, controller.getZoom());
                     } else {
@@ -274,7 +275,7 @@ public class DatabaseController {
 
     public JsonArray getLineAreasInBboxWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax,
                                                 List<Integer> typeFilterList, boolean withSimplify, double tolerance,
-                                                Map<Integer, List<Shape>> polylines, MainController controller) {
+                                                Map<Integer, List<Node>> polylines, MainController controller) {
         Statement stmt = null;
         JsonArray areas = new JsonArray();
 
@@ -353,7 +354,7 @@ public class DatabaseController {
 
     public JsonArray getAdminLineInBboxWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax,
                                                 String typeFilterString, boolean withSimplify, double tolerance,
-                                                Map<Integer, List<Shape>> polylines, MainController controller) {
+                                                Map<Integer, List<Node>> polylines, MainController controller) {
         Statement stmt = null;
         JsonArray adminLines = new JsonArray();
 
@@ -564,6 +565,67 @@ public class DatabaseController {
             }
         }
         return edgeList;
+    }
+
+
+    public JsonArray getPOINodesInBBoxWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax, List<Integer> typeFilterList, MainController controller) {
+        Statement stmt = null;
+        JsonArray nodes = new JsonArray();
+
+        try {
+            stmt = mNodeConnection.createStatement();
+            ResultSet rs;
+
+            if (typeFilterList != null && typeFilterList.size() != 0) {
+                rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE ROWID IN (SELECT rowid FROM idx_poiRefTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) AND type IN %s", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
+            } else {
+                rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE ROWID IN (SELECT rowid FROM idx_poiRefTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f))", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+            }
+
+            while (rs.next()) {
+                JsonObject node = new JsonObject();
+                long osmId = rs.getLong(1);
+                node.put("osmId", osmId);
+                int nodeType = rs.getInt(3);
+                node.put("nodeType", nodeType);
+                int layer = rs.getInt(4);
+                node.put("layer", layer);
+                String tags = rs.getString(2);
+                try {
+                    if (tags != null && tags.length() != 0) {
+                        node.put("tags", Jsoner.deserialize(tags));
+                    }
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+                String coordsString = rs.getString(5);
+                JsonArray point = createPointFromPointString(coordsString);
+                node.put("coords", point);
+                controller.addToOSMCache(osmId, node);
+                nodes.add(node);
+            }
+        } catch (SQLException e) {
+            LogUtils.log(e.getMessage());
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return nodes;
+    }
+
+    private JsonArray createPointFromPointString(String pointStr) {
+        pointStr = pointStr.substring(6, pointStr.length() - 1);
+        String[] coordsPairs = pointStr.trim().split(" ");
+        JsonArray point = new JsonArray();
+        double lon = Double.valueOf(coordsPairs[0].trim());
+        point.add(lon);
+        double lat = Double.valueOf(coordsPairs[1].trim());
+        point.add(lat);
+        return point;
     }
 
     private JsonArray createCoordsFromLineString(String lineString) {

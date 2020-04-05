@@ -6,13 +6,16 @@ import javafx.scene.shape.Shape;
 
 public class OSMPolygon extends Polygon implements OSMShape {
     private long mOSMId;
+    private int mAreaType;
 
-    public OSMPolygon(long osmId) {
+    public OSMPolygon(long osmId, int areaType) {
         mOSMId = osmId;
+        mAreaType = areaType;
     }
 
-    public OSMPolygon(long osmId, OSMPolygon parent) {
-        mOSMId = osmId;
+    public OSMPolygon(OSMPolygon parent) {
+        mOSMId = parent.getOSMId();
+        mAreaType = parent.getAreaType();
         setStrokeWidth(parent.getStrokeWidth());
         setStrokeLineCap(parent.getStrokeLineCap());
         setStrokeLineJoin(parent.getStrokeLineJoin());
@@ -34,5 +37,10 @@ public class OSMPolygon extends Polygon implements OSMShape {
     @Override
     public Shape getShape() {
         return this;
+    }
+
+    @Override
+    public int getAreaType() {
+        return mAreaType;
     }
 }

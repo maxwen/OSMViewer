@@ -6,6 +6,7 @@ import javafx.scene.Parent;
 import javafx.scene.PerspectiveCamera;
 import javafx.scene.Scene;
 import javafx.scene.SceneAntialiasing;
+import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
 public class Main extends Application {
@@ -30,6 +31,7 @@ public class Main extends Application {
         mController.setScene(mScene);
         primaryStage.setScene(mScene);
         primaryStage.show();
+        primaryStage.getIcons().add(new Image("/images/launcher.png"));
 
         mController.loadMapData();
 

@@ -10,4 +10,6 @@ public interface OSMShape {
     default void setTracking() {}
 
     Shape getShape();
+
+    int getAreaType();
 }

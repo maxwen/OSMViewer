@@ -10,6 +10,7 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.geometry.BoundingBox;
 import javafx.geometry.Point2D;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.effect.BlurType;
@@ -20,7 +21,6 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-import javafx.scene.paint.ImagePattern;
 import javafx.scene.shape.*;
 import javafx.scene.transform.Rotate;
 import javafx.stage.FileChooser;
@@ -112,7 +112,7 @@ public class MainController implements Initializable, NMEAHandler {
     private BoundingBox mFetchBBox;
     private BoundingBox mVisibleBBox;
     private Rotate mRotate;
-    private Map<Integer, List<Shape>> mPolylines;
+    private Map<Integer, List<Node>> mPolylines;
     private Rotate mZRotate;
     private OSMShape mSelectdShape;
     private long mSelectdOSMId = -1;
@@ -143,7 +143,7 @@ public class MainController implements Initializable, NMEAHandler {
     public static final int STREET_LAYER_LEVEL = 4;
     public static final int RAILWAY_LAYER_LEVEL = 5;
     public static final int BRIDGE_LAYER_LEVEL = 6;
-
+    public static final int POI_LAYER_LEVEL = 7;
 
     EventHandler<MouseEvent> mouseHandler = new EventHandler<MouseEvent>() {
         @Override
@@ -161,17 +161,19 @@ public class MainController implements Initializable, NMEAHandler {
                         return;
                     }
 
-                    // getX and getY will be transformed pos
-                    Point2D mapPos = new Point2D(mouseEvent.getX(), mouseEvent.getY());
-                    Point2D scenePos = new Point2D(mouseEvent.getSceneX(), mouseEvent.getSceneY());
+                    if (mMapZoom > 16) {
+                        // getX and getY will be transformed pos
+                        Point2D mapPos = new Point2D(mouseEvent.getX(), mouseEvent.getY());
+                        Point2D scenePos = new Point2D(mouseEvent.getSceneX(), mouseEvent.getSceneY());
 
-                    Point2D coordPos = getCoordOfPos(mapPos);
-                    if (!mTrackReplayMode && !mTrackMode) {
-                        posLabel.setText(String.format("%.5f:%.5f", coordPos.getX(), coordPos.getY()));
+                        Point2D coordPos = getCoordOfPos(mapPos);
+                        if (!mTrackReplayMode && !mTrackMode) {
+                            posLabel.setText(String.format("%.5f:%.5f", coordPos.getX(), coordPos.getY()));
+                        }
+
+                        Point2D mapPosNormalized = new Point2D(mapPos.getX() + mMapZeroX, mapPos.getY() + mMapZeroY);
+                        mPressedShape = findShapeAtPoint(mapPosNormalized, OSMUtils.SELECT_AREA_TYPE);
                     }
-
-                    Point2D mapPosNormalized = new Point2D(mapPos.getX() + mMapZeroX, mapPos.getY() + mMapZeroY);
-                    mPressedShape = findShapeAtPoint(mapPosNormalized);
                 }
             } else if (mouseEvent.getEventType() == MouseEvent.MOUSE_RELEASED) {
                 mMouseMoving = false;
@@ -185,12 +187,30 @@ public class MainController implements Initializable, NMEAHandler {
                     JsonObject osmObject = mOSMObjects.get(mSelectdOSMId);
                     if (osmObject != null) {
                         Platform.runLater(() -> {
-                            LogUtils.log(osmObject.toString());
-
-                            String name = (String) osmObject.get("name");
-                            String nameRef = (String) osmObject.get("nameRef");
-                            if (name != null) {
-                                infoLabel.setText(name);
+                            if (mSelectdShape instanceof OSMPolyline) {
+                                String name = (String) osmObject.get("name");
+                                String nameRef = (String) osmObject.get("nameRef");
+                                StringBuffer s = new StringBuffer();
+                                if (name != null) {
+                                    s.append(name);
+                                }
+                                if (nameRef != null) {
+                                    s.append("  " + nameRef);
+                                }
+                                infoLabel.setText(s.toString().trim());
+                            } else if (mSelectdShape instanceof OSMPolygon) {
+                                JsonObject tags = (JsonObject) osmObject.get("tags");
+                                if (tags != null ) {
+                                    LogUtils.log("" + tags);
+                                    StringBuffer s = new StringBuffer();
+                                    if (tags.containsKey("name")) {
+                                        s.append((String) tags.get("name"));
+                                    }
+                                    if (tags.containsKey("addr:street")) {
+                                        s.append("  " + (String) tags.get("addr:street"));
+                                    }
+                                    infoLabel.setText(s.toString().trim());
+                                }
                             }
                         });
                     }
@@ -245,23 +265,25 @@ public class MainController implements Initializable, NMEAHandler {
         mPolylines.put(STREET_LAYER_LEVEL, new ArrayList<>());
         mPolylines.put(RAILWAY_LAYER_LEVEL, new ArrayList<>());
         mPolylines.put(BRIDGE_LAYER_LEVEL, new ArrayList<>());
+        mPolylines.put(POI_LAYER_LEVEL, new ArrayList<>());
+
         mOSMObjects = new HashMap<>();
         calcMapCenterPos();
 
-        quitButton.setGraphic(new ImageView(new Image("/images/quit.png")));
+        quitButton.setGraphic(new ImageView(new Image("/images/ui/quit.png")));
         quitButton.setShape(new Circle(30));
         quitButton.setOnAction(e -> {
             Platform.exit();
         });
 
-        menuButton.setGraphic(new ImageView(new Image("/images/menu.png")));
+        menuButton.setGraphic(new ImageView(new Image("/images/ui/menu.png")));
         menuButton.setShape(new Circle(30));
         menuButton.setOnMouseClicked(e -> {
             mContextMenu.show(menuButton, e.getScreenX(), e.getScreenY());
         });
 
 
-        zoomInButton.setGraphic(new ImageView(new Image("/images/plus.png")));
+        zoomInButton.setGraphic(new ImageView(new Image("/images/ui/plus.png")));
         zoomInButton.setShape(new Circle(30));
         zoomInButton.setOnAction(e -> {
             int zoom = mMapZoom + 1;
@@ -274,7 +296,7 @@ public class MainController implements Initializable, NMEAHandler {
                 loadMapData();
             }
         });
-        zoomOutButton.setGraphic(new ImageView(new Image("/images/minus.png")));
+        zoomOutButton.setGraphic(new ImageView(new Image("/images/ui/minus.png")));
         zoomOutButton.setShape(new Circle(30));
         zoomOutButton.setOnAction(e -> {
             int zoom = mMapZoom - 1;
@@ -288,7 +310,7 @@ public class MainController implements Initializable, NMEAHandler {
             }
         });
 
-        trackModeButton.setGraphic(new ImageView(new Image(mTrackMode ? "/images/gps.png" : "/images/gps-circle.png")));
+        trackModeButton.setGraphic(new ImageView(new Image(mTrackMode ? "/images/ui/gps.png" : "/images/ui/gps-circle.png")));
         trackModeButton.setShape(new Circle(30));
         trackModeButton.setOnAction(event -> {
             if (!mTrackReplayMode) {
@@ -297,7 +319,7 @@ public class MainController implements Initializable, NMEAHandler {
             }
         });
 
-        startReplayButton.setGraphic(new ImageView(new Image("/images/play.png")));
+        startReplayButton.setGraphic(new ImageView(new Image("/images/ui/play.png")));
         startReplayButton.setShape(new Circle(30));
         startReplayButton.setOnAction(event -> {
             if (mTrackReplayThread != null) {
@@ -323,7 +345,7 @@ public class MainController implements Initializable, NMEAHandler {
                 }
             }
         });
-        stopReplayButton.setGraphic(new ImageView(new Image("/images/stop.png")));
+        stopReplayButton.setGraphic(new ImageView(new Image("/images/ui/stop.png")));
         stopReplayButton.setShape(new Circle(30));
         stopReplayButton.setOnAction(event -> {
             startReplayButton.setDisable(false);
@@ -335,14 +357,14 @@ public class MainController implements Initializable, NMEAHandler {
             resetTracking();
             drawShapes();
         });
-        pauseReplayButton.setGraphic(new ImageView(new Image("/images/pause.png")));
+        pauseReplayButton.setGraphic(new ImageView(new Image("/images/ui/pause.png")));
         pauseReplayButton.setShape(new Circle(30));
         pauseReplayButton.setOnAction(event -> {
             if (mTrackReplayThread != null) {
                 mTrackReplayThread.pauseThread();
             }
         });
-        stepReplayButton.setGraphic(new ImageView(new Image("/images/next.png")));
+        stepReplayButton.setGraphic(new ImageView(new Image("/images/ui/next.png")));
         stepReplayButton.setShape(new Circle(30));
         stepReplayButton.setOnAction(event -> {
             if (mTrackReplayThread != null) {
@@ -633,12 +655,16 @@ public class MainController implements Initializable, NMEAHandler {
         }
     }
 
+    private List<Integer> getPoiTypeListForZoom() {
+        return OSMUtils.SELECT_POI_TYPE;
+    }
+
     public void loadMapData() {
         calcMapZeroPos();
         long t = System.currentTimeMillis();
         LogUtils.log("loadMapData " + mMapZoom);
         mOSMObjects.clear();
-        for (List<Shape> polyList : mPolylines.values()) {
+        for (List<Node> polyList : mPolylines.values()) {
             polyList.clear();
         }
 
@@ -688,7 +714,7 @@ public class MainController implements Initializable, NMEAHandler {
                 mTrackingShape.setTracking();
             }
         }
-        for (List<Shape> polyList : mPolylines.values()) {
+        for (List<Node> polyList : mPolylines.values()) {
             mainPane.getChildren().addAll(polyList);
         }
         if (mSelectdShape != null) {
@@ -712,14 +738,42 @@ public class MainController implements Initializable, NMEAHandler {
                 }
             }
         }
+        // same as buildings
+        if (mMapZoom > 16) {
+            JsonArray nodes = DatabaseController.getInstance().getPOINodesInBBoxWithGeom(bbox.get(0), bbox.get(1),
+                    bbox.get(2), bbox.get(3), getPoiTypeListForZoom(), this);
+            for (int i = 0; i < nodes.size(); i++) {
+                JsonObject node = (JsonObject) nodes.get(i);
+                int nodeType = (int) node.get("nodeType");
+                JsonArray coord = (JsonArray) node.get("coords");
+                Double posX = getPixelXPosForLocationDeg(coord.getDouble(0));
+                Double posY = getPixelYPosForLocationDeg(coord.getDouble(1));
+                Point2D nodePos = new Point2D(posX, posY);
+
+                Image poiImage = OSMStyle.getNodeTypeImage(nodeType);
+                if (poiImage != null) {
+                    ImageView poi = new ImageView(poiImage);
+                    int size = OSMStyle.getPoiSizeForZoom(mMapZoom, 32);
+                    poi.setFitHeight(size);
+                    poi.setFitWidth(size);
+                    poi.setPreserveRatio(true);
+                    poi.setX(nodePos.getX() - poi.getFitWidth() / 2);
+                    poi.setY(nodePos.getY() - poi.getFitHeight());
+                    poi.setTranslateX(-mMapZeroX);
+                    poi.setTranslateY(-mMapZeroY);
+                    mPolylines.get(POI_LAYER_LEVEL).add(poi);
+                    mainPane.getChildren().add(poi);
+                }
+            }
+        }
     }
 
     private void drawShapes() {
         calcMapZeroPos();
         mainPane.getChildren().clear();
 
-        for (List<Shape> polyList : mPolylines.values()) {
-            for (Shape s : polyList) {
+        for (List<Node> polyList : mPolylines.values()) {
+            for (Node s : polyList) {
                 s.setTranslateX(-mMapZeroX);
                 s.setTranslateY(-mMapZeroY);
             }
@@ -732,7 +786,7 @@ public class MainController implements Initializable, NMEAHandler {
             mTrackingShape.getShape().setTranslateX(-mMapZeroX);
             mTrackingShape.getShape().setTranslateY(-mMapZeroY);
         }
-        for (List<Shape> polyList : mPolylines.values()) {
+        for (List<Node> polyList : mPolylines.values()) {
             mainPane.getChildren().addAll(polyList);
         }
         if (mSelectdShape != null) {
@@ -808,8 +862,8 @@ public class MainController implements Initializable, NMEAHandler {
         return polyline;
     }
 
-    public Polygon displayCoordsPolygon(long osmId, JsonArray coords) {
-        OSMPolygon polygon = new OSMPolygon(osmId);
+    public Polygon displayCoordsPolygon(long osmId, int areaType, JsonArray coords) {
+        OSMPolygon polygon = new OSMPolygon(osmId, areaType);
         Double[] points = new Double[coords.size() * 2];
         int j = 0;
         for (int i = 0; i < coords.size(); i++) {
@@ -922,28 +976,30 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     // returns a copy
-    private OSMShape findShapeAtPoint(Point2D pos) {
+    private OSMShape findShapeAtPoint(Point2D pos, Set<Integer> areaTypes) {
         // from top layer down
         List<Integer> keyList = new ArrayList<>();
         keyList.addAll(mPolylines.keySet());
         Collections.reverse(keyList);
 
         for (int layer : keyList) {
-            List<Shape> polyList = mPolylines.get(layer);
+            List<Node> polyList = mPolylines.get(layer);
             // again reverse by layer order
             for (int i = polyList.size() - 1; i >= 0; i--) {
-                Shape s = polyList.get(i);
+                Node s = polyList.get(i);
                 if (s instanceof OSMPolygon) {
-                    if (s.contains(pos)) {
-                        OSMPolygon polygon = new OSMPolygon(((OSMPolygon) s).getOSMId(), (OSMPolygon) s);
-                        polygon.getPoints().addAll(((OSMPolygon) s).getPoints());
-                        polygon.setTranslateX(-mMapZeroX);
-                        polygon.setTranslateY(-mMapZeroY);
-                        return polygon;
+                    if (areaTypes.size() == 0 || areaTypes.contains(((OSMPolygon) s).getAreaType())){
+                        if (s.contains(pos)) {
+                            OSMPolygon polygon = new OSMPolygon((OSMPolygon) s);
+                            polygon.getPoints().addAll(((OSMPolygon) s).getPoints());
+                            polygon.setTranslateX(-mMapZeroX);
+                            polygon.setTranslateY(-mMapZeroY);
+                            return polygon;
+                        }
                     }
                 } else if (s instanceof OSMPolyline) {
                     if (s.contains(pos)) {
-                        OSMPolyline polyline = new OSMPolyline(((OSMPolyline) s).getOSMId(), (OSMPolyline) s);
+                        OSMPolyline polyline = new OSMPolyline((OSMPolyline) s);
                         polyline.getPoints().addAll(((OSMPolyline) s).getPoints());
                         polyline.setTranslateX(-mMapZeroX);
                         polyline.setTranslateY(-mMapZeroY);
@@ -969,11 +1025,11 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private OSMShape findShapeOfOSMId(long osmId) {
-        for (List<Shape> polyList : mPolylines.values()) {
-            for (Shape s : polyList) {
+        for (List<Node> polyList : mPolylines.values()) {
+            for (Node s : polyList) {
                 if (s instanceof OSMPolygon) {
                     if (((OSMPolygon) s).getOSMId() == osmId) {
-                        OSMPolygon polygon = new OSMPolygon(((OSMPolygon) s).getOSMId(), (OSMPolygon) s);
+                        OSMPolygon polygon = new OSMPolygon((OSMPolygon) s);
                         polygon.getPoints().addAll(((OSMPolygon) s).getPoints());
                         polygon.setTranslateX(-mMapZeroX);
                         polygon.setTranslateY(-mMapZeroY);
@@ -981,7 +1037,7 @@ public class MainController implements Initializable, NMEAHandler {
                     }
                 } else if (s instanceof OSMPolyline) {
                     if (((OSMPolyline) s).getOSMId() == osmId) {
-                        OSMPolyline polyline = new OSMPolyline(((OSMPolyline) s).getOSMId(), (OSMPolyline) s);
+                        OSMPolyline polyline = new OSMPolyline((OSMPolyline) s);
                         polyline.getPoints().addAll(((OSMPolyline) s).getPoints());
                         polyline.setTranslateX(-mMapZeroX);
                         polyline.setTranslateY(-mMapZeroY);
@@ -994,11 +1050,11 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private OSMPolyline findWayOfOSMId(long osmId) {
-        for (List<Shape> polyList : mPolylines.values()) {
-            for (Shape s : polyList) {
+        for (List<Node> polyList : mPolylines.values()) {
+            for (Node s : polyList) {
                 if (s instanceof OSMPolyline) {
                     if (((OSMPolyline) s).getOSMId() == osmId) {
-                        OSMPolyline polyline = new OSMPolyline(((OSMPolyline) s).getOSMId(), (OSMPolyline) s);
+                        OSMPolyline polyline = new OSMPolyline((OSMPolyline) s);
                         polyline.getPoints().addAll(((OSMPolyline) s).getPoints());
                         polyline.setTranslateX(-mMapZeroX);
                         polyline.setTranslateY(-mMapZeroY);
@@ -1412,7 +1468,7 @@ public class MainController implements Initializable, NMEAHandler {
                 drawShapes();
             }
         }
-        trackModeButton.setGraphic(new ImageView(new Image(mTrackMode ? "/images/gps.png" : "/images/gps-circle.png")));
+        trackModeButton.setGraphic(new ImageView(new Image(mTrackMode ? "/images/ui/gps.png" : "/images/ui/gps-circle.png")));
     }
 
     private void stopReplay() {

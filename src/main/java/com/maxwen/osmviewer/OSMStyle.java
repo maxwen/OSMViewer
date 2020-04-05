@@ -17,75 +17,98 @@ public class OSMStyle {
 
     private static HashMap<Integer, Color> mStreetColors;
     private static HashMap<String, Paint> mAreaColors;
+    private static HashMap<Integer, Image> mNodeImages;
 
-    private static void initStreetColors() {
+    private static void init() {
         mStreetColors = new HashMap<>();
-        mStreetColors.put(OSMUtils.STREET_TYPE_MOTORWAY,  Color.rgb(0xe8, 0x92, 0xa2));
-        mStreetColors.put(OSMUtils.STREET_TYPE_MOTORWAY_LINK,  Color.rgb(0xe8, 0x92, 0xa2));
-        mStreetColors.put(OSMUtils.STREET_TYPE_TRUNK,  Color.rgb(0xf9, 0xb2, 0x9c));
-        mStreetColors.put(OSMUtils.STREET_TYPE_TRUNK_LINK,  Color.rgb(0xf9, 0xb2, 0x9c));
-        mStreetColors.put(OSMUtils.STREET_TYPE_PRIMARY,  Color.rgb(0xfc, 0xd6, 0xa4));
-        mStreetColors.put(OSMUtils.STREET_TYPE_PRIMARY_LINK,  Color.rgb(0xfc, 0xd6, 0xa4));
-        mStreetColors.put(OSMUtils.STREET_TYPE_SECONDARY,  Color.rgb(0xff, 0xfa, 0xbf));
-        mStreetColors.put(OSMUtils.STREET_TYPE_SECONDARY_LINK,  Color.rgb(0xff, 0xfa, 0xbf));
-        mStreetColors.put(OSMUtils.STREET_TYPE_TERTIARY,  Color.rgb(0xff, 0xff, 0xb3));
-        mStreetColors.put(OSMUtils.STREET_TYPE_TERTIARY_LINK,  Color.rgb(0xff, 0xff, 0xb3));
-        mStreetColors.put(OSMUtils.STREET_TYPE_RESIDENTIAL,  Color.rgb(0xff, 0xff, 0xff));
-        mStreetColors.put(OSMUtils.STREET_TYPE_UNCLASSIFIED,  Color.rgb(0xff, 0xff, 0xff));
-        mStreetColors.put(OSMUtils.STREET_TYPE_ROAD,  Color.rgb(0xff, 0xff, 0xff));
-        mStreetColors.put(OSMUtils.STREET_TYPE_SERVICE,  Color.rgb(0xff, 0xff, 0xff));
-        mStreetColors.put(OSMUtils.STREET_TYPE_LIVING_STREET,  Color.rgb(0xff, 0xff, 0xff));
+        mStreetColors.put(OSMUtils.STREET_TYPE_MOTORWAY, Color.rgb(0xe8, 0x92, 0xa2));
+        mStreetColors.put(OSMUtils.STREET_TYPE_MOTORWAY_LINK, Color.rgb(0xe8, 0x92, 0xa2));
+        mStreetColors.put(OSMUtils.STREET_TYPE_TRUNK, Color.rgb(0xf9, 0xb2, 0x9c));
+        mStreetColors.put(OSMUtils.STREET_TYPE_TRUNK_LINK, Color.rgb(0xf9, 0xb2, 0x9c));
+        mStreetColors.put(OSMUtils.STREET_TYPE_PRIMARY, Color.rgb(0xfc, 0xd6, 0xa4));
+        mStreetColors.put(OSMUtils.STREET_TYPE_PRIMARY_LINK, Color.rgb(0xfc, 0xd6, 0xa4));
+        mStreetColors.put(OSMUtils.STREET_TYPE_SECONDARY, Color.rgb(0xff, 0xfa, 0xbf));
+        mStreetColors.put(OSMUtils.STREET_TYPE_SECONDARY_LINK, Color.rgb(0xff, 0xfa, 0xbf));
+        mStreetColors.put(OSMUtils.STREET_TYPE_TERTIARY, Color.rgb(0xff, 0xff, 0xb3));
+        mStreetColors.put(OSMUtils.STREET_TYPE_TERTIARY_LINK, Color.rgb(0xff, 0xff, 0xb3));
+        mStreetColors.put(OSMUtils.STREET_TYPE_RESIDENTIAL, Color.rgb(0xff, 0xff, 0xff));
+        mStreetColors.put(OSMUtils.STREET_TYPE_UNCLASSIFIED, Color.rgb(0xff, 0xff, 0xff));
+        mStreetColors.put(OSMUtils.STREET_TYPE_ROAD, Color.rgb(0xff, 0xff, 0xff));
+        mStreetColors.put(OSMUtils.STREET_TYPE_SERVICE, Color.rgb(0xff, 0xff, 0xff));
+        mStreetColors.put(OSMUtils.STREET_TYPE_LIVING_STREET, Color.rgb(0xff, 0xff, 0xff));
 
         mAreaColors = new HashMap();
         mAreaColors.put("adminAreaColor", Color.rgb(0xac, 0x46, 0xac));
-        mAreaColors.put("backgroundColor",  Color.rgb(120, 120, 120, 0.8d));
-        mAreaColors.put("mapBackgroundColor",  Color.rgb(0xf1, 0xee, 0xe8));
-        mAreaColors.put("wayCasingColor",  Color.rgb(0x70, 0x7d, 0x05));
+        mAreaColors.put("backgroundColor", Color.rgb(120, 120, 120, 0.8d));
+        mAreaColors.put("mapBackgroundColor", Color.rgb(0xf1, 0xee, 0xe8));
+        mAreaColors.put("wayCasingColor", Color.rgb(0x70, 0x7d, 0x05));
         mAreaColors.put("tunnelColor", Color.WHITE);
-        mAreaColors.put("bridgeCasingColor",  Color.rgb(0x50, 0x50, 0x50));
-        mAreaColors.put("accessWaysColor",  Color.rgb(255, 0, 0, 0.4d));
-        mAreaColors.put("onewayWaysColor",  Color.rgb(0, 0, 255, 0.4d));
-        mAreaColors.put("livingStreeColor",  Color.rgb(0, 255, 0, 0.4d));
-        mAreaColors.put("waterColor",  Color.rgb(0xaa, 0xd3, 0xdf));
-        mAreaColors.put("warningBackgroundColor",  Color.rgb(255, 0, 0, 0.8d));
-        mAreaColors.put("naturalColor",  Color.rgb(0x8d, 0xc5, 0x6c));
-        mAreaColors.put("forestAreaColor",  Color.rgb(0xad, 0xd1, 0x9e));
-        mAreaColors.put("forestAreaPattern",  new ImagePattern(new Image("/images/forest.png"),0, 0, 24, 24, false));
-        mAreaColors.put("woodAreaColor",  Color.rgb(0xae, 0xd1, 0xa0));
+        mAreaColors.put("bridgeCasingColor", Color.rgb(0x50, 0x50, 0x50));
+        mAreaColors.put("accessWaysColor", Color.rgb(255, 0, 0, 0.4d));
+        mAreaColors.put("onewayWaysColor", Color.rgb(0, 0, 255, 0.4d));
+        mAreaColors.put("livingStreeColor", Color.rgb(0, 255, 0, 0.4d));
+        mAreaColors.put("waterColor", Color.rgb(0xaa, 0xd3, 0xdf));
+        mAreaColors.put("warningBackgroundColor", Color.rgb(255, 0, 0, 0.8d));
+        mAreaColors.put("naturalColor", Color.rgb(0x8d, 0xc5, 0x6c));
+        mAreaColors.put("forestAreaColor", Color.rgb(0xad, 0xd1, 0x9e));
+        mAreaColors.put("forestAreaPattern", new ImagePattern(new Image("/images/forest.png"), 0, 0, 24, 24, false));
+        mAreaColors.put("woodAreaColor", Color.rgb(0xae, 0xd1, 0xa0));
         mAreaColors.put("tourismUndefinedColor", Color.RED);
-        mAreaColors.put("tourismCampingAreaColor",  Color.rgb(0xcc, 0xff, 0x99));
-        mAreaColors.put("amenityParkingAreaColor",  Color.rgb(0xf7, 0xef, 0xb7));
+        mAreaColors.put("tourismCampingAreaColor", Color.rgb(0xcc, 0xff, 0x99));
+        mAreaColors.put("amenityParkingAreaColor", Color.rgb(0xf7, 0xef, 0xb7));
         mAreaColors.put("amenityUndefinedColor", Color.RED);
         mAreaColors.put("naturalUndefinedColor", Color.RED);
-        mAreaColors.put("buildingColor",  Color.rgb(0xbc, 0xa9, 0xa9, 0.8d));
-        mAreaColors.put("highwayAreaColor",  Color.rgb(255, 255, 255));
-        mAreaColors.put("railwayAreaColor",  Color.rgb(0xdf, 0xd1, 0xd6));
-        mAreaColors.put("railwayColor",  Color.rgb(0x90, 0x90, 0x90));
-        mAreaColors.put("landuseColor",  Color.rgb(150, 150, 150));
+        mAreaColors.put("buildingColor", Color.rgb(0xbc, 0xa9, 0xa9, 0.8d));
+        mAreaColors.put("highwayAreaColor", Color.rgb(255, 255, 255));
+        mAreaColors.put("railwayAreaColor", Color.rgb(0xdf, 0xd1, 0xd6));
+        mAreaColors.put("railwayColor", Color.rgb(0x90, 0x90, 0x90));
+        mAreaColors.put("landuseColor", Color.rgb(150, 150, 150));
         mAreaColors.put("landuseUndefinedColor", Color.RED);
-        mAreaColors.put("placeTagColor",  Color.rgb(78, 167, 255, 0.6d));
-        mAreaColors.put("residentialColor",  Color.rgb(0xdd, 0xdd, 0xdd));
-        mAreaColors.put("commercialColor",  Color.rgb(0xf2, 0xda, 0xd9));
-        mAreaColors.put("farmColor",  Color.rgb(0xee, 0xf0, 0xd5));
-        mAreaColors.put("grassColor",  Color.rgb(0xcd, 0xeb, 0xb0));
-        mAreaColors.put("greenfieldColor",  Color.rgb(0x9d, 0x9d, 0x6c));
-        mAreaColors.put("industrialColor",  Color.rgb(0xdf, 0xd1, 0xd6));
-        mAreaColors.put("aerowayColor",  Color.rgb(0xbb, 0xbb, 0xcc));
-        mAreaColors.put("aerowayAreaColor",  Color.rgb(0xdf, 0xd1, 0xd6));
-        mAreaColors.put("nightModeColor",  Color.rgb(120, 120, 120, 0.4d));
-        mAreaColors.put("villageGreenAreaColor",  Color.rgb(0xcd, 0xeb, 0xb0));
-        mAreaColors.put("cliffColor",  Color.DARKGRAY);
-        mAreaColors.put("militaryColor",  Color.rgb(0xff, 0x55, 0x55, 0.5d));
+        mAreaColors.put("placeTagColor", Color.rgb(78, 167, 255, 0.6d));
+        mAreaColors.put("residentialColor", Color.rgb(0xdd, 0xdd, 0xdd));
+        mAreaColors.put("commercialColor", Color.rgb(0xf2, 0xda, 0xd9));
+        mAreaColors.put("farmColor", Color.rgb(0xee, 0xf0, 0xd5));
+        mAreaColors.put("grassColor", Color.rgb(0xcd, 0xeb, 0xb0));
+        mAreaColors.put("greenfieldColor", Color.rgb(0x9d, 0x9d, 0x6c));
+        mAreaColors.put("industrialColor", Color.rgb(0xdf, 0xd1, 0xd6));
+        mAreaColors.put("aerowayColor", Color.rgb(0xbb, 0xbb, 0xcc));
+        mAreaColors.put("aerowayAreaColor", Color.rgb(0xdf, 0xd1, 0xd6));
+        mAreaColors.put("nightModeColor", Color.rgb(120, 120, 120, 0.4d));
+        mAreaColors.put("villageGreenAreaColor", Color.rgb(0xcd, 0xeb, 0xb0));
+        mAreaColors.put("cliffColor", Color.DARKGRAY);
+        mAreaColors.put("militaryColor", Color.rgb(0xff, 0x55, 0x55, 0.5d));
         mAreaColors.put("leisureUndefinedColor", Color.RED);
-        mAreaColors.put("farmyardColor",  Color.rgb(0xf5, 0xdc, 0xba));
-        mAreaColors.put("rockColor",  Color.rgb(0xc1, 0xbf, 0xbf));
-        mAreaColors.put("glacierColor",  Color.rgb(0xaa, 0xd3, 0xdf));
-        mAreaColors.put("beachColor",  Color.rgb(0xfc, 0xd6, 0xa4));
+        mAreaColors.put("farmyardColor", Color.rgb(0xf5, 0xdc, 0xba));
+        mAreaColors.put("rockColor", Color.rgb(0xc1, 0xbf, 0xbf));
+        mAreaColors.put("glacierColor", Color.rgb(0xaa, 0xd3, 0xdf));
+        mAreaColors.put("beachColor", Color.rgb(0xfc, 0xd6, 0xa4));
+
+        mNodeImages = new HashMap<>();
+        mNodeImages.put(OSMUtils.POI_TYPE_AIRPORT, new Image("/images/poi/airport.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_GAS_STATION, new Image("/images/poi/fillingstation.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_CAMPING, new Image("/images/poi/camping.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_DOG_PARK, new Image("/images/poi/dogs_leash.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_HOSPITAL, new Image("/images/poi/hospital.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_HOTEL, new Image("/images/poi/hotel.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_PARK, new Image("/images/poi/park.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_PARKING, new Image("/images/poi/parking.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_POLICE, new Image("/images/poi/police.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_SUPERMARKET, new Image("/images/poi/supermarket.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_ENFORCEMENT, new Image("/images/poi/trafficcamera.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_RAILWAYSTATION, new Image("/images/poi/train.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_VETERIANERY, new Image("/images/poi/veterinary.png"));
+    }
+
+    public static Image getNodeTypeImage(int nodeType) {
+        if (mNodeImages == null) {
+            init();
+        }
+        return mNodeImages.get(nodeType);
     }
 
     private static Color getStreetColor(int streetTypeId) {
         if (mStreetColors == null) {
-            initStreetColors();
+            init();
         }
         return mStreetColors.get(streetTypeId);
     }
@@ -93,7 +116,7 @@ public class OSMStyle {
 
     public static Paint getAreaColor(JsonObject area, int zoom) {
         if (mAreaColors == null) {
-            initStreetColors();
+            init();
         }
         int areaType = (int) area.get("areaType");
         if (areaType == OSMUtils.AREA_TYPE_BUILDING) {
@@ -268,6 +291,7 @@ public class OSMStyle {
         }
         return 1;
     }
+
     private static int getAdminLinePenWidthForZoom(int zoom) {
         if (zoom == 20) {
             return 8;
@@ -285,6 +309,19 @@ public class OSMStyle {
             return 2;
         }
         return 1;
+    }
+
+    public static int getPoiSizeForZoom(int zoom, int baseSize) {
+        if (zoom == 20) {
+            return (int) (baseSize * 2.5);
+        }
+        if (zoom == 19) {
+            return (int) (baseSize * 2.0);
+        }
+        if (zoom == 18) {
+            return (int) (baseSize * 1.5);
+        }
+        return baseSize;
     }
 
     public static void amendWay(JsonObject way, Shape wayLine, int zoom, boolean casing) {
