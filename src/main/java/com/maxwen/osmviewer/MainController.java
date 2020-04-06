@@ -22,6 +22,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.*;
+import javafx.scene.transform.NonInvertibleTransformException;
 import javafx.scene.transform.Rotate;
 import javafx.stage.FileChooser;
 import javafx.stage.Popup;
@@ -135,6 +136,7 @@ public class MainController implements Initializable, NMEAHandler {
     private JsonObject mLastUsedEdge;
     private OSMShape mTrackingShape;
     private long mTrackingOSMId = -1;
+
     public static final int TUNNEL_LAYER_LEVEL = -1;
     public static final int AREA_LAYER_LEVEL = 0;
     public static final int ADMIN_AREA_LAYER_LEVEL = 1;
@@ -164,7 +166,6 @@ public class MainController implements Initializable, NMEAHandler {
                     if (mMapZoom > 16) {
                         // getX and getY will be transformed pos
                         Point2D mapPos = new Point2D(mouseEvent.getX(), mouseEvent.getY());
-                        Point2D scenePos = new Point2D(mouseEvent.getSceneX(), mouseEvent.getSceneY());
 
                         Point2D coordPos = getCoordOfPos(mapPos);
                         if (!mTrackReplayMode && !mTrackMode) {
@@ -180,9 +181,9 @@ public class MainController implements Initializable, NMEAHandler {
                 mMovePoint = null;
 
                 if (mPressedShape != null) {
-                    mSelectdShape = mPressedShape;
+                    /*mSelectdShape = mPressedShape;
                     mSelectdShape.setSelected();
-                    mSelectdOSMId = mSelectdShape.getOSMId();
+                    mSelectdOSMId = mSelectdShape.getOSMId();*/
 
                     JsonObject osmObject = mOSMObjects.get(mSelectdOSMId);
                     if (osmObject != null) {
@@ -200,8 +201,7 @@ public class MainController implements Initializable, NMEAHandler {
                                 infoLabel.setText(s.toString().trim());
                             } else if (mSelectdShape instanceof OSMPolygon) {
                                 JsonObject tags = (JsonObject) osmObject.get("tags");
-                                if (tags != null ) {
-                                    LogUtils.log("" + tags);
+                                if (tags != null) {
                                     StringBuffer s = new StringBuffer();
                                     if (tags.containsKey("name")) {
                                         s.append((String) tags.get("name"));
@@ -751,19 +751,38 @@ public class MainController implements Initializable, NMEAHandler {
                 Point2D nodePos = new Point2D(posX, posY);
 
                 Image poiImage = OSMStyle.getNodeTypeImage(nodeType);
-                if (poiImage != null) {
-                    ImageView poi = new ImageView(poiImage);
-                    int size = OSMStyle.getPoiSizeForZoom(mMapZoom, 32);
-                    poi.setFitHeight(size);
-                    poi.setFitWidth(size);
-                    poi.setPreserveRatio(true);
-                    poi.setX(nodePos.getX() - poi.getFitWidth() / 2);
-                    poi.setY(nodePos.getY() - poi.getFitHeight());
-                    poi.setTranslateX(-mMapZeroX);
-                    poi.setTranslateY(-mMapZeroY);
-                    mPolylines.get(POI_LAYER_LEVEL).add(poi);
-                    mainPane.getChildren().add(poi);
+                if (poiImage == null) {
+                    System.out.println("" + node);
+                    poiImage = OSMStyle.getDefaultNodeImage();
                 }
+                ImageView poi = new ImageView(poiImage);
+                int size = OSMStyle.getPoiSizeForZoom(mMapZoom, 32);
+                poi.setFitHeight(size);
+                poi.setFitWidth(size);
+                poi.setPreserveRatio(true);
+                poi.setX(nodePos.getX() - poi.getFitWidth() / 2);
+                poi.setY(nodePos.getY() - poi.getFitHeight());
+                poi.setTranslateX(-mMapZeroX);
+                poi.setTranslateY(-mMapZeroY);
+                if (isShow3DActive()) {
+                    // TODO woud be nice to show in up position
+                }
+                poi.setOnMouseClicked(new EventHandler<MouseEvent>() {
+                    @Override
+                    public void handle(MouseEvent event) {
+                        System.out.println(node);
+                        JsonObject tags = (JsonObject) node.get("tags");
+                        if (tags != null) {
+                            StringBuffer s = new StringBuffer();
+                            if (tags.containsKey("name")) {
+                                s.append((String) tags.get("name"));
+                            }
+                            infoLabel.setText(s.toString().trim());
+                        }
+                    }
+                });
+                mPolylines.get(POI_LAYER_LEVEL).add(poi);
+                mainPane.getChildren().add(poi);
             }
         }
     }
@@ -988,7 +1007,7 @@ public class MainController implements Initializable, NMEAHandler {
             for (int i = polyList.size() - 1; i >= 0; i--) {
                 Node s = polyList.get(i);
                 if (s instanceof OSMPolygon) {
-                    if (areaTypes.size() == 0 || areaTypes.contains(((OSMPolygon) s).getAreaType())){
+                    if (areaTypes.size() == 0 || areaTypes.contains(((OSMPolygon) s).getAreaType())) {
                         if (s.contains(pos)) {
                             OSMPolygon polygon = new OSMPolygon((OSMPolygon) s);
                             polygon.getPoints().addAll(((OSMPolygon) s).getPoints());
@@ -1004,6 +1023,11 @@ public class MainController implements Initializable, NMEAHandler {
                         polyline.setTranslateX(-mMapZeroX);
                         polyline.setTranslateY(-mMapZeroY);
                         return polyline;
+                    }
+                } else if (s instanceof ImageView) {
+                    // POI images
+                    if (s.contains(pos)) {
+                        return null;
                     }
                 }
             }

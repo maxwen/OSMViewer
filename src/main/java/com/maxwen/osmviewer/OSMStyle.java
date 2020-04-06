@@ -18,6 +18,7 @@ public class OSMStyle {
     private static HashMap<Integer, Color> mStreetColors;
     private static HashMap<String, Paint> mAreaColors;
     private static HashMap<Integer, Image> mNodeImages;
+    private static final Image mDefaultNodeImage = new Image("/images/poi/star-3.png");
 
     private static void init() {
         mStreetColors = new HashMap<>();
@@ -97,6 +98,15 @@ public class OSMStyle {
         mNodeImages.put(OSMUtils.POI_TYPE_ENFORCEMENT, new Image("/images/poi/trafficcamera.png"));
         mNodeImages.put(OSMUtils.POI_TYPE_RAILWAYSTATION, new Image("/images/poi/train.png"));
         mNodeImages.put(OSMUtils.POI_TYPE_VETERIANERY, new Image("/images/poi/veterinary.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_BARRIER, new Image("/images/poi/barrier.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_CLINIC, new Image("/images/poi/hospital.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_DOCTOR, new Image("/images/poi/medicine.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_ATM, new Image("/images/poi/atm-2.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_BANK, new Image("/images/poi/bank_euro.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_PHARMACY, new Image("/images/poi/medicalstore.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_POST, new Image("/images/poi/postal.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_EDUCATION, new Image("/images/poi/school.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_PLACE, new Image("/images/poi/star-3.png"));
     }
 
     public static Image getNodeTypeImage(int nodeType) {
@@ -104,6 +114,10 @@ public class OSMStyle {
             init();
         }
         return mNodeImages.get(nodeType);
+    }
+
+    public static Image getDefaultNodeImage() {
+        return mDefaultNodeImage;
     }
 
     private static Color getStreetColor(int streetTypeId) {

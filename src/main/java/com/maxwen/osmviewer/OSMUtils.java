@@ -41,7 +41,7 @@ public class OSMUtils {
     public static final int POI_TYPE_BARRIER = 3;
     public static final int POI_TYPE_ENFORCEMENT_WAYREF = 4;
     public static final int POI_TYPE_GAS_STATION = 5;
-    public static final int POI_TYPE_ADDRESS = 6;
+    //public static final int POI_TYPE_ADDRESS = 6;
     public static final int POI_TYPE_PARKING = 7;
     public static final int POI_TYPE_PLACE = 8;
     public static final int POI_TYPE_HOSPITAL = 9;
@@ -55,6 +55,13 @@ public class OSMUtils {
     public static final int POI_TYPE_DOG_PARK = 17;
     public static final int POI_TYPE_NATURE_RESERVE = 18;
     public static final int POI_TYPE_HOTEL = 19;
+    public static final int POI_TYPE_DOCTOR = 20;
+    public static final int POI_TYPE_PHARMACY = 21;
+    public static final int POI_TYPE_CLINIC = 22;
+    public static final int POI_TYPE_BANK = 23;
+    public static final int POI_TYPE_ATM = 24;
+    public static final int POI_TYPE_POST = 25;
+    public static final int POI_TYPE_EDUCATION = 26;
 
     public static final String ADMIN_LEVEL_SET = "(2, 4, 6, 8)";
 
@@ -64,8 +71,6 @@ public class OSMUtils {
     public static final Set<String> NATURAL_WATER_TYPE_SET = Set.of("water", "riverbank", "wetland", "marsh", "mud");
     public static final Set<Integer> SELECT_AREA_TYPE = Set.of(AREA_TYPE_BUILDING, AREA_TYPE_AMENITY, AREA_TYPE_LEISURE, AREA_TYPE_TOURISM);
     public static final List<Integer> SELECT_POI_TYPE = List.of(POI_TYPE_GAS_STATION,
-            POI_TYPE_ADDRESS,
-            POI_TYPE_PARKING,
             POI_TYPE_PLACE,
             POI_TYPE_HOSPITAL,
             POI_TYPE_POLICE,
@@ -77,7 +82,14 @@ public class OSMUtils {
             POI_TYPE_PARK,
             POI_TYPE_DOG_PARK,
             POI_TYPE_NATURE_RESERVE,
-            POI_TYPE_HOTEL);
+            POI_TYPE_HOTEL,
+            POI_TYPE_DOCTOR,
+            POI_TYPE_PHARMACY,
+            POI_TYPE_CLINIC,
+            POI_TYPE_BANK,
+            POI_TYPE_ATM,
+            POI_TYPE_POST,
+            POI_TYPE_EDUCATION);
 
     public static boolean isValidOnewayEnter(int oneway, long crossingRef, JsonObject edge) {
 
