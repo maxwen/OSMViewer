@@ -162,7 +162,6 @@ public class MainController implements Initializable, NMEAHandler {
             Point2D nodePos = new Point2D(mouseEvent.getScreenX() - paneZeroPos.getX() + mMapZeroX,
                     mouseEvent.getScreenY() - paneZeroPos.getY() + mMapZeroY);
 
-            System.err.println("mouseHandler " + mapPos + " " + nodePos);
             if (mouseEvent.getEventType() == MouseEvent.MOUSE_PRESSED) {
                 mPressedShape = null;
                 if (mouseEvent.isPrimaryButtonDown()) {
@@ -432,6 +431,7 @@ public class MainController implements Initializable, NMEAHandler {
         menuItem.setOnAction(ev -> {
             mShow3D = !mShow3D;
             setTransforms();
+            drawShapes();
         });
         menuItem.setStyle("-fx-font-size: 20");
         mContextMenu.getItems().add(menuItem);
@@ -1135,8 +1135,6 @@ public class MainController implements Initializable, NMEAHandler {
             hasMoved = true;
         }
 
-
-        //System.out.println(hasMoved + " " + mTrackReplayMode + " " + gpsData.toJson());
         if ((force || hasMoved) && (mTrackMode || mTrackReplayMode)) {
             mGPSData = gpsData;
             if (!mTrackReplayMode) {
@@ -1186,13 +1184,13 @@ public class MainController implements Initializable, NMEAHandler {
                 if (mCurrentEdge == null) {
                     // #1 if we know nothing just pick the closest edge we can find in an area
                     // closest point of the edge with max 30m away
-                    System.out.println("search nearest edge");
+                    LogUtils.log(LogUtils.TAG_TRACKING,"search nearest edge");
                     JsonArray edgeList = DatabaseController.getInstance().getEdgeOnPos(mGPSPos.getX(), mGPSPos.getY(), 0.0005, 30, 20);
                     if (edgeList.size() != 0) {
-                        System.out.println("possible edges " + edgeList);
+                        LogUtils.log(LogUtils.TAG_TRACKING,"possible edges " + edgeList);
 
                         JsonObject edge = (JsonObject) edgeList.get(0);
-                        System.out.println("use minimal distance edge " + edge);
+                        LogUtils.log(LogUtils.TAG_TRACKING,"use minimal distance edge " + edge);
                         mCurrentEdge = edge;
                         mLastUsedEdge = mCurrentEdge;
                         foundEdge = true;
@@ -1209,12 +1207,12 @@ public class MainController implements Initializable, NMEAHandler {
                     List<Double> bbox = createBBoxAroundPoint(mGPSPos.getX(), mGPSPos.getY(), 0.00008);
                     Map<Long, JsonObject> edgeMap = DatabaseController.getInstance().getEdgesAroundPointWithGeom(bbox.get(0), bbox.get(1), bbox.get(2), bbox.get(3));
 
-                    System.out.println("getEdgesAroundPointWithGeom = " + edgeMap.keySet());
+                    LogUtils.log(LogUtils.TAG_TRACKING, "getEdgesAroundPointWithGeom = " + edgeMap.keySet());
                     boolean searchNextEdge = true;
                     if (mCurrentEdge != null) {
                         long currentEdgeId = (long) mCurrentEdge.get("edgeId");
                         if (edgeMap.containsKey(currentEdgeId)) {
-                            System.err.println("prefer current edge");
+                            LogUtils.log(LogUtils.TAG_TRACKING, "prefer current edge");
                             searchNextEdge = false;
                             foundEdge = true;
 
@@ -1239,7 +1237,7 @@ public class MainController implements Initializable, NMEAHandler {
                                 if (edgeMap.containsKey(edgeId)) {
                                     nextEdgeList.add(edge);
                                 } else {
-                                    System.err.println("remove prediction edge outside if possible edges " + edgeId);
+                                    LogUtils.log(LogUtils.TAG_TRACKING, "remove prediction edge outside if possible edges " + edgeId);
                                 }
                             }
                             mNextEdgeList = nextEdgeList;
@@ -1254,7 +1252,7 @@ public class MainController implements Initializable, NMEAHandler {
                                 // we have more then one edge with a close enough heading
                                 // instead of continue and maybe pick the wrong cancel this run
                                 // and wait for the next position and start with #1
-                                System.out.println("delay because multiple best heading matching edges: " + headingEdges.size());
+                                LogUtils.log(LogUtils.TAG_TRACKING,"delay because multiple best heading matching edges: " + headingEdges.size());
                                 // delay to resolve from pos in next round
                                 /*headingEdge = getClosestEdge(mGPSPos.getX(), mGPSPos.getY(), headingEdges, 30);
                                 if (headingEdge != null) {
@@ -1270,7 +1268,7 @@ public class MainController implements Initializable, NMEAHandler {
                                 headingEdgeId = (long) headingEdge.get("edgeId");
                                 nextEdge = headingEdge;
                                 foundNext = true;
-                                System.out.println("one best heading matching edge: " + headingEdgeId);
+                                LogUtils.log(LogUtils.TAG_TRACKING,"one best heading matching edge: " + headingEdgeId);
                             }
                             // filter out mNextEdgeList which edges are still in area
                             // the edges in mNextEdgeList are sorted with the best matching one
@@ -1319,10 +1317,10 @@ public class MainController implements Initializable, NMEAHandler {
                                 long nextEdgeId = (long) nextEdge.get("edgeId");
                                 if (headingEdgeId != -1) {
                                     if (headingEdgeId != nextEdgeId) {
-                                        System.out.println("headingEdgeId = " + headingEdgeId + " nextEdgeId = " + nextEdgeId);
+                                        LogUtils.log(LogUtils.TAG_TRACKING,"headingEdgeId = " + headingEdgeId + " nextEdgeId = " + nextEdgeId);
                                         nextEdge = headingEdge;
                                     } else {
-                                        System.out.println("best heading edge picked");
+                                        LogUtils.log(LogUtils.TAG_TRACKING,"best heading edge picked");
                                     }
                                 }
                                 long nextStartRef = (long) nextEdge.get("startRef");
@@ -1355,7 +1353,7 @@ public class MainController implements Initializable, NMEAHandler {
                 }
 
                 if (!foundEdge || mCurrentEdge == null) {
-                    System.err.println("no matching next edge found");
+                    LogUtils.log(LogUtils.TAG_TRACKING, "no matching next edge found");
                     mCurrentEdge = null;
                 } else {
                     if (mCurrentEdge != null) {
@@ -1379,7 +1377,6 @@ public class MainController implements Initializable, NMEAHandler {
                         }
                     }
                 }
-                //System.err.println("findEdge: " + (System.currentTimeMillis() - t));
 
                 return null;
             }
@@ -1417,14 +1414,14 @@ public class MainController implements Initializable, NMEAHandler {
                 if (mNextRefId != -1) {
                     if (oneway != 0) {
                         if (!OSMUtils.isValidOnewayEnter(oneway, mNextRefId, nextEdge)) {
-                            System.err.println("forbidden oneway enter " + nextEdge);
+                            LogUtils.log(LogUtils.TAG_TRACKING, "forbidden oneway enter " + nextEdge);
                             continue;
                         }
                     }
                     if (roundabout != 0) {
                         long startRef = (long) nextEdge.get("startRef");
                         if (mNextRefId != startRef) {
-                            System.err.println("forbidden roundabout left turn " + nextEdge);
+                            LogUtils.log(LogUtils.TAG_TRACKING, "forbidden roundabout left turn " + nextEdge);
                             continue;
                         }
                     }
@@ -1445,7 +1442,7 @@ public class MainController implements Initializable, NMEAHandler {
         ArrayList<Integer> qualityList = new ArrayList<>(predictionMap.keySet());
         Collections.sort(qualityList);
 
-        System.out.println("calPredicationWays currentEdge = " + currentEdgeId + " streetTypeId= " + currentStreetTypeId + " qualityList = " + qualityList);
+        LogUtils.log(LogUtils.TAG_TRACKING, "calPredicationWays currentEdge = " + currentEdgeId + " streetTypeId= " + currentStreetTypeId + " qualityList = " + qualityList);
 
         for (int i = qualityList.size() - 1; i >= 0; i--) {
             JsonArray edgeList = predictionMap.get(qualityList.get(i));
@@ -1454,7 +1451,7 @@ public class MainController implements Initializable, NMEAHandler {
                 int streetInfo = (int) nextEdge.get("streetInfo");
                 int streetTypeId = streetInfo & 15;
                 mNextEdgeList.add(nextEdge);
-                System.out.println("calPredicationWays nextEdge = " + nextEdge + " streetTypeId = " + streetTypeId);
+                LogUtils.log(LogUtils.TAG_TRACKING, "calPredicationWays nextEdge = " + nextEdge + " streetTypeId = " + streetTypeId);
             }
         }
     }
@@ -1610,7 +1607,7 @@ public class MainController implements Initializable, NMEAHandler {
                 diff2 = GISUtils.headingDiffAbsolute(bearing, heading2);
             }
 
-            System.out.println(diff1 + " " + diff2);
+            LogUtils.log(LogUtils.TAG_TRACKING, "getNextEdgeWithBestHeading " + diff1 + " " + diff2);
 
             if (diff1 < 30 || diff2 < 30) {
                 bestEdgeList.add(edge);
@@ -1680,7 +1677,7 @@ public class MainController implements Initializable, NMEAHandler {
         } else {
             mNextRefId = currEndRef;
         }
-        System.out.println("calcApproachingRef = " + mNextRefId);
+        LogUtils.log(LogUtils.TAG_TRACKING,"calcApproachingRef = " + mNextRefId);
     }
 
     private boolean isShow3DActive() {

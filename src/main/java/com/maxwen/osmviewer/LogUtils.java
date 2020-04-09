@@ -7,6 +7,8 @@ public class LogUtils {
     private final static Logger sLogger = Logger.getLogger("log");
     private static final ConsoleHandler sHandler = new ConsoleHandler();
 
+    public final static String TAG_TRACKING = "Tracking";
+
     static {
         sLogger.setUseParentHandlers(false);
         sLogger.addHandler(sHandler);
@@ -20,8 +22,12 @@ public class LogUtils {
         });
     }
 
+    public static void log(String tag, String message) {
+        sLogger.log(Level.INFO, tag + ":" + message);
+    }
+
     public static void log(String message) {
-        sLogger.log(Level.INFO, message);
+        log("Default", message);
     }
 
     public static void error(String message, Exception e) {

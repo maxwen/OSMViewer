@@ -41,7 +41,7 @@ public class DatabaseController {
         try {
             mEdgeConnection = connect("jdbc:sqlite:" + mDBHome + "/edge.db");
             mAreaConnection = connect("jdbc:sqlite:" + mDBHome + "/area.db");
-            mAddressConnection = connect("jdbc:sqlite:" + mDBHome + "adress.db");
+            mAddressConnection = connect("jdbc:sqlite:" + mDBHome + "/adress.db");
             mWaysConnection = connect("jdbc:sqlite:" + mDBHome + "/ways.db");
             mNodeConnection = connect("jdbc:sqlite:" + mDBHome + "/nodes.db");
             mAdminConnection = connect("jdbc:sqlite:" + mDBHome + "/admin.db");
@@ -80,7 +80,7 @@ public class DatabaseController {
         stmt.execute("PRAGMA cache_size=40000");
         stmt.execute("PRAGMA page_size=4096");
         stmt.execute("PRAGMA temp_store=MEMORY");
-        stmt.execute("SELECT load_extension('mod_spatialite.so')");
+        stmt.execute("SELECT load_extension('mod_spatialite')");
         stmt.close();
         return conn;
     }
