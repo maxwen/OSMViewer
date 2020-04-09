@@ -23,7 +23,7 @@ public class Main extends Application {
         mController = loader.getController();
         mController.setStage(primaryStage);
         primaryStage.setTitle("OSM");
-        mScene = new Scene(root, 1200, 800);
+        mScene = new Scene(root, 1200, 780);
         PerspectiveCamera camera = new PerspectiveCamera();
         mScene.setCamera(camera);
         // to get sizes in setScene

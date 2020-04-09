@@ -355,7 +355,7 @@ public class OSMStyle {
         }
 
         wayLine.setStrokeWidth(width);
-        wayLine.setSmooth(true);
+        //wayLine.setSmooth(true);
         if (isBridge == 1 || isTunnel == 1) {
             wayLine.setStrokeLineCap(StrokeLineCap.SQUARE);
         } else {
@@ -373,18 +373,18 @@ public class OSMStyle {
     public static void amendArea(JsonObject area, Shape areaLine, int zoom) {
         areaLine.setFill(getAreaColor(area, zoom));
         areaLine.setStroke(Color.LIGHTGRAY);
-        areaLine.setSmooth(true);
+        //areaLine.setSmooth(true);
     }
 
     public static void amendBuilding(JsonObject area, Shape areaLine, int zoom) {
         areaLine.setFill(getAreaColor(area, zoom));
         areaLine.setStroke(Color.LIGHTGRAY);
-        areaLine.setSmooth(true);
+        //areaLine.setSmooth(true);
     }
 
     public static void amendLineArea(JsonObject area, Shape areaLine, int zoom) {
         areaLine.setStroke(getAreaColor(area, zoom));
-        areaLine.setSmooth(true);
+        //areaLine.setSmooth(true);
     }
 
     public static void amendRailway(JsonObject area, Shape areaLine, int zoom) {
@@ -392,7 +392,7 @@ public class OSMStyle {
         double width = getRailwayPenWidthForZoom(zoom);
         areaLine.getStrokeDashArray().addAll(2 * width);
         areaLine.setStrokeWidth(width);
-        areaLine.setSmooth(true);
+        //areaLine.setSmooth(true);
     }
 
     public static void amendAdminLine(JsonObject adminLine, Shape areaLine, int zoom) {
@@ -401,6 +401,6 @@ public class OSMStyle {
         areaLine.getStrokeDashArray().addAll(2 * width);
         areaLine.setStroke(mAreaColors.get("adminAreaColor"));
         areaLine.setStrokeWidth(width);
-        areaLine.setSmooth(true);
+        //areaLine.setSmooth(true);
     }
 }
