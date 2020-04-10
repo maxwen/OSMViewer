@@ -332,10 +332,7 @@ public class OSMStyle {
         if (zoom == 19) {
             return (int) (baseSize * 2.0);
         }
-        if (zoom == 18) {
-            return (int) (baseSize * 1.5);
-        }
-        return baseSize;
+        return (int) (baseSize * 1.5);
     }
 
     public static void amendWay(JsonObject way, Shape wayLine, int zoom, boolean casing) {

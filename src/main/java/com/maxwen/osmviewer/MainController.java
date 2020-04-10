@@ -119,7 +119,6 @@ public class MainController implements Initializable, NMEAHandler {
     private OSMShape mSelectdShape;
     private long mSelectdOSMId = -1;
     private Map<Long, JsonObject> mOSMObjects;
-    private OSMShape mPressedShape;
     private Point2D mGPSPos = new Point2D(0, 0);
     private Circle mGPSDot;
     private JsonObject mGPSData;
@@ -162,42 +161,40 @@ public class MainController implements Initializable, NMEAHandler {
             Point2D nodePos = new Point2D(mouseEvent.getScreenX() - paneZeroPos.getX() + mMapZeroX,
                     mouseEvent.getScreenY() - paneZeroPos.getY() + mMapZeroY);
 
-            if (mouseEvent.getEventType() == MouseEvent.MOUSE_PRESSED) {
-                mPressedShape = null;
-                if (mouseEvent.isPrimaryButtonDown()) {
-                    if (mContextMenu.isShowing()) {
-                        mContextMenu.hide();
-                        return;
+            if (mouseEvent.getEventType() == MouseEvent.MOUSE_CLICKED) {
+                OSMShape clickedShape = null;
+                if (mContextMenu.isShowing()) {
+                    mContextMenu.hide();
+                    return;
+                }
+
+                if (mMapZoom > 16) {
+                    // mapPos will be transformed pos
+
+                    Point2D coordPos = getCoordOfPos(mapPos);
+                    if (!mTrackReplayMode && !mTrackMode) {
+                        posLabel.setText(String.format("%.5f:%.5f", coordPos.getX(), coordPos.getY()));
                     }
 
-                    if (mMapZoom > 16) {
-                        // mapPos will be transformed pos
-
-                        Point2D coordPos = getCoordOfPos(mapPos);
-                        if (!mTrackReplayMode && !mTrackMode) {
-                            posLabel.setText(String.format("%.5f:%.5f", coordPos.getX(), coordPos.getY()));
+                    // first check for poi nodes with screen pos
+                    for (OSMImageView node : mNodes) {
+                        if (node.contains(nodePos)) {
+                            clickedShape = node;
+                            break;
                         }
-
-                        // first check for poi nodes with screen pos
-                        for (OSMImageView node : mNodes) {
-                            if (node.contains(nodePos)) {
-                                mPressedShape = node;
-                                break;
-                            }
-                        }
-                        if (mPressedShape == null) {
-                            Point2D mapPosNormalized = new Point2D(mapPos.getX() + mMapZeroX, mapPos.getY() + mMapZeroY);
-                            mPressedShape = findShapeAtPoint(mapPosNormalized, OSMUtils.SELECT_AREA_TYPE);
-                        }
+                    }
+                    if (clickedShape == null) {
+                        Point2D mapPosNormalized = new Point2D(mapPos.getX() + mMapZeroX, mapPos.getY() + mMapZeroY);
+                        clickedShape = findShapeAtPoint(mapPosNormalized, OSMUtils.SELECT_AREA_TYPE);
                     }
                 }
-            } else if (mouseEvent.getEventType() == MouseEvent.MOUSE_RELEASED) {
+
                 mMouseMoving = false;
                 mMovePoint = null;
 
-                if (mPressedShape != null) {
-                     if (mPressedShape instanceof OSMImageView) {
-                        JsonObject poiNode = mOSMObjects.get(mPressedShape.getOSMId());
+                if (clickedShape != null) {
+                    if (clickedShape instanceof OSMImageView) {
+                        JsonObject poiNode = mOSMObjects.get(clickedShape.getOSMId());
                         if (poiNode != null) {
                             JsonObject tags = (JsonObject) poiNode.get("tags");
                             if (tags != null) {
@@ -210,45 +207,45 @@ public class MainController implements Initializable, NMEAHandler {
                         }
                         return;
                     }
-                    mSelectdShape = mPressedShape;
-                    mSelectdShape.setSelected();
-                    mSelectdOSMId = mSelectdShape.getOSMId();
+                    if (clickedShape instanceof OSMPolyline) {
+                        // only show ways as selected not areas
+                        mSelectdShape = clickedShape;
+                        mSelectdShape.setSelected();
+                        mSelectdOSMId = clickedShape.getOSMId();
+                    }
 
-                    JsonObject osmObject = mOSMObjects.get(mSelectdOSMId);
+                    JsonObject osmObject = mOSMObjects.get(clickedShape.getOSMId());
                     if (osmObject != null) {
-                        Platform.runLater(() -> {
-                            if (mSelectdShape instanceof OSMPolyline) {
-                                String name = (String) osmObject.get("name");
-                                String nameRef = (String) osmObject.get("nameRef");
-                                StringBuffer s = new StringBuffer();
-                                if (name != null) {
-                                    s.append(name);
+                        final StringBuffer s = new StringBuffer();
+                        if (clickedShape instanceof OSMPolyline) {
+                            String name = (String) osmObject.get("name");
+                            String nameRef = (String) osmObject.get("nameRef");
+                            if (name != null) {
+                                s.append(name);
+                            }
+                            if (nameRef != null) {
+                                s.append("  " + nameRef);
+                            }
+                        } else if (clickedShape instanceof OSMPolygon) {
+                            JsonObject tags = (JsonObject) osmObject.get("tags");
+                            if (tags != null) {
+                                if (tags.containsKey("name")) {
+                                    s.append((String) tags.get("name"));
                                 }
-                                if (nameRef != null) {
-                                    s.append("  " + nameRef);
-                                }
-                                infoLabel.setText(s.toString().trim());
-                            } else if (mSelectdShape instanceof OSMPolygon) {
-                                JsonObject tags = (JsonObject) osmObject.get("tags");
-                                if (tags != null) {
-                                    StringBuffer s = new StringBuffer();
-                                    if (tags.containsKey("name")) {
-                                        s.append((String) tags.get("name"));
-                                    }
-                                    if (tags.containsKey("addr:street")) {
-                                        s.append("  " + (String) tags.get("addr:street"));
-                                    }
-                                    infoLabel.setText(s.toString().trim());
+                                if (tags.containsKey("addr:street")) {
+                                    s.append("  " + (String) tags.get("addr:street"));
                                 }
                             }
+                        }
+                        Platform.runLater(() -> {
+                            infoLabel.setText(s.toString().trim());
                         });
+                        drawShapes();
                     }
-                    drawShapes();
                 }
             } else if (mouseEvent.getEventType() == MouseEvent.MOUSE_DRAGGED) {
                 if (mouseEvent.isPrimaryButtonDown()) {
                     mContextMenu.hide();
-                    mPressedShape = null;
                     if (System.currentTimeMillis() - mLastMoveHandled < 100) {
                         return;
                     }
@@ -403,8 +400,7 @@ public class MainController implements Initializable, NMEAHandler {
         });
 
         zoomLabel.setText(String.valueOf(mMapZoom));
-        mMapPane.setOnMousePressed(mouseHandler);
-        mMapPane.setOnMouseReleased(mouseHandler);
+        mMapPane.setOnMouseClicked(mouseHandler);
         mMapPane.setOnMouseDragged(mouseHandler);
 
         mContextMenu = new ContextMenu();
@@ -686,20 +682,20 @@ public class MainController implements Initializable, NMEAHandler {
 
         if (mMapZoom > 12) {
             JsonArray areas = DatabaseController.getInstance().getAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
-                    bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 10.0 : 0.0, mPolylines, this);
+                    bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mPolylines, this);
         }
 
         JsonArray ways = DatabaseController.getInstance().getWaysInBboxWithGeom(bbox.get(0), bbox.get(1),
-                bbox.get(2), bbox.get(3), getStreetTypeListForZoom(), mPolylines, this);
+                bbox.get(2), bbox.get(3), getStreetTypeListForZoom(), mMapZoom <= 12, mMapZoom <= 12 ? 20.0 : 0.0, mPolylines, this);
 
         if (mMapZoom > 12) {
             // railway rails are above ways if not bridge anyway
             JsonArray lineAreas = DatabaseController.getInstance().getLineAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
-                    bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 10.0 : 0.0, mPolylines, this);
+                    bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mPolylines, this);
         }
 
         JsonArray adminLines = DatabaseController.getInstance().getAdminLineInBboxWithGeom(bbox.get(0), bbox.get(1),
-                bbox.get(2), bbox.get(3), OSMUtils.ADMIN_LEVEL_SET, mMapZoom <= 14, mMapZoom <= 14 ? 10.0 : 0.0, mPolylines, this);
+                bbox.get(2), bbox.get(3), OSMUtils.ADMIN_LEVEL_SET, mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mPolylines, this);
 
         if (mSelectdOSMId != -1) {
             mSelectdShape = findShapeOfOSMId(mSelectdOSMId);
@@ -1184,13 +1180,13 @@ public class MainController implements Initializable, NMEAHandler {
                 if (mCurrentEdge == null) {
                     // #1 if we know nothing just pick the closest edge we can find in an area
                     // closest point of the edge with max 30m away
-                    LogUtils.log(LogUtils.TAG_TRACKING,"search nearest edge");
+                    LogUtils.log(LogUtils.TAG_TRACKING, "search nearest edge");
                     JsonArray edgeList = DatabaseController.getInstance().getEdgeOnPos(mGPSPos.getX(), mGPSPos.getY(), 0.0005, 30, 20);
                     if (edgeList.size() != 0) {
-                        LogUtils.log(LogUtils.TAG_TRACKING,"possible edges " + edgeList);
+                        LogUtils.log(LogUtils.TAG_TRACKING, "possible edges " + edgeList);
 
                         JsonObject edge = (JsonObject) edgeList.get(0);
-                        LogUtils.log(LogUtils.TAG_TRACKING,"use minimal distance edge " + edge);
+                        LogUtils.log(LogUtils.TAG_TRACKING, "use minimal distance edge " + edge);
                         mCurrentEdge = edge;
                         mLastUsedEdge = mCurrentEdge;
                         foundEdge = true;
@@ -1252,7 +1248,7 @@ public class MainController implements Initializable, NMEAHandler {
                                 // we have more then one edge with a close enough heading
                                 // instead of continue and maybe pick the wrong cancel this run
                                 // and wait for the next position and start with #1
-                                LogUtils.log(LogUtils.TAG_TRACKING,"delay because multiple best heading matching edges: " + headingEdges.size());
+                                LogUtils.log(LogUtils.TAG_TRACKING, "delay because multiple best heading matching edges: " + headingEdges.size());
                                 // delay to resolve from pos in next round
                                 /*headingEdge = getClosestEdge(mGPSPos.getX(), mGPSPos.getY(), headingEdges, 30);
                                 if (headingEdge != null) {
@@ -1268,7 +1264,7 @@ public class MainController implements Initializable, NMEAHandler {
                                 headingEdgeId = (long) headingEdge.get("edgeId");
                                 nextEdge = headingEdge;
                                 foundNext = true;
-                                LogUtils.log(LogUtils.TAG_TRACKING,"one best heading matching edge: " + headingEdgeId);
+                                LogUtils.log(LogUtils.TAG_TRACKING, "one best heading matching edge: " + headingEdgeId);
                             }
                             // filter out mNextEdgeList which edges are still in area
                             // the edges in mNextEdgeList are sorted with the best matching one
@@ -1317,10 +1313,10 @@ public class MainController implements Initializable, NMEAHandler {
                                 long nextEdgeId = (long) nextEdge.get("edgeId");
                                 if (headingEdgeId != -1) {
                                     if (headingEdgeId != nextEdgeId) {
-                                        LogUtils.log(LogUtils.TAG_TRACKING,"headingEdgeId = " + headingEdgeId + " nextEdgeId = " + nextEdgeId);
+                                        LogUtils.log(LogUtils.TAG_TRACKING, "headingEdgeId = " + headingEdgeId + " nextEdgeId = " + nextEdgeId);
                                         nextEdge = headingEdge;
                                     } else {
-                                        LogUtils.log(LogUtils.TAG_TRACKING,"best heading edge picked");
+                                        LogUtils.log(LogUtils.TAG_TRACKING, "best heading edge picked");
                                     }
                                 }
                                 long nextStartRef = (long) nextEdge.get("startRef");
@@ -1677,7 +1673,7 @@ public class MainController implements Initializable, NMEAHandler {
         } else {
             mNextRefId = currEndRef;
         }
-        LogUtils.log(LogUtils.TAG_TRACKING,"calcApproachingRef = " + mNextRefId);
+        LogUtils.log(LogUtils.TAG_TRACKING, "calcApproachingRef = " + mNextRefId);
     }
 
     private boolean isShow3DActive() {

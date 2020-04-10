@@ -12,7 +12,7 @@ javafx {
 group 'com.maxwen'
 version '1.0-SNAPSHOT'
 mainClassName = 'com.maxwen.osmviewer.Main'
-applicationDefaultJvmArgs = ["-Dosm.db.path=/home/maxl/Maps/osm/db", "-Xmx2048m", "-Djavafx.platform=gtk"]
+applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db", "-Xmx2048m", "-Djavafx.platform=gtk"]
 
 sourceSets.main {
     java {

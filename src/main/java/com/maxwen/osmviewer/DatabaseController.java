@@ -80,6 +80,7 @@ public class DatabaseController {
         stmt.execute("PRAGMA cache_size=40000");
         stmt.execute("PRAGMA page_size=4096");
         stmt.execute("PRAGMA temp_store=MEMORY");
+        stmt.execute("PRAGMA query_only=true");
         stmt.execute("SELECT load_extension('mod_spatialite')");
         stmt.close();
         return conn;
@@ -100,18 +101,22 @@ public class DatabaseController {
     }
 
     public JsonArray getWaysInBboxWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax,
-                                           List<Integer> typeFilterList, Map<Integer, List<Node>> polylines,
-                                           MainController controller) {
+                                           List<Integer> typeFilterList, boolean withSimplify, double tolerance,
+                                           Map<Integer, List<Node>> polylines,  MainController controller) {
         Statement stmt = null;
         JsonArray ways = new JsonArray();
 
         try {
             stmt = mWaysConnection.createStatement();
             ResultSet rs;
+            String geom = "AsText(geom)";
+            if (withSimplify) {
+                geom = String.format("AsText(Simplify(geom, %f))", tolerance);
+            }
             if (typeFilterList != null && typeFilterList.size() != 0) {
-                rs = stmt.executeQuery(String.format("SELECT wayId, tags, refs, streetInfo, name, ref, maxspeed, poiList, layer, AsText(geom) FROM wayTable WHERE ROWID IN (SELECT rowid FROM idx_wayTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) AND streetTypeId IN %s ORDER BY streetTypeId", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
+                rs = stmt.executeQuery(String.format("SELECT wayId, tags, refs, streetInfo, name, ref, maxspeed, poiList, layer, %s FROM wayTable WHERE ROWID IN (SELECT rowid FROM idx_wayTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) AND streetTypeId IN %s ORDER BY streetTypeId", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
             } else {
-                rs = stmt.executeQuery(String.format("SELECT wayId, tags, refs, streetInfo, name, ref, maxspeed, poiList, layer, AsText(geom) FROM wayTable WHERE ROWID IN (SELECT rowid FROM idx_wayTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) ORDER BY streetTypeId", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+                rs = stmt.executeQuery(String.format("SELECT wayId, tags, refs, streetInfo, name, ref, maxspeed, poiList, layer, %s FROM wayTable WHERE ROWID IN (SELECT rowid FROM idx_wayTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) ORDER BY streetTypeId", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
 
             while (rs.next()) {
