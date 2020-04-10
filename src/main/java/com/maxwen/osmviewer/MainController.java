@@ -162,6 +162,12 @@ public class MainController implements Initializable, NMEAHandler {
                     mouseEvent.getScreenY() - paneZeroPos.getY() + mMapZeroY);
 
             if (mouseEvent.getEventType() == MouseEvent.MOUSE_CLICKED) {
+                mMouseMoving = false;
+                mMovePoint = null;
+
+                if (!mouseEvent.isStillSincePress()){
+                    return;
+                }
                 OSMShape clickedShape = null;
                 if (mContextMenu.isShowing()) {
                     mContextMenu.hide();
@@ -188,9 +194,6 @@ public class MainController implements Initializable, NMEAHandler {
                         clickedShape = findShapeAtPoint(mapPosNormalized, OSMUtils.SELECT_AREA_TYPE);
                     }
                 }
-
-                mMouseMoving = false;
-                mMovePoint = null;
 
                 if (clickedShape != null) {
                     if (clickedShape instanceof OSMImageView) {
@@ -482,11 +485,6 @@ public class MainController implements Initializable, NMEAHandler {
         });
         menuItem.setStyle("-fx-font-size: 20");
         mContextMenu.getItems().add(menuItem);
-
-        mainPane.setOnContextMenuRequested((ev) -> {
-            mMapPos = new Point2D(ev.getX(), ev.getY());
-            mContextMenu.show(mainPane, ev.getScreenX(), ev.getScreenY());
-        });
 
         mGPSDot = new Circle();
         mGPSDot.setRadius(30);
