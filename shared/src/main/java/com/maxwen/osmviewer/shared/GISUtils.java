@@ -1,6 +1,10 @@
-package com.maxwen.osmviewer;
+package com.maxwen.osmviewer.shared;
 
 import com.github.cliftonlabs.json_simple.JsonArray;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class GISUtils {
     private static final int TILESIZE = 256;
@@ -206,5 +210,78 @@ public class GISUtils {
     public static int headingDiff(int heading1, int heading2) {
         int diff = heading1 - heading2 + 180;
         return diff % 360;
+    }
+
+    public static JsonArray createPointFromPointString(String pointStr) {
+        pointStr = pointStr.substring(6, pointStr.length() - 1);
+        String[] coordsPairs = pointStr.trim().split(" ");
+        JsonArray point = new JsonArray();
+        double lon = Double.valueOf(coordsPairs[0].trim());
+        point.add(lon);
+        double lat = Double.valueOf(coordsPairs[1].trim());
+        point.add(lat);
+        return point;
+    }
+
+    public static String createPointStringFromCoords(double lon, double lat) {
+        return "'POINT(" + lon + " " + lat + ")'";
+    }
+
+    public static JsonArray createCoordsFromLineString(String lineString) {
+        lineString = lineString.substring(11, lineString.length() - 1);
+        return parseCoords(lineString);
+    }
+
+    public static JsonArray parseCoords(String coordsStr) {
+        JsonArray coords = new JsonArray();
+        String[] pairs = coordsStr.split(",");
+        for (String pair : pairs) {
+            String[] coord = pair.trim().split(" ");
+            JsonArray c = new JsonArray();
+            double lon = Double.valueOf(coord[0].trim());
+            c.add(lon);
+            double lat = Double.valueOf(coord[1].trim());
+            c.add(lat);
+            coords.add(c);
+        }
+        return coords;
+    }
+
+    public static JsonArray createCoordsFromMultiPolygon(String coordsStr) {
+        JsonArray coords = new JsonArray();
+        String[] polyParts = coordsStr.split("\\)\\), \\(\\(");
+        if (polyParts.length == 1) {
+            String[] polyParts2 = coordsStr.split("\\), \\(");
+            for (String poly : polyParts2) {
+                coords.add(parseCoords(poly));
+            }
+        } else {
+            for (String poly : polyParts) {
+                String[] polyParts2 = poly.split("\\), \\(");
+                for (String innerPoly : polyParts2) {
+                    coords.add(parseCoords(innerPoly));
+                }
+            }
+        }
+        return coords;
+    }
+
+    public static JsonArray createCoordsFromPolygonString(String coordsStr) {
+        if (coordsStr.startsWith("MULTIPOLYGON(((")) {
+            return createCoordsFromMultiPolygon(coordsStr.substring("MULTIPOLYGON(((".length(), coordsStr.length() - 3));
+        } else if (coordsStr.startsWith("POLYGON((")) {
+            return createCoordsFromMultiPolygon(coordsStr.substring("POLYGON((".length(), coordsStr.length() - 2));
+        }
+        return new JsonArray();
+    }
+
+    public static List<Double> createBBoxAroundPoint(double lon, double lat, double margin) {
+        List<Double> bbox = new ArrayList<>();
+        double latRangeMax = lat + margin;
+        double lonRangeMax = lon + margin * 1.4;
+        double latRangeMin = lat - margin;
+        double lonRangeMin = lon - margin * 1.4;
+        Collections.addAll(bbox, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax);
+        return bbox;
     }
 }

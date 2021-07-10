@@ -1,4 +1,4 @@
-package com.maxwen.osmviewer;
+package com.maxwen.osmviewer.shared;
 
 import com.github.cliftonlabs.json_simple.JsonObject;
 

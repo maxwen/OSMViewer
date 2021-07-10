@@ -1,6 +1,7 @@
 package com.maxwen.osmviewer;
 
 import com.github.cliftonlabs.json_simple.JsonObject;
+import com.maxwen.osmviewer.shared.OSMUtils;
 import javafx.scene.effect.BlurType;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.image.Image;

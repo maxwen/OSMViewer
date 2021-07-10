@@ -1,0 +1,143 @@
+{
+  "TOURISM_AREA_TYPE_SET": [
+    "motel",
+    "caravan_site",
+    "camp_site",
+    "hotel",
+    "guest_house"
+  ],
+  "AMENITY_AREA_TYPE_SET": [
+    "parking",
+    "grave_yard"
+  ],
+  "SHOP_POI_TYPE_DICT": {
+    "supermarket": 11,
+    "department_store": 11,
+    "convenience": 11
+  },
+  "STREET_TYPE_DICT": {
+    "unclassified": 7,
+    "tertiary_link": 1,
+    "primary_link": 3,
+    "tertiary": 10,
+    "living_street": 8,
+    "motorway_link": 5,
+    "trunk": 13,
+    "motorway": 14,
+    "secondary": 11,
+    "residential": 9,
+    "road": 6,
+    "service": 0,
+    "secondary_link": 2,
+    "trunk_link": 4,
+    "primary": 12
+  },
+  "HIGHWAY_POI_TYPE_DICT": {
+    "speed_camera": 1,
+    "motorway_junction": 2
+  },
+  "TOURISM_POI_TYPE_DICT": {
+    "motel": 19,
+    "caravan_site": 15,
+    "camp_site": 15,
+    "hotel": 19,
+    "guest_house": 19
+  },
+  "AMENITY_POI_TYPE_DICT": {
+    "parking": 7,
+    "college": 26,
+    "kindergarten": 26,
+    "fuel": 5,
+    "university": 26,
+    "post_office": 25,
+    "veterinary": 14,
+    "dentist": 20,
+    "doctor": 20,
+    "bank": 23,
+    "police": 10,
+    "school": 26,
+    "pharmacy": 21,
+    "clinic": 22,
+    "atm": 24,
+    "hospital": 9
+  },
+  "LEISURE_AREA_TYPE_SET": [
+    "nature_reserve",
+    "park",
+    "dog_park"
+  ],
+  "BOUNDARY_TYPE_SET": [
+    "administrative"
+  ],
+  "BARIER_NODES_TYPE_SET": [
+    "lift_gate",
+    "chain",
+    "fence",
+    "block",
+    "bollard"
+  ],
+  "LEISURE_POI_TYPE_DICT": {
+    "nature_reserve": 18,
+    "park": 16,
+    "dog_park": 17
+  },
+  "RAILWAY_AREA_TYPE_SET": [
+    "rail"
+  ],
+  "REQUIRED_NODE_TAGS_SET": [
+    "website",
+    "wikipedia",
+    "url",
+    "addr:street",
+    "ref",
+    "place",
+    "name"
+  ],
+  "AEROWAY_AREA_TYPE_SET": [
+    "runway",
+    "apron",
+    "taxiway",
+    "aerodrome"
+  ],
+  "REQUIRED_AREA_TAGS_SET": [
+    "addr:street",
+    "bridge",
+    "highway",
+    "url",
+    "tourism",
+    "aeroway",
+    "amenity",
+    "tunnel",
+    "name",
+    "wikipedia",
+    "ref",
+    "leisure",
+    "waterway",
+    "landuse",
+    "website",
+    "railway",
+    "building",
+    "natural"
+  ],
+  "REQUIRED_HIGHWAY_TAGS_SET": [
+    "motorcar",
+    "service",
+    "motor_vehicle",
+    "access",
+    "lanes",
+    "vehicle"
+  ],
+  "PLACE_NODES_TYPE_SET": [
+    "town",
+    "suburb",
+    "city",
+    "village",
+    "hamlet"
+  ],
+  "RAILWAY_POI_TYPE_DICT": {
+    "station": 13
+  },
+  "AEROWAY_POI_TYPE_DICT": {
+    "aerodrome": 12
+  }
+}
