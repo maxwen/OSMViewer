@@ -1,2 +1,5 @@
 rootProject.name = 'OSMViewer'
+include 'importer'
+include 'shared'
+include 'viewer'
 
