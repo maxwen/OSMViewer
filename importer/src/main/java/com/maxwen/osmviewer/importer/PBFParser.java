@@ -18,7 +18,7 @@ public class PBFParser {
 
     private void parseSecondPass(final String file) throws IOException {
         LogUtils.log("parseSecondPass " + file);
-        /*ImportController.getInstance().reopenCoordsDBReadOnly();
+        ImportController.getInstance().reopenCoordsDBReadOnly();
         final FileInputStream input = new FileInputStream(new File(file));
         new ParallelBinaryParser(input, 4)
                 .onWay(this::addWay)
@@ -27,7 +27,7 @@ public class PBFParser {
                     public void run() {
                     }
                 })
-                .parse();*/
+                .parse();
     }
 
     public void parseFile(final String file) throws IOException {

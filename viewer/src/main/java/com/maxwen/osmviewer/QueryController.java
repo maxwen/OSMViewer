@@ -118,9 +118,9 @@ public class QueryController {
                 geom = String.format("AsText(Simplify(geom, %f))", tolerance);
             }
             if (typeFilterList != null && typeFilterList.size() != 0) {
-                rs = stmt.executeQuery(String.format("SELECT wayId, tags, refs, streetInfo, name, ref, maxspeed, poiList, layer, %s FROM wayTable WHERE ROWID IN (SELECT rowid FROM idx_wayTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) AND streetTypeId IN %s ORDER BY streetTypeId", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
+                rs = stmt.executeQuery(String.format("SELECT wayId, tags, refs, streetInfo, name, ref, maxspeed, poiList, layer, %s FROM wayTable WHERE ROWID IN (SELECT rowid FROM cache_wayTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND streetTypeId IN %s ORDER BY streetTypeId", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
             } else {
-                rs = stmt.executeQuery(String.format("SELECT wayId, tags, refs, streetInfo, name, ref, maxspeed, poiList, layer, %s FROM wayTable WHERE ROWID IN (SELECT rowid FROM idx_wayTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) ORDER BY streetTypeId", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+                rs = stmt.executeQuery(String.format("SELECT wayId, tags, refs, streetInfo, name, ref, maxspeed, poiList, layer, %s FROM wayTable WHERE ROWID IN (SELECT rowid FROM cache_wayTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ORDER BY streetTypeId", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
 
             while (rs.next()) {
@@ -225,9 +225,9 @@ public class QueryController {
                 geom = String.format("AsText(Simplify(geom, %f))", tolerance);
             }
             if (typeFilterList != null && typeFilterList.size() != 0) {
-                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaTable WHERE ROWID IN (SELECT rowid FROM idx_areaTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) AND type IN %s ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
+                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaTable WHERE ROWID IN (SELECT rowid FROM cache_areaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND type IN %s ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
             } else {
-                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaTable WHERE ROWID IN (SELECT rowid FROM idx_areaTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaTable WHERE ROWID IN (SELECT rowid FROM cache_areaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
 
             while (rs.next()) {
@@ -299,9 +299,9 @@ public class QueryController {
             }
 
             if (typeFilterList != null && typeFilterList.size() != 0) {
-                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaLineTable WHERE ROWID IN (SELECT rowid FROM idx_areaLineTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) AND type IN %s ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
+                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaLineTable WHERE ROWID IN (SELECT rowid FROM cache_areaLineTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND type IN %s ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
             } else {
-                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaLineTable WHERE ROWID IN (SELECT rowid FROM idx_areaLineTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaLineTable WHERE ROWID IN (SELECT rowid FROM cache_areaLineTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
             while (rs.next()) {
                 JsonObject area = new JsonObject();
@@ -377,9 +377,9 @@ public class QueryController {
                 geom = String.format("AsText(Simplify(geom, %f))", tolerance);
             }
             if (typeFilterString != null) {
-                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, %s FROM adminLineTable WHERE ROWID IN (SELECT rowid FROM idx_adminLineTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) AND adminLevel IN %s", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, typeFilterString));
+                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, %s FROM adminLineTable WHERE ROWID IN (SELECT rowid FROM cache_adminLineTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND adminLevel IN %s", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, typeFilterString));
             } else {
-                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, %s FROM adminLineTable WHERE ROWID IN (SELECT rowid FROM idx_adminLineTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f))", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, %s FROM adminLineTable WHERE ROWID IN (SELECT rowid FROM cache_adminLineTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
             while (rs.next()) {
                 JsonObject adminLine = new JsonObject();
@@ -413,9 +413,9 @@ public class QueryController {
             stmt = mAdminConnection.createStatement();
             ResultSet rs;
             if (adminLevelList != null && adminLevelList.length() != 0) {
-                rs = stmt.executeQuery(String.format("SELECT osmId, tags, adminLevel, AsText(geom) FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM idx_adminAreaTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) AND adminLevel IN %s AND Contains(geom, MakePoint(%f, %f, 4236)) ORDER BY adminLevel", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, adminLevelList, lon, lat));
+                rs = stmt.executeQuery(String.format("SELECT osmId, tags, adminLevel, AsText(geom) FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND adminLevel IN %s AND Contains(geom, MakePoint(%f, %f, 4236)) ORDER BY adminLevel", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, adminLevelList, lon, lat));
             } else {
-                rs = stmt.executeQuery(String.format("SELECT osmId, tags, adminLevel, AsText(geom) FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM idx_adminAreaTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) AND adminLevel IN %s AND Contains(geom, MakePoint(%f, %f, 4236))", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, lon, lat));
+                rs = stmt.executeQuery(String.format("SELECT osmId, tags, adminLevel, AsText(geom) FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND adminLevel IN %s AND Contains(geom, MakePoint(%f, %f, 4236))", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, lon, lat));
             }
             while (rs.next()) {
                 JsonObject area = new JsonObject();
@@ -453,7 +453,7 @@ public class QueryController {
         Map<Long, JsonObject> edgeMap= new HashMap<>();
         try {
             stmt = mEdgeConnection.createStatement();
-            ResultSet rs = stmt.executeQuery(String.format("SELECT id, startRef, endRef, length, wayId, source, target, cost, reverseCost, streetInfo, AsText(geom) FROM edgeTable WHERE ROWID IN (SELECT rowid FROM idx_edgeTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f))", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+            ResultSet rs = stmt.executeQuery(String.format("SELECT id, startRef, endRef, length, wayId, source, target, cost, reverseCost, streetInfo, AsText(geom) FROM edgeTable WHERE ROWID IN (SELECT rowid FROM cache_edgeTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
 
             while (rs.next()) {
                 JsonObject edge = new JsonObject();
@@ -586,9 +586,9 @@ public class QueryController {
             ResultSet rs;
 
             if (typeFilterList != null && typeFilterList.size() != 0) {
-                rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE ROWID IN (SELECT rowid FROM idx_poiRefTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f)) AND type IN %s", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
+                rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE ROWID IN (SELECT rowid FROM cache_poiRefTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND type IN %s", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
             } else {
-                rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE ROWID IN (SELECT rowid FROM idx_poiRefTable_geom WHERE rowid MATCH RTreeIntersects(%f, %f, %f, %f))", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+                rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE ROWID IN (SELECT rowid FROM cache_poiRefTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
 
             while (rs.next()) {

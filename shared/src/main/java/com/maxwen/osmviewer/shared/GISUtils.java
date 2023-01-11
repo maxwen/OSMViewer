@@ -1,6 +1,7 @@
 package com.maxwen.osmviewer.shared;
 
 import com.github.cliftonlabs.json_simple.JsonArray;
+import com.github.cliftonlabs.json_simple.JsonObject;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -230,6 +231,37 @@ public class GISUtils {
     public static JsonArray createCoordsFromLineString(String lineString) {
         lineString = lineString.substring(11, lineString.length() - 1);
         return parseCoords(lineString);
+    }
+
+    public static String createCoordsString(JsonArray coords) {
+        // { ref, lon, lat)
+        StringBuffer sb = new StringBuffer();
+        coords.stream().sequential().forEach(entry -> {
+            JsonObject obj = (JsonObject) entry;
+            sb.append(obj.get("lon") + " " + obj.get("lat") + ",");
+        });
+        return sb.toString();
+    }
+
+    public static String createLineStringFromCoords(JsonArray coords) {
+        String lineString = "'LINESTRING(";
+        String coordString = createCoordsString(coords);
+        coordString = coordString.substring(0, coordString.length() - 1);
+        return lineString + coordString + ")'";
+    }
+
+    public static String createPolygonFromCoords(JsonArray coords) {
+        String lineString = "'POLYGON((";
+        String coordString = createCoordsString(coords);
+        coordString = coordString.substring(0, coordString.length() - 1);
+        return lineString + coordString + "))'";
+    }
+
+    public static String createMultiPolygonFromCoords(JsonArray coords) {
+        String lineString = "'MULTIPOLYGON(((";
+        String coordString = createCoordsString(coords);
+        coordString = coordString.substring(0, coordString.length() - 1);
+        return lineString + coordString + ")))'";
     }
 
     public static JsonArray parseCoords(String coordsStr) {

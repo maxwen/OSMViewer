@@ -23,9 +23,9 @@ public class ImportMapping {
     private static Set<String> REQUIRED_NODE_TAGS_SET = Set.of("name", "ref", "place", "website", "url", "wikipedia", "addr:street");
 
     private static Map<String, Integer> RAILWAY_POI_TYPE_DICT = Map.of("station", POI_TYPE_RAILWAYSTATION);
-    private static Set<String> RAILWAY_AREA_TYPE_SET = Set.of("rail");
+    public static Set<String> RAILWAY_AREA_TYPE_SET = Set.of("rail");
     private static Map<String, Integer> AEROWAY_POI_TYPE_DICT = Map.of("aerodrome", POI_TYPE_AIRPORT);
-    private static Set<String> AEROWAY_AREA_TYPE_SET = Set.of("runway", "taxiway", "apron", "aerodrome");
+    public static Set<String> AEROWAY_AREA_TYPE_SET = Set.of("runway", "taxiway", "apron", "aerodrome");
 
     private static Set<String> BARIER_NODES_TYPE_SET = Set.of("bollard", "block", "chain", "fence", "lift_gate");
     private static Set<String> BOUNDARY_TYPE_SET = Set.of("administrative");
@@ -33,7 +33,7 @@ public class ImportMapping {
 
     private static Map<String, Integer> AMENITY_POI_TYPE_DICT;
 
-    private static Set<String> AMENITY_AREA_TYPE_SET = Set.of("parking", "grave_yard");
+    public static Set<String> AMENITY_AREA_TYPE_SET = Set.of("parking", "grave_yard");
 
     private static Map<String, Integer> TOURISM_POI_TYPE_DICT = Map.of(
             "camp_site", POI_TYPE_CAMPING,
@@ -42,14 +42,14 @@ public class ImportMapping {
             "motel", POI_TYPE_HOTEL,
             "guest_house", POI_TYPE_HOTEL
     );
-    private static Set<String> TOURISM_AREA_TYPE_SET = Set.of("camp_site", "caravan_site", "hotel", "motel", "guest_house");
+    public static Set<String> TOURISM_AREA_TYPE_SET = Set.of("camp_site", "caravan_site", "hotel", "motel", "guest_house");
 
     private static Map<String, Integer> LEISURE_POI_TYPE_DICT = Map.of(
             "park", POI_TYPE_PARK,
             "dog_park", POI_TYPE_DOG_PARK,
             "nature_reserve", POI_TYPE_NATURE_RESERVE);
 
-    private static Set<String> LEISURE_AREA_TYPE_SET = Set.of("dog_park", "park", "nature_reserve");
+    public static Set<String> LEISURE_AREA_TYPE_SET = Set.of("dog_park", "park", "nature_reserve");
 
     private static Map<String, Integer> SHOP_POI_TYPE_DICT = Map.of(
             "supermarket", POI_TYPE_SUPERMARKET,
@@ -71,6 +71,9 @@ public class ImportMapping {
     private Map<String, BigDecimal> mAerowayPOITypeDict;
     private Set<String> mPlaceNodeTypeSet;
     private Set<String> mBarrierNodeTypeSet;
+    private Set<String> mRequiredHighwayTags;
+    private Map<String, BigDecimal> mStreetTypeDict;
+    private Set<String> mRequiredAreaTags;
 
     public static ImportMapping getInstance() {
         if (sInstance == null) {
@@ -117,6 +120,16 @@ public class ImportMapping {
 
                 mBarrierNodeTypeSet = new HashSet<>();
                 mBarrierNodeTypeSet.addAll((Collection<String>) mProp.get("BARIER_NODES_TYPE_SET"));
+
+                mRequiredHighwayTags = new HashSet<>();
+                mRequiredHighwayTags.addAll((Collection<String>) mProp.get("REQUIRED_HIGHWAY_TAGS_SET"));
+
+                mStreetTypeDict = new HashMap<>();
+                mStreetTypeDict.putAll((Map<String, BigDecimal>) mProp.get("STREET_TYPE_DICT"));
+
+                mRequiredAreaTags = new HashSet<>();
+                mRequiredAreaTags.addAll((Collection<String>) mProp.get("REQUIRED_AREA_TAGS_SET"));
+
                 reader.close();
                 LogUtils.log("Mapping loaded");
             } catch (Exception e) {
@@ -203,6 +216,14 @@ public class ImportMapping {
         return mRequiredNodeTags;
     }
 
+    public Set<String> getRequiredHighwayTags() {
+        return mRequiredHighwayTags;
+    }
+
+    public Set<String> getRequiredAreaTags() {
+        return mRequiredAreaTags;
+    }
+
     public int getHighwayNodeTypeId(String nodeTag) {
         BigDecimal o = mHighwayPOITypeDict.get(nodeTag);
         return o == null ? -1 : o.intValue();
@@ -239,5 +260,10 @@ public class ImportMapping {
 
     public boolean isUsableBarrierNodeType(String nodeTag) {
         return mBarrierNodeTypeSet.contains(nodeTag);
+    }
+
+    public int getStreetTypeId(String nodeTag) {
+        BigDecimal o = mStreetTypeDict.get(nodeTag);
+        return o == null ? -1 : o.intValue();
     }
 }

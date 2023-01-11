@@ -63,12 +63,31 @@ public class OSMUtils {
     public static final int POI_TYPE_POST = 25;
     public static final int POI_TYPE_EDUCATION = 26;
 
-    public static final String ADMIN_LEVEL_SET = "(2, 4, 6, 8)";
+    public static final int CROSSING_TYPE_NONE = -1;
+    public static final int CROSSING_TYPE_NORMAL = 0;
+    public static final int CROSSING_TYPE_MOTORWAY_EXIT = 2;
+    public static final int CROSSING_TYPE_ROUNDABOUT_ENTER = 3;
+    public static final int CROSSING_TYPE_ROUNDABOUT_EXIT = 4;
+    public static final int CROSSING_TYPE_LINK_START = 7;
+    public static final int CROSSING_TYPE_LINK_END = 8;
+    public static final int CROSSING_TYPE_LINK_LINK = 9;
+    public static final int CROSSING_TYPE_FORBIDDEN = 42;
+    public static final int CROSSING_TYPE_START = 98;
+    public static final int CROSSING_TYPE_END = 99;
+    public static final int CROSSING_TYPE_BARRIER = 10;
 
+    public static final String ADMIN_LEVEL_SET = "(2, 4, 6, 8)";
     public static final Set<String> LANDUSE_NATURAL_TYPE_SET = Set.of("forest", "grass", "field", "farm", "farmland", "meadow",
             "greenfield", "brownfield", "farmyard", "recreation_ground", "village_green", "allotments", "orchard");
     public static final Set<String> LANDUSE_WATER_TYPE_SET = Set.of("reservoir", "basin", "water");
+
     public static final Set<String> NATURAL_WATER_TYPE_SET = Set.of("water", "riverbank", "wetland", "marsh", "mud");
+
+    public static final Set<String> WATERWAY_TYPE_SET = Set.of("riverbank", "river", "stream", "drain", "ditch");
+    public static final Set<String> NATURAL_TYPE_SET = Set.of("water", "wood", "tree", "forest", "riverbank", "fell", "scrub", "heath",
+                                   "grassland", "wetland", "scree", "marsh", "mud", "cliff", "glacier", "rock", "beach");
+    public static final Set<String> LANDUSE_TYPE_SET = Set.of("forest", "grass", "field", "farm", "farmland", "farmyard", "meadow", "residential", "greenfield", "brownfield", "commercial", "industrial", "railway", "water", "reservoir", "basin", "cemetery", "military", "recreation_ground", "village_green", "allotments", "orchard", "retail", "quarry");
+
     public static final Set<Integer> SELECT_AREA_TYPE = Set.of(AREA_TYPE_BUILDING, AREA_TYPE_AMENITY, AREA_TYPE_LEISURE, AREA_TYPE_TOURISM);
     public static final List<Integer> SELECT_POI_TYPE = List.of(POI_TYPE_GAS_STATION,
             POI_TYPE_PLACE,

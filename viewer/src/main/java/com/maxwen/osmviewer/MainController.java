@@ -38,7 +38,7 @@ import java.net.URL;
 import java.util.*;
 
 public class MainController implements Initializable, NMEAHandler {
-    public static final int ROTATE_X_VALUE = 60;
+    public static final int ROTATE_X_VALUE = 45;
     public static final int PREFETCH_MARGIN_PIXEL = 800;
     @FXML
     Button quitButton;
