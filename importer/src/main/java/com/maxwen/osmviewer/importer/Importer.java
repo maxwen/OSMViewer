@@ -40,7 +40,7 @@ public class Importer {
     public void parse() {
         try {
             PBFParser parser = new PBFParser();
-            parser.parseFile("/home/maxl/Downloads/geofabrik/austria-latest.osm.pbf");
+            parser.parseFile("/home/maxl/Downloads/geofabrik/liechtenstein-latest.osm.pbf");
         } catch (IOException e){
             LogUtils.error("parse", e);
         }
@@ -51,8 +51,10 @@ public class Importer {
         i.init();
         i.create();
         i.parse();
-        //LogUtils.log("createCrossingEntries");
-        //ImportController.getInstance().createCrossingEntries();
+        LogUtils.log("createCrossingEntries");
+        ImportController.getInstance().createCrossingEntries();
+        LogUtils.log("createEdgeTableEntries");
+        ImportController.getInstance().createEdgeTableEntries();
         i.quit();
     }
 

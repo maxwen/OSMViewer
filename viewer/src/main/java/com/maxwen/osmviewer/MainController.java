@@ -36,6 +36,8 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainController implements Initializable, NMEAHandler {
     public static final int ROTATE_X_VALUE = 45;
@@ -141,6 +143,10 @@ public class MainController implements Initializable, NMEAHandler {
     private long mTrackingOSMId = -1;
     private Pane mMapPane = new Pane();
     private Pane mNodePane = new Pane();
+    private ExecutorService mExecutorService;
+    private LoadPOITask mLoadPOITask;
+    private LoadAdminAreaTask mLoadAdminAreaTask;
+    private Map<Integer, List<Node>> mAreaPolylines;
 
     public static final int TUNNEL_LAYER_LEVEL = -1;
     public static final int AREA_LAYER_LEVEL = 0;
@@ -168,7 +174,7 @@ public class MainController implements Initializable, NMEAHandler {
                 mMouseMoving = false;
                 mMovePoint = null;
 
-                if (!mouseEvent.isStillSincePress()){
+                if (!mouseEvent.isStillSincePress()) {
                     return;
                 }
                 OSMShape clickedShape = null;
@@ -275,6 +281,89 @@ public class MainController implements Initializable, NMEAHandler {
     };
     private Circle mCalcPoint;
 
+    public class LoadPOITask extends LoadMapTask {
+        public Point2D paneZeroPos;
+
+        public LoadPOITask(List<Double> bbox, Point2D paneZeroPos) {
+            super(bbox);
+            this.paneZeroPos = paneZeroPos;
+        }
+
+        @Override
+        protected Void call() throws Exception {
+            LogUtils.log("LoadPOITask " + bbox);
+
+            mNodes.clear();
+            if (isCancelled()) {
+                LogUtils.log("LoadPOITask cancel");
+                return null;
+            }
+
+            try {
+                JsonArray nodes = QueryController.getInstance().getPOINodesInBBoxWithGeom(bbox.get(0), bbox.get(1),
+                        bbox.get(2), bbox.get(3), getPoiTypeListForZoom(), MainController.this);
+                for (int i = 0; i < nodes.size(); i++) {
+                    if (isCancelled() || Thread.interrupted()) {
+                        throw new InterruptedException();
+                    }
+                    JsonObject node = (JsonObject) nodes.get(i);
+                    long osmId = (long) node.get("osmId");
+                    int nodeType = (int) node.get("nodeType");
+                    JsonArray coord = (JsonArray) node.get("coords");
+                    Double posX = getPixelXPosForLocationDeg(coord.getDouble(0));
+                    Double posY = getPixelYPosForLocationDeg(coord.getDouble(1));
+
+                    Point2D nodePos = new Point2D(posX, posY);
+                    Image poiImage = OSMStyle.getNodeTypeImage(nodeType);
+                    if (poiImage == null) {
+                        System.out.println("" + node);
+                        poiImage = OSMStyle.getDefaultNodeImage();
+                    }
+                    OSMImageView poi = new OSMImageView(nodePos, poiImage, osmId);
+                    int size = OSMStyle.getPoiSizeForZoom(mMapZoom, 32);
+                    poi.setFitHeight(size);
+                    poi.setFitWidth(size);
+                    poi.setPreserveRatio(true);
+
+                    Point2D pos = calcNodePanePos(nodePos, paneZeroPos);
+                    poi.setX(pos.getX() - poi.getFitWidth() / 2);
+                    poi.setY(pos.getY() - poi.getFitHeight());
+                    poi.setTranslateX(-mMapZeroX);
+                    poi.setTranslateY(-mMapZeroY);
+
+                    mNodes.add(poi);
+                }
+            } catch (InterruptedException e) {
+                LogUtils.log("LoadPOITask interrupted");
+                mNodes.clear();
+            }
+            return null;
+        }
+    }
+
+    public class LoadAdminAreaTask extends LoadMapTask {
+        public LoadAdminAreaTask(List<Double> bbox) {
+            super(bbox);
+        }
+
+        @Override
+        protected Void call() throws Exception {
+            LogUtils.log("LoadAdminAreaTask " + bbox);
+
+            if (isCancelled()) {
+                LogUtils.log("LoadAdminAreaTask cancel");
+                return null;
+            }
+            if (mMapZoom > 12) {
+                QueryController.getInstance().getLineAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
+                        bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mAreaPolylines, MainController.this);
+            }
+            QueryController.getInstance().getAdminLineInBboxWithGeom(bbox.get(0), bbox.get(1),
+                    bbox.get(2), bbox.get(3), OSMUtils.ADMIN_LEVEL_SET, mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mAreaPolylines, MainController.this);
+            return null;
+        }
+    }
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         LogUtils.log("initialize");
@@ -298,7 +387,20 @@ public class MainController implements Initializable, NMEAHandler {
         mPolylines.put(STREET_LAYER_LEVEL, new ArrayList<>());
         mPolylines.put(RAILWAY_LAYER_LEVEL, new ArrayList<>());
         mPolylines.put(BRIDGE_LAYER_LEVEL, new ArrayList<>());
+
+        mAreaPolylines = new LinkedHashMap<>();
+        mAreaPolylines.put(TUNNEL_LAYER_LEVEL, new ArrayList<>());
+        mAreaPolylines.put(AREA_LAYER_LEVEL, new ArrayList<>());
+        mAreaPolylines.put(ADMIN_AREA_LAYER_LEVEL, new ArrayList<>());
+        mAreaPolylines.put(BUILDING_AREA_LAYER_LEVEL, new ArrayList<>());
+        mAreaPolylines.put(HIDDEN_STREET_LAYER_LEVEL, new ArrayList<>());
+        mAreaPolylines.put(STREET_LAYER_LEVEL, new ArrayList<>());
+        mAreaPolylines.put(RAILWAY_LAYER_LEVEL, new ArrayList<>());
+        mAreaPolylines.put(BRIDGE_LAYER_LEVEL, new ArrayList<>());
+
         mNodes = new ArrayList<>();
+
+        mExecutorService = Executors.newFixedThreadPool(2);
 
         mOSMObjects = new HashMap<>();
         calcMapCenterPos();
@@ -545,6 +647,7 @@ public class MainController implements Initializable, NMEAHandler {
         Config.getInstance().put("lon", mCenterLon);
         Config.getInstance().put("lat", mCenterLat);
         Config.getInstance().put("show3D", mShow3D);
+        mExecutorService.shutdown();
     }
 
     protected void setStage(Stage primaryStage) {
@@ -663,11 +766,25 @@ public class MainController implements Initializable, NMEAHandler {
         calcMapZeroPos();
         long t = System.currentTimeMillis();
         LogUtils.log("loadMapData " + mMapZoom);
+
+        if (mLoadPOITask != null) {
+            LogUtils.log("loadMapData: LoadPOITask cancel");
+            mLoadPOITask.cancel(true);
+            mLoadPOITask = null;
+        }
+        if (mLoadAdminAreaTask != null) {
+            LogUtils.log("loadMapData: LoadAreaTask cancel");
+            mLoadAdminAreaTask.cancel(true);
+            mLoadAdminAreaTask = null;
+        }
+
         mOSMObjects.clear();
         for (List<Node> polyList : mPolylines.values()) {
             polyList.clear();
         }
-
+        for (List<Node> polyList : mAreaPolylines.values()) {
+            polyList.clear();
+        }
         LogUtils.log("mapCenterPos = " + mCenterPosX + " : " + mCenterPosY);
         LogUtils.log("mapZeroPos = " + mMapZeroX + " : " + mMapZeroY);
 
@@ -681,6 +798,7 @@ public class MainController implements Initializable, NMEAHandler {
 
         List<Double> bbox = getBBoxInDeg(mFetchBBox);
 
+        // cant load areas async cause they are always on lowest level and ways are above
         if (mMapZoom > 12) {
             JsonArray areas = QueryController.getInstance().getAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
                     bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mPolylines, this);
@@ -689,14 +807,38 @@ public class MainController implements Initializable, NMEAHandler {
         JsonArray ways = QueryController.getInstance().getWaysInBboxWithGeom(bbox.get(0), bbox.get(1),
                 bbox.get(2), bbox.get(3), getStreetTypeListForZoom(), mMapZoom <= 12, mMapZoom <= 12 ? 20.0 : 0.0, mPolylines, this);
 
-        if (mMapZoom > 12) {
-            // railway rails are above ways if not bridge anyway
-            JsonArray lineAreas = QueryController.getInstance().getLineAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
-                    bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mPolylines, this);
-        }
+        //if (mMapZoom > 12) {
+        //    // railway rails are above ways if not bridge anyway
+        //    JsonArray lineAreas = QueryController.getInstance().getLineAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
+        //            bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mPolylines, this);
+        //}
 
-        JsonArray adminLines = QueryController.getInstance().getAdminLineInBboxWithGeom(bbox.get(0), bbox.get(1),
-                bbox.get(2), bbox.get(3), OSMUtils.ADMIN_LEVEL_SET, mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mPolylines, this);
+        //JsonArray adminLines = QueryController.getInstance().getAdminLineInBboxWithGeom(bbox.get(0), bbox.get(1),
+        //        bbox.get(2), bbox.get(3), OSMUtils.ADMIN_LEVEL_SET, mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mPolylines, this);
+        mLoadAdminAreaTask = new LoadAdminAreaTask(bbox);
+
+        mLoadAdminAreaTask.setOnRunning((runEvent) -> {
+            LogUtils.log("loadMapData: LoadAdminAreaTask runEvent");
+        });
+
+        mLoadAdminAreaTask.setOnSucceeded((succeededEvent) -> {
+            LogUtils.log("loadMapData: LoadAdminAreaTask succeededEvent");
+            if (mLoadAdminAreaTask != null) {
+                if (mLoadAdminAreaTask.isSameBbox(bbox)) {
+                    for (List<Node> polyList : mAreaPolylines.values()) {
+                        mMapPane.getChildren().addAll(polyList);
+                    }
+                } else {
+                    LogUtils.log("loadMapData: LoadAdminAreaTask drop result");
+                }
+            }
+        });
+
+        mLoadAdminAreaTask.setOnCancelled((cancelEvent) -> {
+            LogUtils.log("loadMapData: LoadAdminAreaTask cancelEvent");
+        });
+
+        mExecutorService.submit(mLoadAdminAreaTask);
 
         if (mSelectdOSMId != -1) {
             mSelectdShape = findShapeOfOSMId(mSelectdOSMId);
@@ -750,38 +892,30 @@ public class MainController implements Initializable, NMEAHandler {
 
         // same as buildings
         if (mMapZoom > 16) {
-            JsonArray nodes = QueryController.getInstance().getPOINodesInBBoxWithGeom(bbox.get(0), bbox.get(1),
-                    bbox.get(2), bbox.get(3), getPoiTypeListForZoom(), this);
-            for (int i = 0; i < nodes.size(); i++) {
-                JsonObject node = (JsonObject) nodes.get(i);
-                long osmId = (long) node.get("osmId");
-                int nodeType = (int) node.get("nodeType");
-                JsonArray coord = (JsonArray) node.get("coords");
-                Double posX = getPixelXPosForLocationDeg(coord.getDouble(0));
-                Double posY = getPixelYPosForLocationDeg(coord.getDouble(1));
+            mLoadPOITask = new LoadPOITask(bbox, paneZeroPos);
 
-                Point2D nodePos = new Point2D(posX, posY);
-                Image poiImage = OSMStyle.getNodeTypeImage(nodeType);
-                if (poiImage == null) {
-                    System.out.println("" + node);
-                    poiImage = OSMStyle.getDefaultNodeImage();
+            mLoadPOITask.setOnRunning((runEvent) -> {
+                LogUtils.log("loadMapData: LoadPOITask runEvent");
+            });
+
+            mLoadPOITask.setOnSucceeded((succeededEvent) -> {
+                LogUtils.log("loadMapData: LoadPOITask succeededEvent");
+                if (mLoadPOITask != null) {
+                    if (mLoadPOITask.isSameBbox(bbox)) {
+                        mNodePane.getChildren().addAll(mNodes);
+                    } else {
+                        LogUtils.log("loadMapData: LoadPOITask drop result");
+                    }
                 }
-                OSMImageView poi = new OSMImageView(nodePos, poiImage, osmId);
-                int size = OSMStyle.getPoiSizeForZoom(mMapZoom, 32);
-                poi.setFitHeight(size);
-                poi.setFitWidth(size);
-                poi.setPreserveRatio(true);
+            });
 
-                Point2D pos = calcNodePanePos(nodePos, paneZeroPos);
-                poi.setX(pos.getX() - poi.getFitWidth() / 2);
-                poi.setY(pos.getY() - poi.getFitHeight());
-                poi.setTranslateX(-mMapZeroX);
-                poi.setTranslateY(-mMapZeroY);
+            mLoadPOITask.setOnCancelled((cancelEvent) -> {
+                LogUtils.log("loadMapData: LoadPOITask cancelEvent");
+            });
 
-                mNodes.add(poi);
-                mNodePane.getChildren().add(poi);
-            }
+            mExecutorService.submit(mLoadPOITask);
         }
+        LogUtils.log("loadMapData time = " + (System.currentTimeMillis() - t));
     }
 
     private void drawShapes() {
@@ -790,6 +924,13 @@ public class MainController implements Initializable, NMEAHandler {
         mNodePane.getChildren().clear();
 
         for (List<Node> polyList : mPolylines.values()) {
+            for (Node s : polyList) {
+                s.setTranslateX(-mMapZeroX);
+                s.setTranslateY(-mMapZeroY);
+            }
+        }
+
+        for (List<Node> polyList : mAreaPolylines.values()) {
             for (Node s : polyList) {
                 s.setTranslateX(-mMapZeroX);
                 s.setTranslateY(-mMapZeroY);
@@ -805,6 +946,9 @@ public class MainController implements Initializable, NMEAHandler {
             mTrackingShape.getShape().setTranslateY(-mMapZeroY);
         }
         for (List<Node> polyList : mPolylines.values()) {
+            mMapPane.getChildren().addAll(polyList);
+        }
+        for (List<Node> polyList : mAreaPolylines.values()) {
             mMapPane.getChildren().addAll(polyList);
         }
         if (mSelectdShape != null) {
@@ -1017,6 +1161,39 @@ public class MainController implements Initializable, NMEAHandler {
         return mMapZoom;
     }
 
+    private OSMShape findShapeAtPoint(Point2D pos, Set<Integer> areaTypes, int layer, Map<Integer, List<Node>> polylines) {
+        List<Node> polyList = polylines.get(layer);
+        // again reverse by layer order
+        for (int i = polyList.size() - 1; i >= 0; i--) {
+            Node s = polyList.get(i);
+            if (s instanceof OSMPolygon) {
+                if (areaTypes.size() == 0 || areaTypes.contains(((OSMPolygon) s).getAreaType())) {
+                    if (s.contains(pos)) {
+                        OSMPolygon polygon = new OSMPolygon((OSMPolygon) s);
+                        polygon.getPoints().addAll(((OSMPolygon) s).getPoints());
+                        polygon.setTranslateX(-mMapZeroX);
+                        polygon.setTranslateY(-mMapZeroY);
+                        return polygon;
+                    }
+                }
+            } else if (s instanceof OSMPolyline) {
+                if (s.contains(pos)) {
+                    OSMPolyline polyline = new OSMPolyline((OSMPolyline) s);
+                    polyline.getPoints().addAll(((OSMPolyline) s).getPoints());
+                    polyline.setTranslateX(-mMapZeroX);
+                    polyline.setTranslateY(-mMapZeroY);
+                    return polyline;
+                }
+            } else if (s instanceof ImageView) {
+                // POI images
+                if (s.contains(pos)) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
     // returns a copy
     private OSMShape findShapeAtPoint(Point2D pos, Set<Integer> areaTypes) {
         // from top layer down
@@ -1025,34 +1202,13 @@ public class MainController implements Initializable, NMEAHandler {
         Collections.reverse(keyList);
 
         for (int layer : keyList) {
-            List<Node> polyList = mPolylines.get(layer);
-            // again reverse by layer order
-            for (int i = polyList.size() - 1; i >= 0; i--) {
-                Node s = polyList.get(i);
-                if (s instanceof OSMPolygon) {
-                    if (areaTypes.size() == 0 || areaTypes.contains(((OSMPolygon) s).getAreaType())) {
-                        if (s.contains(pos)) {
-                            OSMPolygon polygon = new OSMPolygon((OSMPolygon) s);
-                            polygon.getPoints().addAll(((OSMPolygon) s).getPoints());
-                            polygon.setTranslateX(-mMapZeroX);
-                            polygon.setTranslateY(-mMapZeroY);
-                            return polygon;
-                        }
-                    }
-                } else if (s instanceof OSMPolyline) {
-                    if (s.contains(pos)) {
-                        OSMPolyline polyline = new OSMPolyline((OSMPolyline) s);
-                        polyline.getPoints().addAll(((OSMPolyline) s).getPoints());
-                        polyline.setTranslateX(-mMapZeroX);
-                        polyline.setTranslateY(-mMapZeroY);
-                        return polyline;
-                    }
-                } else if (s instanceof ImageView) {
-                    // POI images
-                    if (s.contains(pos)) {
-                        return null;
-                    }
-                }
+            OSMShape shape = findShapeAtPoint(pos, areaTypes, layer, mPolylines);
+            if (shape != null) {
+                return shape;
+            }
+            shape = findShapeAtPoint(pos, areaTypes, layer, mAreaPolylines);
+            if (shape != null) {
+                return shape;
             }
         }
         return null;
@@ -1071,8 +1227,8 @@ public class MainController implements Initializable, NMEAHandler {
         return null;
     }
 
-    private OSMShape findShapeOfOSMId(long osmId) {
-        for (List<Node> polyList : mPolylines.values()) {
+    private OSMShape findShapeOfOSMId(long osmId, Map<Integer, List<Node>> polylines) {
+        for (List<Node> polyList : polylines.values()) {
             for (Node s : polyList) {
                 if (s instanceof OSMPolygon) {
                     if (((OSMPolygon) s).getOSMId() == osmId) {
@@ -1092,6 +1248,17 @@ public class MainController implements Initializable, NMEAHandler {
                     }
                 }
             }
+        }
+        return null;
+    }
+    private OSMShape findShapeOfOSMId(long osmId) {
+        OSMShape shape = findShapeOfOSMId(osmId, mPolylines);
+        if (shape != null) {
+            return shape;
+        }
+        shape = findShapeOfOSMId(osmId, mAreaPolylines);
+        if (shape != null) {
+            return shape;
         }
         return null;
     }

@@ -500,7 +500,7 @@ public class ImportController {
             String sql;
             sql = "SELECT InitSpatialMetaData(1)";
             stmt.execute(sql);
-            sql = "CREATE TABLE IF NOT EXISTS edgeTable (id INTEGER PRIMARY KEY, startRef INTEGER, endRef INTEGER, length INTEGER, wayId INTEGER, source INTEGER, target INTEGER, cost REAL, reverseCost REAL, streetInfo INTEGER)";
+            sql = "CREATE TABLE IF NOT EXISTS edgeTable (id INTEGER PRIMARY KEY AUTOINCREMENT, startRef INTEGER, endRef INTEGER, length INTEGER, wayId INTEGER, source INTEGER, target INTEGER, cost REAL, reverseCost REAL, streetInfo INTEGER)";
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS startRef_idx ON edgeTable (startRef)";
             stmt.execute(sql);
@@ -1356,7 +1356,7 @@ public class ImportController {
             stmt = mWaysConnection.createStatement();
             String nextWaysListString = "'" + Jsoner.serialize(nextWaysList) + "'";
             String sql = String.format("INSERT INTO crossingTable (wayId, refId, nextWayIdList) VALUES( %d, %d, %s)", wayId, refId, nextWaysListString);
-            stmt.executeQuery(sql);
+            stmt.execute(sql);
         } catch (SQLException e) {
             LogUtils.error("addToCrossingsTable", e);
         } finally {
@@ -1367,6 +1367,105 @@ public class ImportController {
             } catch (SQLException e) {
             }
         }
+    }
+
+    private void addToEdgeTable(long startRef, long endRef, long length, long wayId, double cost, double reverseCost, int streetInfo, JsonArray coords) {
+        JsonArray edgeList = getEdgeEntryForStartAndEndPointAndWayId(startRef, endRef, wayId);
+        if (edgeList.size() == 0) {
+            String lineString = GISUtils.createLineStringFromCoords(coords);
+
+            Statement stmt = null;
+            try {
+                stmt = mEdgeConnection.createStatement();
+                String sql = String.format("INSERT INTO edgeTable (startRef, endRef, length, wayId, source, target, cost, reverseCost, streetInfo) VALUES(%d, %d, %d, %d, 0, 0, %f, %f, %d, LineFromText(%s, 4326))"
+                        , startRef, endRef, length, wayId, 0, 0, cost, reverseCost, streetInfo, lineString);
+                stmt.execute(sql);
+            } catch (SQLException e) {
+                LogUtils.error("addToCrossingsTable", e);
+            } finally {
+                try {
+                    if (stmt != null) {
+                        stmt.close();
+                    }
+                } catch (SQLException e) {
+                }
+            }
+        }
+    }
+
+    private JsonObject geEdgeFromQuery(ResultSet rs) throws SQLException, JsonException {
+        // (id INTEGER PRIMARY KEY, startRef INTEGER, endRef INTEGER, length INTEGER, wayId INTEGER, source INTEGER, target INTEGER, cost REAL, reverseCost REAL, streetInfo INTEGER)')
+        JsonObject edge = new JsonObject();
+        try {
+            edge.put("id", rs.getLong("id"));
+        } catch (SQLException e) {
+        }
+        try {
+            edge.put("startRef", rs.getLong("startRef"));
+        } catch (SQLException e) {
+        }
+        try {
+            edge.put("endRef", rs.getLong("endRef"));
+        } catch (SQLException e) {
+        }
+        try {
+            edge.put("wayId", rs.getLong("wayId"));
+        } catch (SQLException e) {
+        }
+        try {
+            edge.put("length", rs.getLong("length"));
+        } catch (SQLException e) {
+        }
+        try {
+            edge.put("source", rs.getLong("source"));
+        } catch (SQLException e) {
+        }
+        try {
+            edge.put("target", rs.getLong("target"));
+        } catch (SQLException e) {
+        }
+        try {
+            edge.put("cost", rs.getDouble("cost"));
+        } catch (SQLException e) {
+        }
+        try {
+            edge.put("reverseCost", rs.getDouble("reverseCost"));
+        } catch (SQLException e) {
+        }
+        try {
+            edge.put("streetTypeId", rs.getInt("streetTypeId"));
+        } catch (SQLException e) {
+        }
+        return edge;
+    }
+
+    public JsonArray getEdgeEntryForStartAndEndPointAndWayId(long startRef, long endRef, long wayId) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        JsonArray edgeList = new JsonArray();
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("SELECT * FROM edgeTable WHERE startRef=%d AND endRef=%d AND wayId=%d", startRef, endRef, wayId);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                try {
+                    JsonObject edge = geEdgeFromQuery(rs);
+                    edgeList.add(edge);
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getEdgeEntryForStartAndEndPointAndWayId", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return edgeList;
     }
 
     private String filterListToIn(List<Integer> typeFilterList) {
@@ -1510,6 +1609,7 @@ public class ImportController {
             way.put("layer", rs.getInt("layer"));
         } catch (SQLException e) {
         }
+
         return way;
     }
 
@@ -1599,6 +1699,37 @@ public class ImportController {
         throw new NumberFormatException("getIntValue");
     }
 
+    private boolean isLinkToLink(int streetTypeId, int streetTypeId2) {
+        return (streetTypeId == STREET_TYPE_MOTORWAY_LINK && streetTypeId2 == STREET_TYPE_MOTORWAY_LINK)
+                || (streetTypeId == STREET_TYPE_TRUNK_LINK && streetTypeId2 == STREET_TYPE_TRUNK_LINK)
+                || (streetTypeId == STREET_TYPE_PRIMARY_LINK && streetTypeId2 == STREET_TYPE_PRIMARY_LINK)
+                || (streetTypeId == STREET_TYPE_SECONDARY_LINK && streetTypeId2 == STREET_TYPE_SECONDARY_LINK)
+                || (streetTypeId == STREET_TYPE_TERTIARY_LINK && streetTypeId2 == STREET_TYPE_TERTIARY_LINK);
+    }
+
+    private boolean isLinkEnter(int streetTypeId, int streetTypeId2) {
+        return (streetTypeId != STREET_TYPE_MOTORWAY_LINK && streetTypeId2 == STREET_TYPE_MOTORWAY_LINK)
+                || (streetTypeId != STREET_TYPE_TRUNK_LINK && streetTypeId2 == STREET_TYPE_TRUNK_LINK)
+                || (streetTypeId != STREET_TYPE_PRIMARY_LINK && streetTypeId2 == STREET_TYPE_PRIMARY_LINK)
+                || (streetTypeId != STREET_TYPE_SECONDARY_LINK && streetTypeId2 == STREET_TYPE_SECONDARY_LINK)
+                || (streetTypeId != STREET_TYPE_TERTIARY_LINK && streetTypeId2 == STREET_TYPE_TERTIARY_LINK);
+    }
+
+    private boolean isLinkExit(int streetTypeId, int streetTypeId2) {
+        return (streetTypeId == STREET_TYPE_MOTORWAY_LINK && streetTypeId2 != STREET_TYPE_MOTORWAY_LINK)
+                || (streetTypeId == STREET_TYPE_TRUNK_LINK && streetTypeId2 != STREET_TYPE_TRUNK_LINK)
+                || (streetTypeId == STREET_TYPE_PRIMARY_LINK && streetTypeId2 != STREET_TYPE_PRIMARY_LINK)
+                || (streetTypeId == STREET_TYPE_SECONDARY_LINK && streetTypeId2 != STREET_TYPE_SECONDARY_LINK)
+                || (streetTypeId == STREET_TYPE_TERTIARY_LINK && streetTypeId2 != STREET_TYPE_TERTIARY_LINK);
+    }
+
+    private boolean isValidWay2WayCrossing(JsonArray refs, JsonArray refs2) {
+        return (getLongValue(refs.get(refs.size() - 1)) == getLongValue(refs2.get(0))
+                || getLongValue(refs.get(0)) == getLongValue(refs2.get(refs2.size() - 1))
+                || getLongValue(refs.get(0)) == getLongValue(refs2.get(0))
+                || getLongValue(refs.get(refs.size() - 1)) == getLongValue(refs2.get(refs2.size() - 1)));
+    }
+
     public void createCrossingEntries() {
         HashMap<String, JsonObject> poiDict = getPOINodes(List.of(POI_TYPE_BARRIER, POI_TYPE_MOTORWAY_JUNCTION));
 
@@ -1636,23 +1767,147 @@ public class ImportController {
                                         JsonObject wayCrossing = new JsonObject();
                                         wayCrossing.put("wayId", wayId);
                                         wayCrossing.put("crossingType", CROSSING_TYPE_BARRIER);
-                                        wayCrossing.put("refId", refId);
                                         wayList.add(wayCrossing);
                                         addToCrossingsTable(wayId, refId, wayList);
                                     }
                                 }
                             } else {
+                                int majorCrossingType = CROSSING_TYPE_NORMAL;
+                                String majorCrossingInfo = null;
+
                                 String poiKey = refId + ":" + POI_TYPE_MOTORWAY_JUNCTION;
                                 if (poiDict.containsKey(poiKey)) {
+                                    JsonObject nodeTags = poiDict.get(poiKey);
+                                    majorCrossingType = CROSSING_TYPE_MOTORWAY_EXIT;
+                                    String highwayExitRef = "";
+                                    String highwayExitName = "";
+                                    if (nodeTags.containsKey("ref")) {
+                                        highwayExitRef = (String) nodeTags.get("ref");
+                                    }
+                                    if (nodeTags.containsKey("name")) {
+                                        highwayExitName = (String) nodeTags.get("name");
+                                    }
+                                    majorCrossingInfo = String.format("%s:%s", highwayExitName, highwayExitRef);
                                 }
                                 poiKey = refId + ":" + POI_TYPE_BARRIER;
                                 if (poiDict.containsKey(poiKey)) {
+                                    // TODD remember barrierRestrictionList 0 maybe in tmp
+                                    majorCrossingType = CROSSING_TYPE_BARRIER;
                                 }
                                 JsonArray wayList = new JsonArray();
-                                nextWays.forEach(nextWay -> {
+                                int finalMajorCrossingType = majorCrossingType;
+                                String finalMajorCrossingInfo = majorCrossingInfo;
+
+                                nextWays.forEach(_nextWay -> {
+                                    JsonObject nextWay = (JsonObject) _nextWay;
+                                    long wayId2 = getLongValue(nextWay.get("wayId"));
+                                    int streetTypeInfo2 = getIntValue(nextWay.get("streetInfo"));
+                                    JsonObject typeInfo2 = decodeStreetInfo(streetTypeInfo2);
+                                    JsonArray refs2 = (JsonArray) nextWay.get("refs");
+                                    int oneway2 = getIntValue(typeInfo2.get("oneway"));
+                                    int roundabout2 = getIntValue(typeInfo2.get("roundabout"));
+                                    int streetTypeId2 = getIntValue(typeInfo2.get("streetTypeId"));
+                                    String name2 = (String) nextWay.get("name");
+
                                     int minorCrossingType = CROSSING_TYPE_NORMAL;
+                                    if (finalMajorCrossingType == CROSSING_TYPE_NORMAL) {
+                                        if (minorCrossingType == CROSSING_TYPE_NORMAL) {
+                                            if (roundabout2 == 1 && roundabout == 0) {
+                                                minorCrossingType = CROSSING_TYPE_ROUNDABOUT_ENTER;
+                                            } else if (roundabout == 1 && roundabout2 == 0) {
+                                                minorCrossingType = CROSSING_TYPE_ROUNDABOUT_EXIT;
+
+                                                if (oneway2 != 0) {
+                                                    if (!isValidOnewayEnter(oneway2, refId, getLongValue(refs2.get(0)), getLongValue(refs2.get(refs2.size() - 1)))) {
+                                                        minorCrossingType = CROSSING_TYPE_FORBIDDEN;
+                                                    }
+                                                }
+                                            } else if (roundabout == 1 && roundabout2 == 1) {
+                                                minorCrossingType = CROSSING_TYPE_NONE;
+                                            }
+                                        }
+                                        if (minorCrossingType == CROSSING_TYPE_NORMAL) {
+                                            if (isLinkToLink(streetTypeId, streetTypeId2)) {
+                                                if (wayId2 == wayId) {
+                                                    minorCrossingType = CROSSING_TYPE_NONE;
+                                                } else {
+                                                    minorCrossingType = CROSSING_TYPE_LINK_LINK;
+                                                    if (nextWays.size() == 1) {
+                                                        if (oneway != 0 && oneway2 != 0) {
+                                                            boolean onewayValid = isValidOnewayEnter(oneway, refId, getLongValue(refs.get(0)), getLongValue(refs.get(refs.size() - 1)));
+                                                            boolean oneway2Valid = isValidOnewayEnter(oneway2, refId, getLongValue(refs2.get(0)), getLongValue(refs2.get(refs2.size() - 1)));
+                                                            if ((oneway2Valid && !onewayValid) || (!oneway2Valid && onewayValid)) {
+                                                                minorCrossingType = CROSSING_TYPE_NONE;
+                                                            }
+                                                        } else if (isValidWay2WayCrossing(refs, refs2)) {
+                                                            minorCrossingType = CROSSING_TYPE_NONE;
+                                                        }
+                                                    }
+                                                }
+                                            } else if (isLinkEnter(streetTypeId, streetTypeId2)) {
+                                                minorCrossingType = CROSSING_TYPE_LINK_START;
+                                            } else if (isLinkExit(streetTypeId, streetTypeId2)) {
+                                                minorCrossingType = CROSSING_TYPE_LINK_END;
+                                            }
+                                            if (minorCrossingType == CROSSING_TYPE_NORMAL) {
+                                                if (oneway2 != 0 && roundabout2 == 0 && wayId2 != wayId) {
+                                                    if (refId == getLongValue(refs2.get(0)) || refId == getLongValue(refs2.get(refs2.size() - 1))) {
+                                                        if (!isValidOnewayEnter(oneway2, refId, getLongValue(refs2.get(0)), getLongValue(refs2.get(refs2.size() - 1)))) {
+                                                            minorCrossingType = CROSSING_TYPE_FORBIDDEN;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                     int crossingType = CROSSING_TYPE_NORMAL;
-                                    JsonObject crossingInfo = new JsonObject();
+                                    String crossingInfo = null;
+                                    if (finalMajorCrossingType != CROSSING_TYPE_NORMAL) {
+                                        crossingType = finalMajorCrossingType;
+                                        crossingInfo = finalMajorCrossingInfo;
+                                        if (crossingType == CROSSING_TYPE_MOTORWAY_EXIT) {
+                                            if (streetTypeId2 == STREET_TYPE_MOTORWAY) {
+                                                crossingType = CROSSING_TYPE_NONE;
+                                                crossingInfo = null;
+                                            }
+                                        }
+                                    } else if (minorCrossingType != CROSSING_TYPE_NORMAL) {
+                                        crossingType = minorCrossingType;
+                                    } else {
+                                        if (wayId2 == wayId) {
+                                            crossingType = CROSSING_TYPE_NONE;
+                                        } else if ((streetTypeId == STREET_TYPE_MOTORWAY && streetTypeId2 == STREET_TYPE_MOTORWAY)
+                                                || (streetTypeId == STREET_TYPE_TRUNK && streetTypeId2 == STREET_TYPE_TRUNK)) {
+                                            if (oneway != 0 && oneway2 != 0) {
+                                                boolean onewayValid = isValidOnewayEnter(oneway, refId, getLongValue(refs.get(0)), getLongValue(refs.get(refs.size() - 1)));
+                                                boolean oneway2Valid = isValidOnewayEnter(oneway2, refId, getLongValue(refs2.get(0)), getLongValue(refs2.get(refs2.size() - 1)));
+                                                if ((oneway2Valid && !onewayValid) || (!oneway2Valid && onewayValid)) {
+                                                    crossingType = CROSSING_TYPE_NONE;
+                                                }
+                                            } else {
+                                                if (isValidWay2WayCrossing(refs, refs2)) {
+                                                    crossingType = CROSSING_TYPE_NONE;
+                                                }
+                                            }
+                                        } else {
+                                            if (name != null && name2 != null) {
+                                                if (name.equals(name2)) {
+                                                    if (isValidWay2WayCrossing(refs, refs2)) {
+                                                        crossingType = CROSSING_TYPE_NONE;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    JsonObject wayCrossing = new JsonObject();
+                                    wayCrossing.put("wayId", wayId);
+                                    wayCrossing.put("crossingType", crossingType);
+                                    if (crossingInfo != null) {
+                                        wayCrossing.put("crossingInfo", crossingInfo);
+                                    }
+                                    if (!wayList.contains(wayCrossing)) {
+                                        wayList.add(wayCrossing);
+                                    }
                                 });
                                 if (wayList.size() > 0) {
                                     addToCrossingsTable(wayId, refId, wayList);
@@ -1664,7 +1919,7 @@ public class ImportController {
                     LogUtils.log(e.getMessage());
                 }
             }
-        } catch (SQLException e) {
+        } catch (Exception e) {
             LogUtils.error("createCrossingEntries", e);
         } finally {
             try {
@@ -1674,5 +1929,99 @@ public class ImportController {
             } catch (SQLException e) {
             }
         }
+    }
+
+    private JsonObject getCrossingFromQuery(ResultSet rs) throws SQLException, JsonException {
+        // (wayId, refId,  )
+        JsonObject crossing = new JsonObject();
+        try {
+            crossing.put("wayId", rs.getLong("wayId"));
+        } catch (SQLException e) {
+        }
+        try {
+            crossing.put("refId", rs.getLong("refId"));
+        } catch (SQLException e) {
+        }
+        try {
+            String nextWayIdList = rs.getString("nextWayIdList");
+            if (nextWayIdList != null && nextWayIdList.length() != 0) {
+                crossing.put("nextWayIdList", Jsoner.deserialize(nextWayIdList));
+            }
+        } catch (SQLException e) {
+        }
+
+        return crossing;
+    }
+
+    private JsonArray getCrossingsForWay(long wayId) {
+        /*self.cursorWay.execute(
+                'SELECT * FROM crossingTable where wayId=%d' % (wayid))*/
+        Statement stmt = null;
+        ResultSet rs = null;
+        JsonArray wayList = new JsonArray();
+
+        try {
+            stmt = mWaysConnection.createStatement();
+            String sql = String.format("SELECT * FROM crossingTable WHERE wayId=%d", wayId);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                try {
+                    JsonObject crossing = getCrossingFromQuery(rs);
+                    wayList.add(crossing);
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getCrossingEntryFor", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return wayList;
+    }
+
+    public void createEdgeTableEntries() {
+        Statement stmt = null;
+        ResultSet rs = null;
+        try {
+            stmt = mWaysConnection.createStatement();
+            String sql = String.format("SELECT wayId FROM wayTable");
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                try {
+                    JsonObject way = getWayFromQuery(rs);
+                    createEdgeTableEntriesForWay(way);
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("createEdgeTableEntries", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    private void createEdgeTableEntriesForWay(JsonObject way) {
+        long wayId = getLongValue(way);
+        JsonArray crossings = getCrossingsForWay(wayId);
+    }
+
+    public void createEdgeTableNodeEntries() {
+
+    }
+
+    public void removeOrphanedEdges() {
+
     }
 }

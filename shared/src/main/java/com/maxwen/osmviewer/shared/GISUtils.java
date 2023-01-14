@@ -299,10 +299,12 @@ public class GISUtils {
     }
 
     public static JsonArray createCoordsFromPolygonString(String coordsStr) {
-        if (coordsStr.startsWith("MULTIPOLYGON(((")) {
-            return createCoordsFromMultiPolygon(coordsStr.substring("MULTIPOLYGON(((".length(), coordsStr.length() - 3));
-        } else if (coordsStr.startsWith("POLYGON((")) {
-            return createCoordsFromMultiPolygon(coordsStr.substring("POLYGON((".length(), coordsStr.length() - 2));
+        if (coordsStr != null) {
+            if (coordsStr.startsWith("MULTIPOLYGON(((")) {
+                return createCoordsFromMultiPolygon(coordsStr.substring("MULTIPOLYGON(((".length(), coordsStr.length() - 3));
+            } else if (coordsStr.startsWith("POLYGON((")) {
+                return createCoordsFromMultiPolygon(coordsStr.substring("POLYGON((".length(), coordsStr.length() - 2));
+            }
         }
         return new JsonArray();
     }

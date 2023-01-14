@@ -114,7 +114,10 @@ public class OSMUtils {
 
         long startRef = (long) edge.get("startRef");
         long endRef = (long) edge.get("endRef");
+        return isValidOnewayEnter(oneway, crossingRef, startRef, endRef);
+    }
 
+    public static boolean isValidOnewayEnter(int oneway, long crossingRef, long startRef, long endRef) {
         if (crossingRef != startRef && crossingRef != endRef) {
             return true;
         }
