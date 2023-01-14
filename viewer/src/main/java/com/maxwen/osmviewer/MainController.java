@@ -190,6 +190,7 @@ public class MainController implements Initializable, NMEAHandler {
                     if (!mTrackReplayMode && !mTrackMode) {
                         posLabel.setText(String.format("%.5f:%.5f", coordPos.getX(), coordPos.getY()));
                     }
+                    LogUtils.log("edges = " + getEdgesOnPos(coordPos));
 
                     // first check for poi nodes with screen pos
                     for (OSMImageView node : mNodes) {
@@ -1214,8 +1215,8 @@ public class MainController implements Initializable, NMEAHandler {
         return null;
     }
 
-    private OSMPolyline findWayAtPoint(Point2D gpsPos) {
-        JsonArray edgeList = QueryController.getInstance().getEdgeOnPos(gpsPos.getX(), gpsPos.getY(), 0.0005, 30, 20);
+    private OSMPolyline findWayAtPoint(Point2D pos) {
+        JsonArray edgeList = QueryController.getInstance().getEdgeOnPos(pos.getX(), pos.getY(), 0.0005, 30, 20);
         if (edgeList.size() != 0) {
             JsonObject edge = (JsonObject) edgeList.get(0);
             long osmId = (long) edge.get("osmId");
@@ -1225,6 +1226,11 @@ public class MainController implements Initializable, NMEAHandler {
             }
         }
         return null;
+    }
+
+    private JsonArray getEdgesOnPos(Point2D pos) {
+        JsonArray edgeList = QueryController.getInstance().getEdgeOnPos(pos.getX(), pos.getY(), 0.0005, 30, 20);
+        return edgeList;
     }
 
     private OSMShape findShapeOfOSMId(long osmId, Map<Integer, List<Node>> polylines) {

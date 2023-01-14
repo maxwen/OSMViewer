@@ -55,6 +55,12 @@ public class Importer {
         ImportController.getInstance().createCrossingEntries();
         LogUtils.log("createEdgeTableEntries");
         ImportController.getInstance().createEdgeTableEntries();
+        LogUtils.log("createEdgeTableNodeEntries");
+        ImportController.getInstance().createEdgeTableNodeEntries();
+        LogUtils.log("removeOrphanedEdges");
+        ImportController.getInstance().removeOrphanedEdges();
+        LogUtils.log("removeOrphanedWays");
+        ImportController.getInstance().removeOrphanedWays();
         i.quit();
     }
 

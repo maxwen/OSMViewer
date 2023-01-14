@@ -33,6 +33,7 @@ public class ImportController {
     private Connection mTmpConnection;
     private static ImportController sInstance;
     private final String mDBHome;
+    private long mEdgeSourceTargetId = 1;
 
     public static ImportController getInstance() {
         if (sInstance == null) {
@@ -1377,11 +1378,11 @@ public class ImportController {
             Statement stmt = null;
             try {
                 stmt = mEdgeConnection.createStatement();
-                String sql = String.format("INSERT INTO edgeTable (startRef, endRef, length, wayId, source, target, cost, reverseCost, streetInfo) VALUES(%d, %d, %d, %d, 0, 0, %f, %f, %d, LineFromText(%s, 4326))"
+                String sql = String.format("INSERT INTO edgeTable (startRef, endRef, length, wayId, source, target, cost, reverseCost, streetInfo, geom) VALUES(%d, %d, %d, %d, %d, %d, %f, %f, %d, LineFromText(%s, 4326))"
                         , startRef, endRef, length, wayId, 0, 0, cost, reverseCost, streetInfo, lineString);
                 stmt.execute(sql);
             } catch (SQLException e) {
-                LogUtils.error("addToCrossingsTable", e);
+                LogUtils.error("addToEdgeTable", e);
             } finally {
                 try {
                     if (stmt != null) {
@@ -1466,6 +1467,182 @@ public class ImportController {
             }
         }
         return edgeList;
+    }
+
+    public JsonObject getEdgeEntryForId(long edgeId) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        JsonArray edgeList = new JsonArray();
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("SELECT * FROM edgeTable WHERE id=%d", edgeId);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                try {
+                    JsonObject edge = geEdgeFromQuery(rs);
+                    edgeList.add(edge);
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+            }
+            if (edgeList.size() == 1) {
+                return (JsonObject) edgeList.get(0);
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getEdgeEntryForId", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return null;
+    }
+
+    public JsonArray getEdgeEntryForStartPoint(long startRef, long edgeId) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        JsonArray edgeList = new JsonArray();
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("SELECT * FROM edgeTable WHERE startRef=%d AND id!=%d", startRef, edgeId);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                try {
+                    JsonObject edge = geEdgeFromQuery(rs);
+                    edgeList.add(edge);
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getEdgeEntryForStartPoint", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return edgeList;
+    }
+
+    public JsonArray getEdgeEntryForEndPoint(long endRef, long edgeId) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        JsonArray edgeList = new JsonArray();
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("SELECT * FROM edgeTable WHERE endRef=%d AND id!=%d", endRef, edgeId);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                try {
+                    JsonObject edge = geEdgeFromQuery(rs);
+                    edgeList.add(edge);
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getEdgeEntryForEndPoint", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return edgeList;
+    }
+
+    public void updateSourceOfEdge(long edgeId, long sourceId) {
+        Statement stmt = null;
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("UPDATE OR IGNORE edgeTable SET source=%d WHERE id=%d", sourceId, edgeId);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("updateSourceOfEdge", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public void updateTargetOfEdge(long edgeId, long targetId) {
+        Statement stmt = null;
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("UPDATE OR IGNORE edgeTable SET target=%d WHERE id=%d", targetId, edgeId);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("updateTargetOfEdge", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public JsonArray getEdgeIdList() {
+        Statement stmt = null;
+        ResultSet rs = null;
+        JsonArray edgeIdList = new JsonArray();
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("SELECT id FROM edgeTable");
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                long edgeId = rs.getLong("id");
+                edgeIdList.add(edgeId);
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getEdgeIdList", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return edgeIdList;
+    }
+
+    public JsonArray getEdgeIdListUnresolved() {
+        Statement stmt = null;
+        ResultSet rs = null;
+        JsonArray edgeIdList = new JsonArray();
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("SELECT id FROM edgeTable WHERE source=0 OR target=0");
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                long edgeId = rs.getLong("id");
+                edgeIdList.add(edgeId);
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getEdgeIdListUnresolved", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return edgeIdList;
     }
 
     private String filterListToIn(List<Integer> typeFilterList) {
@@ -1680,7 +1857,9 @@ public class ImportController {
     }
 
     private long getLongValue(Object jsonValue) {
-        if (jsonValue instanceof BigDecimal) {
+        if (jsonValue == null) {
+            return 0;
+        } else if (jsonValue instanceof BigDecimal) {
             return ((BigDecimal) jsonValue).longValue();
         } else if (jsonValue instanceof Long) {
             return (Long) jsonValue;
@@ -1691,12 +1870,22 @@ public class ImportController {
     }
 
     private int getIntValue(Object jsonValue) {
-        if (jsonValue instanceof BigDecimal) {
+        if (jsonValue == null) {
+            return 0;
+        } else if (jsonValue instanceof BigDecimal) {
             return ((BigDecimal) jsonValue).intValue();
         } else if (jsonValue instanceof Integer) {
             return (Integer) jsonValue;
         }
         throw new NumberFormatException("getIntValue");
+    }
+
+    private List<Long> jsonArrayRefsToList(JsonArray refs) {
+        List<Long> refList = new ArrayList<>();
+        for (int i = 0; i < refs.size(); i++) {
+            refList.add(getLongValue(refs.get(i)));
+        }
+        return refList;
     }
 
     private boolean isLinkToLink(int streetTypeId, int streetTypeId2) {
@@ -1728,6 +1917,24 @@ public class ImportController {
                 || getLongValue(refs.get(0)) == getLongValue(refs2.get(refs2.size() - 1))
                 || getLongValue(refs.get(0)) == getLongValue(refs2.get(0))
                 || getLongValue(refs.get(refs.size() - 1)) == getLongValue(refs2.get(refs2.size() - 1)));
+    }
+
+
+    private List<Long> getRefListSubset(JsonArray refs, long startRef, long endRef) {
+        List<Long> refList = jsonArrayRefsToList(refs);
+        if (!refList.contains(startRef) && !refList.contains(endRef)) {
+            return new ArrayList<>();
+        }
+        int indexStart = refList.indexOf(startRef);
+        int indexEnd = refList.indexOf(endRef);
+        if (indexStart > indexEnd) {
+            refList = refList.subList(indexStart, refList.size());
+            indexEnd = refList.indexOf(endRef);
+            List<Long> subList = refList.subList(0, indexEnd + 1);
+            return subList;
+        }
+        List<Long> subList = refList.subList(indexStart, indexEnd + 1);
+        return subList;
     }
 
     public void createCrossingEntries() {
@@ -1990,7 +2197,7 @@ public class ImportController {
         ResultSet rs = null;
         try {
             stmt = mWaysConnection.createStatement();
-            String sql = String.format("SELECT wayId FROM wayTable");
+            String sql = String.format("SELECT * FROM wayTable");
             rs = stmt.executeQuery(sql);
             while (rs.next()) {
                 try {
@@ -2013,15 +2220,204 @@ public class ImportController {
     }
 
     private void createEdgeTableEntriesForWay(JsonObject way) {
-        long wayId = getLongValue(way);
+        long wayId = getLongValue(way.get("wayId"));
+        JsonArray refs = (JsonArray) way.get("refs");
+        JsonObject tags = (JsonObject) way.get("tags");
+        int maxspeed = getIntValue(way.get("maxspeed"));
+
+        int streetTypeInfo = getIntValue(way.get("streetInfo"));
+        JsonObject typeInfo = decodeStreetInfo(streetTypeInfo);
+        int oneway = getIntValue(typeInfo.get("oneway"));
+        int roundabout = getIntValue(typeInfo.get("roundabout"));
+        int streetTypeId = getIntValue(typeInfo.get("streetTypeId"));
+        String name = (String) way.get("name");
+
         JsonArray crossings = getCrossingsForWay(wayId);
+        Map<Long, JsonArray> nextWayDict = new HashMap<>();
+        crossings.forEach(_crossing -> {
+            JsonObject crossing = (JsonObject) _crossing;
+            long refId = getLongValue(crossing.get("refId"));
+            JsonArray nextWayIdList = (JsonArray) crossing.get("nextWayIdList");
+            nextWayDict.put(refId, nextWayIdList);
+        });
+
+        int crossingFactor = 1;
+        Set<Long> crossingRefs = new HashSet<>();
+        refs.forEach(_refId -> {
+            long refId = getLongValue(_refId);
+            if (nextWayDict.containsKey(refId)) {
+                crossingRefs.add(refId);
+            }
+        });
+
+        List<Long> refNodeList = new ArrayList<>();
+        long distance = 0;
+        double lastLat = 0f;
+        double lastLon = 0f;
+        long refId = 0;
+
+        for (int i = 0; i < refs.size(); i++) {
+            refId = getLongValue(refs.get(i));
+
+            JsonObject coords = getCoordsEntry(refId);
+            if (coords != null) {
+                double lon = (double) coords.get("lon");
+                double lat = (double) coords.get("lat");
+
+                if (lastLat != 0 && lastLon != 0) {
+                    distance += GISUtils.distance(lon, lat, lastLon, lastLat);
+                }
+                lastLat = lat;
+                lastLon = lon;
+            }
+            if (crossingRefs.contains(refId)) {
+                if (refNodeList.size() != 0) {
+                    refNodeList.add(refId);
+                    long startRef = refNodeList.get(0);
+                    long endRef = refId;
+
+                    List<Long> refList = getRefListSubset(refs, startRef, endRef);
+                    JsonArray edgeCoords = createRefsCoords(refList);
+                    if (edgeCoords.size() >= 2) {
+                        // cost, reverseCost = self.getCostsOfWay( wayId, tags, distance, crossingFactor, streetInfo, maxspeed)
+                        addToEdgeTable(startRef, endRef, distance, wayId, 0, 0, streetTypeInfo, edgeCoords);
+                    }
+                    refNodeList = new ArrayList<>();
+                    distance = 0;
+                }
+            }
+            refNodeList.add(refId);
+        }
+        if (!crossingRefs.contains(refId)) {
+            if (refNodeList.size() != 0) {
+                long startRef = refNodeList.get(0);
+                long endRef = refId;
+
+                List<Long> refList = getRefListSubset(refs, startRef, endRef);
+                JsonArray edgeCoords = createRefsCoords(refList);
+                if (edgeCoords.size() >= 2) {
+                    // cost, reverseCost = self.getCostsOfWay( wayId, tags, distance, crossingFactor, streetInfo, maxspeed)
+                    addToEdgeTable(startRef, endRef, distance, wayId, 0, 0, streetTypeInfo, edgeCoords);
+                }
+            }
+        }
+    }
+
+    private void createEdgeTableNodeSameStartEnriesFor(JsonObject edge) {
+        long edgeId = getLongValue(edge.get("id"));
+        long startRef = getLongValue(edge.get("startRef"));
+        long source = getLongValue(edge.get("source"));
+
+        JsonArray edgeList = getEdgeEntryForStartPoint(startRef, edgeId);
+        if (edgeList.size() != 0) {
+            if (source == 0) {
+                source = mEdgeSourceTargetId;
+                mEdgeSourceTargetId++;
+            }
+        }
+        for (int i = 0; i < edgeList.size(); i++) {
+            JsonObject edge1 = (JsonObject) edgeList.get(i);
+            long edgeId1 = getLongValue(edge1.get("id"));
+            long source1 = getLongValue(edge1.get("source"));
+
+            if (source1 == 0) {
+                updateSourceOfEdge(edgeId, source);
+                updateSourceOfEdge(edgeId1, source);
+            }
+        }
+    }
+
+    private void createEdgeTableNodeSameEndEnriesFor(JsonObject edge) {
+        long edgeId = getLongValue(edge.get("id"));
+        long endRef = getLongValue(edge.get("endRef"));
+        long target = getLongValue(edge.get("target"));
+
+        JsonArray edgeList = getEdgeEntryForEndPoint(endRef, edgeId);
+        if (edgeList.size() != 0) {
+            if (target == 0) {
+                target = mEdgeSourceTargetId;
+                mEdgeSourceTargetId++;
+            }
+        }
+        for (int i = 0; i < edgeList.size(); i++) {
+            JsonObject edge1 = (JsonObject) edgeList.get(i);
+            long edgeId1 = getLongValue(edge1.get("id"));
+            long target1 = getLongValue(edge1.get("target"));
+
+            if (target1 == 0) {
+                updateTargetOfEdge(edgeId, target);
+                updateTargetOfEdge(edgeId1, target);
+            }
+        }
+    }
+
+    private void createEdgeTableNodeSourceEnriesFor(JsonObject edge) {
+        long edgeId = getLongValue(edge.get("id"));
+        long endRef = getLongValue(edge.get("endRef"));
+        long target = getLongValue(edge.get("target"));
+
+        JsonArray edgeList = getEdgeEntryForStartPoint(endRef, edgeId);
+        if (edgeList.size() != 0) {
+            if (target == 0) {
+                target = mEdgeSourceTargetId;
+                mEdgeSourceTargetId++;
+            }
+        }
+        for (int i = 0; i < edgeList.size(); i++) {
+            JsonObject edge1 = (JsonObject) edgeList.get(i);
+            long edgeId1 = getLongValue(edge1.get("id"));
+            long source1 = getLongValue(edge1.get("source"));
+
+            if (source1 == 0) {
+                updateSourceOfEdge(edgeId1, target);
+                updateTargetOfEdge(edgeId, target);
+            } else {
+                updateTargetOfEdge(edgeId, source1);
+            }
+        }
     }
 
     public void createEdgeTableNodeEntries() {
+        JsonArray edgeIdList = getEdgeIdList();
+        edgeIdList.forEach(_edgeId -> {
+            long edgeId = getLongValue(_edgeId);
 
+            JsonObject edge = getEdgeEntryForId(edgeId);
+            createEdgeTableNodeSameStartEnriesFor(edge);
+
+            edge = getEdgeEntryForId(edgeId);
+            createEdgeTableNodeSameEndEnriesFor(edge);
+
+            edge = getEdgeEntryForId(edgeId);
+            createEdgeTableNodeSourceEnriesFor(edge);
+        });
+
+        JsonArray edgeIdListUnresolved = getEdgeIdListUnresolved();
+        edgeIdListUnresolved.forEach(_edgeId -> {
+            long edgeId = getLongValue(_edgeId);
+
+            JsonObject edge = getEdgeEntryForId(edgeId);
+            long source = getLongValue(edge.get("source"));
+            long target = getLongValue(edge.get("target"));
+
+            if (source == 0) {
+                source = mEdgeSourceTargetId;
+                mEdgeSourceTargetId++;
+                updateSourceOfEdge(edgeId, source);
+            }
+            if (target == 0) {
+                target = mEdgeSourceTargetId;
+                mEdgeSourceTargetId++;
+                updateTargetOfEdge(edgeId, target);
+            }
+        });
     }
 
     public void removeOrphanedEdges() {
+
+    }
+
+    public void removeOrphanedWays() {
 
     }
 }

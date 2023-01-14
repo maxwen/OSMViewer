@@ -1,7 +1,9 @@
 package com.maxwen.osmviewer.shared;
 
+import com.github.cliftonlabs.json_simple.JsonArray;
 import com.github.cliftonlabs.json_simple.JsonObject;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -111,7 +113,6 @@ public class OSMUtils {
             POI_TYPE_EDUCATION);
 
     public static boolean isValidOnewayEnter(int oneway, long crossingRef, JsonObject edge) {
-
         long startRef = (long) edge.get("startRef");
         long endRef = (long) edge.get("endRef");
         return isValidOnewayEnter(oneway, crossingRef, startRef, endRef);
