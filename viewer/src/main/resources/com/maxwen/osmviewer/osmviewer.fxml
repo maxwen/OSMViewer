@@ -111,9 +111,9 @@
                 <Pane VBox.vgrow="ALWAYS" />
                 <VBox fx:id="mapButtons" alignment="CENTER" minWidth="100.0">
                     <children>
-                        <Button fx:id="zoomInButton" contentDisplay="CENTER" mnemonicParsing="false">
+                        <Button fx:id="zoomInButton" mnemonicParsing="false">
                             <VBox.margin>
-                                <Insets top="10.0" />
+                                <Insets bottom="5.0" top="10.0" />
                             </VBox.margin>
                         </Button>
                         <Label fx:id="zoomLabel" alignment="CENTER" minHeight="60.0" minWidth="60.0" text="-">
@@ -123,7 +123,7 @@
                         </Label>
                         <Button fx:id="zoomOutButton" mnemonicParsing="false">
                             <VBox.margin>
-                                <Insets bottom="10.0" />
+                                <Insets bottom="10.0" top="5.0" />
                             </VBox.margin>
                         </Button>
                     </children>

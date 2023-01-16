@@ -18,7 +18,7 @@ public class Main extends Application {
     public void start(Stage primaryStage) throws Exception {
         LogUtils.log("start");
 
-        FXMLLoader loader = new FXMLLoader(getClass().getResource("sample.fxml"));
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("osmviewer.fxml"));
         Parent root = loader.load();
 
         mController = loader.getController();
@@ -35,43 +35,6 @@ public class Main extends Application {
         primaryStage.getIcons().add(new Image("/images/launcher.png"));
 
         mController.loadMapData();
-
-        /*Pane pane = new Pane();
-        Rectangle r = new Rectangle(100, 100, 200, 50);
-        pane.getChildren().add(r);
-        Rotate rotate = new Rotate();
-        System.err.println(r.getX() + ":" + r.getY());
-
-        rotate.setAngle(45);
-        rotate.setPivotY(r.getLayoutBounds().getCenterY());
-        rotate.setPivotX(r.getLayoutBounds().getCenterX());
-        r.getTransforms().add(rotate);
-
-
-        Scene scene = new Scene(pane, 400, 400);
-        camera = new PerspectiveCamera();
-        scene.setCamera(camera);
-        Stage sub = new Stage();
-        sub.setTitle("Test");
-        sub.setScene(scene);
-        sub.show();
-
-        Point2D p = new Point2D(r.getX(), r.getY());
-        System.err.println(p);
-        p = r.getLocalToSceneTransform().transform(p);
-        System.err.println(p);
-
-        p = new Point2D(r.getX() + r.getWidth(), r.getY() + r.getHeight());
-        System.err.println(p);
-        p = r.getLocalToSceneTransform().transform(p);
-        System.err.println(p);
-
-        p = new Point2D(0, 0);
-        System.err.println(p);
-        p = pane.getLocalToSceneTransform().transform(p);
-        System.err.println(p);
-
-        System.err.println(r.localToParent(0, 0));*/
     }
 
     @Override

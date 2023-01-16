@@ -133,38 +133,17 @@ public class QueryController {
                 way.put("layer", layer);
                 int streetTypeInfo = rs.getInt(4);
                 way.put("streetInfo", streetTypeInfo);
-                // streetTypeId, oneway, roundabout, tunnel, bridge = osmParserData.decodeStreetInfo2(streetInfo)
-                /*oneway=(streetInfo&63)>>4
-                roundabout=(streetInfo&127)>>6
-                tunnel=(streetInfo&255)>>7
-                bridge=(streetInfo&511)>>8
-                streetTypeId=(streetInfo&15)*/
 
-                int streetTypeId = streetTypeInfo & 15;
-                int isTunnel = (streetTypeInfo & 255) >> 7;
-                int isBridge = (streetTypeInfo & 511) >> 8;
+                JsonObject streetTypeDict = OSMUtils.decodeStreetInfo(streetTypeInfo);
+                int streetTypeId = (int) streetTypeDict.get("streetTypeId");
+                int isTunnel = (int) streetTypeDict.get("tunnel");
+                int isBridge = (int) streetTypeDict.get("bridge");
 
                 way.put("streetTypeId", streetTypeId);
                 String tags = rs.getString(2);
                 try {
                     if (tags != null && tags.length() != 0) {
                         way.put("tags", Jsoner.deserialize(tags));
-                    }
-                } catch (JsonException e) {
-                    LogUtils.log(e.getMessage());
-                }
-                try {
-                    String refs = rs.getString(3);
-                    if (refs != null && refs.length() != 0) {
-                        way.put("refs", Jsoner.deserialize(refs));
-                    }
-                } catch (JsonException e) {
-                    LogUtils.log(e.getMessage());
-                }
-                String poiList = rs.getString(8);
-                try {
-                    if (poiList != null && poiList.length() != 0) {
-                        way.put("poiList", Jsoner.deserialize(poiList));
                     }
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());

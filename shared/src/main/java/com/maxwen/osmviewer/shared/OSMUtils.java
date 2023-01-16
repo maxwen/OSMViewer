@@ -133,4 +133,13 @@ public class OSMUtils {
         }
         return false;
     }
+
+    public static JsonObject decodeStreetInfo(int streetInfo) {
+        int oneway = (streetInfo & 63) >> 4;
+        int roundabout = (streetInfo & 127) >> 6;
+        int tunnel = (streetInfo & 255) >> 7;
+        int bridge = (streetInfo & 511) >> 8;
+        int streetTypeId = (streetInfo & 15);
+        return new JsonObject().putChain("oneway", oneway).putChain("roundabout", roundabout).putChain("tunnel", tunnel).putChain("bridge", bridge).putChain("streetTypeId", streetTypeId);
+    }
 }

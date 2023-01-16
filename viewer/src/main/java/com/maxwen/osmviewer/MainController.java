@@ -190,7 +190,6 @@ public class MainController implements Initializable, NMEAHandler {
                     if (!mTrackReplayMode && !mTrackMode) {
                         posLabel.setText(String.format("%.5f:%.5f", coordPos.getX(), coordPos.getY()));
                     }
-                    LogUtils.log("edges = " + getEdgesOnPos(coordPos));
 
                     // first check for poi nodes with screen pos
                     for (OSMImageView node : mNodes) {
@@ -407,7 +406,7 @@ public class MainController implements Initializable, NMEAHandler {
         calcMapCenterPos();
 
         quitButton.setGraphic(new ImageView(new Image("/images/ui/quit.png")));
-        quitButton.setShape(new Circle(30));
+        quitButton.setShape(new Circle(40));
         quitButton.setOnAction(e -> {
             Platform.exit();
         });
@@ -420,7 +419,7 @@ public class MainController implements Initializable, NMEAHandler {
 
 
         zoomInButton.setGraphic(new ImageView(new Image("/images/ui/plus.png")));
-        zoomInButton.setShape(new Circle(30));
+        zoomInButton.setShape(new Circle(40));
         zoomInButton.setOnAction(e -> {
             int zoom = mMapZoom + 1;
             zoom = Math.min(MAX_ZOOM, zoom);
@@ -515,20 +514,22 @@ public class MainController implements Initializable, NMEAHandler {
         mContextMenu = new ContextMenu();
         MenuItem menuItem = new MenuItem(" Mouse pos ");
         menuItem.setOnAction(ev -> {
-            Point2D coordPos = getCoordOfPos(mMapPos);
-            List<Double> bbox = createBBoxAroundPoint(coordPos.getX(), coordPos.getY(), 0.0);
-            JsonArray adminAreas = QueryController.getInstance().getAdminAreasOnPointWithGeom(coordPos.getX(), coordPos.getY(),
-                    bbox.get(0), bbox.get(1), bbox.get(2), bbox.get(3), OSMUtils.ADMIN_LEVEL_SET, this);
-            StringBuilder s = new StringBuilder();
-            for (int i = 0; i < adminAreas.size(); i++) {
-                JsonObject area = (JsonObject) adminAreas.get(i);
-                JsonObject tags = (JsonObject) area.get("tags");
-                if (tags != null && tags.containsKey("name")) {
-                    s.append(tags.get("name") + "\n");
+            if (mMapPos != null) {
+                Point2D coordPos = getCoordOfPos(mMapPos);
+                List<Double> bbox = createBBoxAroundPoint(coordPos.getX(), coordPos.getY(), 0.0);
+                JsonArray adminAreas = QueryController.getInstance().getAdminAreasOnPointWithGeom(coordPos.getX(), coordPos.getY(),
+                        bbox.get(0), bbox.get(1), bbox.get(2), bbox.get(3), OSMUtils.ADMIN_LEVEL_SET, this);
+                StringBuilder s = new StringBuilder();
+                for (int i = 0; i < adminAreas.size(); i++) {
+                    JsonObject area = (JsonObject) adminAreas.get(i);
+                    JsonObject tags = (JsonObject) area.get("tags");
+                    if (tags != null && tags.containsKey("name")) {
+                        s.append(tags.get("name") + "\n");
+                    }
                 }
+                mContextPopup = createPopup(s.toString());
+                mContextPopup.show(mPrimaryStage);
             }
-            mContextPopup = createPopup(s.toString());
-            mContextPopup.show(mPrimaryStage);
         });
         menuItem.setStyle("-fx-font-size: 20");
         mContextMenu.getItems().add(menuItem);
@@ -1226,11 +1227,6 @@ public class MainController implements Initializable, NMEAHandler {
             }
         }
         return null;
-    }
-
-    private JsonArray getEdgesOnPos(Point2D pos) {
-        JsonArray edgeList = QueryController.getInstance().getEdgeOnPos(pos.getX(), pos.getY(), 0.0005, 30, 20);
-        return edgeList;
     }
 
     private OSMShape findShapeOfOSMId(long osmId, Map<Integer, List<Node>> polylines) {

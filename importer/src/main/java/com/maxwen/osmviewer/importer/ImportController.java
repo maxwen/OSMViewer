@@ -7,7 +7,7 @@ import com.github.cliftonlabs.json_simple.Jsoner;
 import com.maxwen.osmviewer.shared.GISUtils;
 import com.maxwen.osmviewer.shared.LogUtils;
 import com.maxwen.osmviewer.shared.OSMUtils;
-import com.sun.jdi.connect.Connector;
+import com.maxwen.osmviewer.shared.ProgressBar;
 import com.wolt.osm.parallelpbf.entity.Node;
 import com.wolt.osm.parallelpbf.entity.Way;
 import org.sqlite.SQLiteConfig;
@@ -258,6 +258,17 @@ public class ImportController {
         }
     }
 
+    public void connectNodeDB() {
+        if (mNodeConnection != null) {
+            return;
+        }
+        try {
+            mNodeConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/nodes.db");
+        } catch (SQLException e) {
+            LogUtils.error("connectNodeDB", e);
+        }
+    }
+
     public void removeNodeDB() {
         try {
             if (mNodeConnection != null) {
@@ -267,6 +278,18 @@ public class ImportController {
             new File(mDBHome + "/nodes.db").delete();
         } catch (SQLException e) {
             LogUtils.error("removeNodeDB", e);
+        }
+    }
+
+    public boolean nodeDBExisats() {
+        return new File(mDBHome + "/nodes.db").exists();
+    }
+
+    public void openNodeDB() {
+        if (nodeDBExisats()) {
+            connectNodeDB();
+        } else {
+            createNodeDB();
         }
     }
 
@@ -320,6 +343,17 @@ public class ImportController {
         }
     }
 
+    public void connectAdressDB() {
+        if (mAdressConnection != null) {
+            return;
+        }
+        try {
+            mAdressConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/adress.db");
+        } catch (SQLException e) {
+            LogUtils.error("connectAdressDB", e);
+        }
+    }
+
     public void removeAdressDB() {
         try {
             if (mAdressConnection != null) {
@@ -329,6 +363,18 @@ public class ImportController {
             new File(mDBHome + "/adress.db").delete();
         } catch (SQLException e) {
             LogUtils.error("removeAdressDB", e);
+        }
+    }
+
+    public boolean addressDBExisats() {
+        return new File(mDBHome + "/adress.db").exists();
+    }
+
+    public void openAddressDB() {
+        if (addressDBExisats()) {
+            connectAdressDB();
+        } else {
+            createAdressDB();
         }
     }
 
@@ -388,6 +434,18 @@ public class ImportController {
         }
     }
 
+    public void connectWaysDB() {
+        if (mWaysConnection != null) {
+            return;
+        }
+
+        try {
+            mWaysConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/ways.db");
+        }catch (SQLException e) {
+            LogUtils.error("connectWaysDB", e);
+        }
+    }
+
     public void removeWaysDB() {
         try {
             if (mWaysConnection != null) {
@@ -397,6 +455,18 @@ public class ImportController {
             new File(mDBHome + "/ways.db").delete();
         } catch (SQLException e) {
             LogUtils.error("removeWayDB", e);
+        }
+    }
+
+    public boolean waysDBExists() {
+        return new File(mDBHome + "/ways.db").exists();
+    }
+
+    public void openWaysDB() {
+        if (waysDBExists()) {
+            connectWaysDB();
+        } else {
+            createWaysDB();
         }
     }
 
@@ -457,6 +527,18 @@ public class ImportController {
         }
     }
 
+    public void connectAreaDB() {
+        if (mAreaConnection != null) {
+            return;
+        }
+
+        try {
+            mAreaConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/area.db");
+        } catch (SQLException e) {
+            LogUtils.error("connectAreaDB", e);
+        }
+    }
+
     public void removeAreaDB() {
         try {
             if (mAreaConnection != null) {
@@ -466,6 +548,19 @@ public class ImportController {
             new File(mDBHome + "/area.db").delete();
         } catch (SQLException e) {
             LogUtils.error("removeAreaDB", e);
+        }
+    }
+
+    public boolean areaDBExists() {
+        return new File(mDBHome + "/area.db").exists();
+
+    }
+
+    public void openAreaDB() {
+        if (areaDBExists()) {
+            connectAreaDB();
+        } else {
+            createAreaDB();
         }
     }
 
@@ -535,6 +630,18 @@ public class ImportController {
         }
     }
 
+    public void connectEdgeDB() {
+        if (mEdgeConnection != null) {
+            return;
+        }
+
+        try {
+            mEdgeConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/edge.db");
+        } catch (SQLException e) {
+            LogUtils.error("connectEdgeDB", e);
+        }
+    }
+
     public void removeEdgeDB() {
         try {
             if (mEdgeConnection != null) {
@@ -544,6 +651,18 @@ public class ImportController {
             new File(mDBHome + "/edge.db").delete();
         } catch (SQLException e) {
             LogUtils.error("removeEdgeDB", e);
+        }
+    }
+
+    public boolean edgeDBExists() {
+        return new File(mDBHome + "/edge.db").exists();
+    }
+
+    public void openEdgeDB() {
+        if (edgeDBExists()) {
+            connectEdgeDB();
+        } else {
+            createEdgeDB();
         }
     }
 
@@ -607,6 +726,18 @@ public class ImportController {
         }
     }
 
+    public void connectAdminDB() {
+        if (mAdminConnection != null) {
+            return;
+        }
+
+        try {
+            mAdminConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/admin.db");
+        } catch (SQLException e) {
+            LogUtils.error("connectAdminDB", e);
+        }
+    }
+
     public void removeAdminDB() {
         try {
             if (mAdminConnection != null) {
@@ -619,14 +750,27 @@ public class ImportController {
         }
     }
 
+    public boolean adminDBExists() {
+        return new File(mDBHome + "/admin.db").exists();
+    }
+
+    public void openAdminDB() {
+        if (adminDBExists()) {
+            connectAdminDB();
+        } else {
+            createAdminDB();
+        }
+    }
+
     public void addNode(Node node) {
         addToCoordsTable(node.getId(), node.getLon(), node.getLat());
         addToPOIRefTable(node.getId(), node.getLon(), node.getLat(), node.getTags());
     }
 
     public void createCoordsDB() {
-        removeCoordsDB();
-
+        if (mCoordsConnection != null) {
+            return;
+        }
         Statement stmt = null;
         try {
             mCoordsConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/coords.db");
@@ -657,14 +801,26 @@ public class ImportController {
         }
     }
 
-    public void reopenCoordsDBReadOnly() {
+    public void connectCoordsDB() {
+        if (mCoordsConnection != null) {
+            return;
+        }
         try {
-            if (mCoordsConnection != null) {
-                mCoordsConnection.close();
-            }
-            mCoordsConnection = connectReadOnly("jdbc:sqlite:" + mDBHome + "/coords.db");
+            mCoordsConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/coords.db");
         } catch (SQLException e) {
-            LogUtils.error("reopenCoordsDBReadOnly", e);
+            LogUtils.error("connectCoordsDB", e);
+        }
+    }
+
+    public boolean coordsDBExists() {
+        return new File(mDBHome + "/coords.db").exists();
+    }
+
+    public void openCoordsDB() {
+        if (coordsDBExists()) {
+            connectCoordsDB();
+        } else {
+            createCoordsDB();
         }
     }
 
@@ -686,16 +842,16 @@ public class ImportController {
         }
     }
 
-    private JsonObject getCoordsEntry(long ref) {
+    private JsonObject getCoordsEntry(long refId) {
         Statement stmt = null;
         ResultSet rs = null;
         try {
             stmt = mCoordsConnection.createStatement();
-            String sql = String.format("SELECT lon, lat FROM coordsTable WHERE refId=%d", ref);
+            String sql = String.format("SELECT lon, lat FROM coordsTable WHERE refId=%d", refId);
             rs = stmt.executeQuery(sql);
             while (rs.next()) {
                 JsonObject coords = new JsonObject();
-                coords.put("ref", ref);
+                coords.put("refId", refId);
                 coords.put("lon", rs.getDouble(1));
                 coords.put("lat", rs.getDouble(2));
                 return coords;
@@ -718,7 +874,10 @@ public class ImportController {
             'CREATE TABLE refWayTable (refId INTEGER PRIMARY KEY, wayIdList JSON)')
         self.cursorTmp.execute(
             'CREATE TABLE wayRefTable (wayId INTEGER PRIMARY KEY, refList JSON)')*/
-        removeTmpDB();
+
+        if (mTmpConnection != null) {
+            return;
+        }
 
         Statement stmt = null;
         try {
@@ -740,6 +899,18 @@ public class ImportController {
         }
     }
 
+    public void connectTmpDB() {
+        if (mTmpConnection != null) {
+            return;
+        }
+        try {
+            mTmpConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/tmp.db");
+        } catch (SQLException e) {
+            LogUtils.error("createTmpDB", e);
+        }
+    }
+
+
     public void removeTmpDB() {
         try {
             if (mTmpConnection != null) {
@@ -749,6 +920,19 @@ public class ImportController {
             new File(mDBHome + "/tmp.db").delete();
         } catch (SQLException e) {
             LogUtils.error("removeTmpDB", e);
+        }
+    }
+
+
+    public boolean tmpDBExists() {
+        return new File(mDBHome + "/tmp.db").exists();
+    }
+
+    public void openTmpDB() {
+        if (tmpDBExists()) {
+            connectTmpDB();
+        } else {
+            createTmpDB();
         }
     }
 
@@ -1068,7 +1252,8 @@ public class ImportController {
         if (coords.size() >= 2) {
             boolean isPolygon = coords.get(0).equals(coords.get(coords.size() - 1));
             if (isPolygon && coords.size() < 3) {
-                LogUtils.log("skipping polygon area len(coords)<3 " + way.getId());
+                //LogUtils.log("skipping polygon area len(coords)<3 " + way.getId());
+                return;
             }
 
             Map<String, String> tags = way.getTags();
@@ -1228,15 +1413,6 @@ public class ImportController {
 
     private int encodeStreetInfo(int streetTypeId, int oneway, int roundabout, int tunnel, int bridge) {
         return streetTypeId + (oneway << 4) + (roundabout << 6) + (tunnel << 7) + (bridge << 8);
-    }
-
-    private JsonObject decodeStreetInfo(int streetInfo) {
-        int oneway = (streetInfo & 63) >> 4;
-        int roundabout = (streetInfo & 127) >> 6;
-        int tunnel = (streetInfo & 255) >> 7;
-        int bridge = (streetInfo & 511) >> 8;
-        int streetTypeId = (streetInfo & 15);
-        return new JsonObject().putChain("oneway", oneway).putChain("roundabout", roundabout).putChain("tunnel", tunnel).putChain("bridge", bridge).putChain("streetTypeId", streetTypeId);
     }
 
     private void addHighway(Way way) {
@@ -1559,6 +1735,93 @@ public class ImportController {
         return edgeList;
     }
 
+    public JsonArray getEdgeEntryForSource(long source) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        JsonArray edgeList = new JsonArray();
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("SELECT * FROM edgeTable WHERE source=%d", source);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                try {
+                    JsonObject edge = geEdgeFromQuery(rs);
+                    edgeList.add(edge);
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getEdgeEntryForSource", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return edgeList;
+    }
+
+    public JsonArray getEdgeEntryForTarget(long target) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        JsonArray edgeList = new JsonArray();
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("SELECT * FROM edgeTable WHERE target=%d", target);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                try {
+                    JsonObject edge = geEdgeFromQuery(rs);
+                    edgeList.add(edge);
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getEdgeEntryForSource", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return edgeList;
+    }
+
+    public JsonArray getEdgeEntryForWayId(long wayId) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        JsonArray edgeList = new JsonArray();
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("SELECT * FROM edgeTable WHERE wayId=%d", wayId);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                try {
+                    JsonObject edge = geEdgeFromQuery(rs);
+                    edgeList.add(edge);
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getEdgeEntryForWayId", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return edgeList;
+    }
+
     public void updateSourceOfEdge(long edgeId, long sourceId) {
         Statement stmt = null;
         try {
@@ -1574,6 +1837,31 @@ public class ImportController {
                 }
             } catch (SQLException e) {
             }
+        }
+    }
+
+    public void deleteEdgeEntry(long edgeId) {
+        Statement stmt = null;
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("DELETE FROM edgeTable WHERE id=%d", edgeId);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("deleteEdgeEntry", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public void deleteEdgeEntries(List<Long> edgeIdList) {
+        for (int i = 0; i < edgeIdList.size(); i++) {
+            long edgeId = edgeIdList.get(i);
+            deleteEdgeEntry(edgeId);
         }
     }
 
@@ -1799,18 +2087,18 @@ public class ImportController {
             return possibleWays;
         }
         // all ways that have refId somewhere in their reflist
-        wayIdList.stream().forEach(way -> {
+        wayIdList.forEach(way -> {
             long wayId = getLongValue(way);
             JsonObject otherWay = getWayEntryForId(wayId);
             if (otherWay != null) {
                 if (otherWay.containsKey("refs")) {
                     JsonArray refs = (JsonArray) otherWay.get("refs");
-                    refs.stream().forEach(ref -> {
+                    refs.forEach(ref -> {
                         long wayRef = getLongValue(ref);
                         if (wayRef == refId) {
                             // dont add same wayid if at beginning or end
                             if (fromWayId == wayId) {
-                                if (isEndRef(ref, refs)) {
+                                if (isEndRef(wayRef, refs)) {
                                     return;
                                 }
                             }
@@ -1819,7 +2107,6 @@ public class ImportController {
                     });
                 }
             }
-
         });
         return possibleWays;
     }
@@ -1852,8 +2139,8 @@ public class ImportController {
         return null;
     }
 
-    private boolean isEndRef(Object ref, JsonArray refs) {
-        return ref.equals(refs.get(0)) || ref.equals(refs.get(refs.size() - 1));
+    private boolean isEndRef(long refId, JsonArray refs) {
+        return refId == getFirstRef(refs) || refId == getLastRef(refs);
     }
 
     private long getLongValue(Object jsonValue) {
@@ -1888,6 +2175,20 @@ public class ImportController {
         return refList;
     }
 
+    private long getFirstRef(JsonArray refs) {
+        if (refs == null || refs.size() == 0) {
+            return -1;
+        }
+        return getLongValue(refs.get(0));
+    }
+
+    private long getLastRef(JsonArray refs) {
+        if (refs == null || refs.size() == 0) {
+            return -1;
+        }
+        return getLongValue(refs.get(refs.size() - 1));
+    }
+
     private boolean isLinkToLink(int streetTypeId, int streetTypeId2) {
         return (streetTypeId == STREET_TYPE_MOTORWAY_LINK && streetTypeId2 == STREET_TYPE_MOTORWAY_LINK)
                 || (streetTypeId == STREET_TYPE_TRUNK_LINK && streetTypeId2 == STREET_TYPE_TRUNK_LINK)
@@ -1913,10 +2214,10 @@ public class ImportController {
     }
 
     private boolean isValidWay2WayCrossing(JsonArray refs, JsonArray refs2) {
-        return (getLongValue(refs.get(refs.size() - 1)) == getLongValue(refs2.get(0))
-                || getLongValue(refs.get(0)) == getLongValue(refs2.get(refs2.size() - 1))
-                || getLongValue(refs.get(0)) == getLongValue(refs2.get(0))
-                || getLongValue(refs.get(refs.size() - 1)) == getLongValue(refs2.get(refs2.size() - 1)));
+        return getLastRef(refs) == getFirstRef(refs2)
+                || getFirstRef(refs) == getLastRef(refs2)
+                || getFirstRef(refs) == getFirstRef(refs2)
+                || getLastRef(refs) == getLastRef(refs2);
     }
 
 
@@ -1937,8 +2238,35 @@ public class ImportController {
         return subList;
     }
 
+    private int getTableSize(Connection conn, String tableName) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        try {
+            stmt = conn.createStatement();
+            String sql = String.format("SELECT COUNT(*) as count FROM %s", tableName);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                return rs.getInt("count");
+            }
+        } catch (Exception e) {
+            LogUtils.error("getTableSize", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return 0;
+    }
+
     public void createCrossingEntries() {
         HashMap<String, JsonObject> poiDict = getPOINodes(List.of(POI_TYPE_BARRIER, POI_TYPE_MOTORWAY_JUNCTION));
+
+        final ProgressBar progress=new ProgressBar(getTableSize(mWaysConnection, "wayTable"));
+        progress.setMessage("createCrossingEntries");
+        progress.printBar();
 
         Statement stmt = null;
         ResultSet rs = null;
@@ -1947,6 +2275,8 @@ public class ImportController {
             String sql = "SELECT wayId,streetInfo,refs,name FROM wayTable";
             rs = stmt.executeQuery(sql);
             while (rs.next()) {
+                progress.addValue();
+                progress.printBar();
                 try {
                     JsonObject way = getWayFromQuery(rs);
                     long wayId = getLongValue(way.get("wayId"));
@@ -1960,11 +2290,11 @@ public class ImportController {
 
                     if (way.containsKey("refs")) {
                         JsonArray refs = (JsonArray) way.get("refs");
-                        refs.forEach(ref -> {
-                            long refId = getLongValue(ref);
+                        for (int i =0; i < refs.size(); i ++) {
+                            long refId = getLongValue(refs.get(i));
                             JsonArray nextWays = findWayWithRefInAllWays(refId, wayId);
                             if (nextWays.size() == 0) {
-                                if (!isEndRef(ref, refs)) {
+                                if (!isEndRef(refId, refs)) {
                                     String poiKey = refId + ":" + POI_TYPE_BARRIER;
                                     if (poiDict.containsKey(poiKey)) {
                                         // barrier on a way - need to split
@@ -2025,7 +2355,7 @@ public class ImportController {
                                                 minorCrossingType = CROSSING_TYPE_ROUNDABOUT_EXIT;
 
                                                 if (oneway2 != 0) {
-                                                    if (!isValidOnewayEnter(oneway2, refId, getLongValue(refs2.get(0)), getLongValue(refs2.get(refs2.size() - 1)))) {
+                                                    if (!isValidOnewayEnter(oneway2, refId, getFirstRef(refs2), getLastRef(refs2))) {
                                                         minorCrossingType = CROSSING_TYPE_FORBIDDEN;
                                                     }
                                                 }
@@ -2041,8 +2371,8 @@ public class ImportController {
                                                     minorCrossingType = CROSSING_TYPE_LINK_LINK;
                                                     if (nextWays.size() == 1) {
                                                         if (oneway != 0 && oneway2 != 0) {
-                                                            boolean onewayValid = isValidOnewayEnter(oneway, refId, getLongValue(refs.get(0)), getLongValue(refs.get(refs.size() - 1)));
-                                                            boolean oneway2Valid = isValidOnewayEnter(oneway2, refId, getLongValue(refs2.get(0)), getLongValue(refs2.get(refs2.size() - 1)));
+                                                            boolean onewayValid = isValidOnewayEnter(oneway, refId, getFirstRef(refs), getLastRef(refs));
+                                                            boolean oneway2Valid = isValidOnewayEnter(oneway2, refId, getFirstRef(refs2), getLastRef(refs2));
                                                             if ((oneway2Valid && !onewayValid) || (!oneway2Valid && onewayValid)) {
                                                                 minorCrossingType = CROSSING_TYPE_NONE;
                                                             }
@@ -2058,8 +2388,8 @@ public class ImportController {
                                             }
                                             if (minorCrossingType == CROSSING_TYPE_NORMAL) {
                                                 if (oneway2 != 0 && roundabout2 == 0 && wayId2 != wayId) {
-                                                    if (refId == getLongValue(refs2.get(0)) || refId == getLongValue(refs2.get(refs2.size() - 1))) {
-                                                        if (!isValidOnewayEnter(oneway2, refId, getLongValue(refs2.get(0)), getLongValue(refs2.get(refs2.size() - 1)))) {
+                                                    if (refId == getFirstRef(refs2) || refId == getLastRef(refs2)) {
+                                                        if (!isValidOnewayEnter(oneway2, refId, getFirstRef(refs2), getLastRef(refs2))) {
                                                             minorCrossingType = CROSSING_TYPE_FORBIDDEN;
                                                         }
                                                     }
@@ -2086,8 +2416,8 @@ public class ImportController {
                                         } else if ((streetTypeId == STREET_TYPE_MOTORWAY && streetTypeId2 == STREET_TYPE_MOTORWAY)
                                                 || (streetTypeId == STREET_TYPE_TRUNK && streetTypeId2 == STREET_TYPE_TRUNK)) {
                                             if (oneway != 0 && oneway2 != 0) {
-                                                boolean onewayValid = isValidOnewayEnter(oneway, refId, getLongValue(refs.get(0)), getLongValue(refs.get(refs.size() - 1)));
-                                                boolean oneway2Valid = isValidOnewayEnter(oneway2, refId, getLongValue(refs2.get(0)), getLongValue(refs2.get(refs2.size() - 1)));
+                                                boolean onewayValid = isValidOnewayEnter(oneway, refId, getFirstRef(refs), getLastRef(refs));
+                                                boolean oneway2Valid = isValidOnewayEnter(oneway2, refId, getFirstRef(refs2), getLastRef(refs2));
                                                 if ((oneway2Valid && !onewayValid) || (!oneway2Valid && onewayValid)) {
                                                     crossingType = CROSSING_TYPE_NONE;
                                                 }
@@ -2120,7 +2450,7 @@ public class ImportController {
                                     addToCrossingsTable(wayId, refId, wayList);
                                 }
                             }
-                        });
+                        }
                     }
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());
@@ -2193,20 +2523,31 @@ public class ImportController {
     }
 
     public void createEdgeTableEntries() {
+        final ProgressBar progress=new ProgressBar(getTableSize(mWaysConnection, "wayTable"));
+        progress.setMessage("createEdgeTableEntries");
+        progress.printBar();
+
         Statement stmt = null;
         ResultSet rs = null;
+        int edgeNum = 0;
+        int wayNum = 0;
         try {
             stmt = mWaysConnection.createStatement();
             String sql = String.format("SELECT * FROM wayTable");
             rs = stmt.executeQuery(sql);
             while (rs.next()) {
+                progress.addValue();
+                progress.printBar();
+
                 try {
                     JsonObject way = getWayFromQuery(rs);
                     createEdgeTableEntriesForWay(way);
+                    wayNum++;
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());
                 }
             }
+            LogUtils.log("ways = " + wayNum);
         } catch (SQLException e) {
             LogUtils.error("createEdgeTableEntries", e);
         } finally {
@@ -2379,8 +2720,16 @@ public class ImportController {
 
     public void createEdgeTableNodeEntries() {
         JsonArray edgeIdList = getEdgeIdList();
-        edgeIdList.forEach(_edgeId -> {
-            long edgeId = getLongValue(_edgeId);
+        LogUtils.log("edges = " + edgeIdList.size());
+
+        ProgressBar progress=new ProgressBar(edgeIdList.size());
+        progress.setMessage("createEdgeTableNodeEntries");
+        progress.printBar();
+
+        for (int i = 0; i < edgeIdList.size(); i++) {
+            long edgeId = getLongValue(edgeIdList.get(i));
+            progress.addValue();
+            progress.printBar();
 
             JsonObject edge = getEdgeEntryForId(edgeId);
             createEdgeTableNodeSameStartEnriesFor(edge);
@@ -2390,11 +2739,19 @@ public class ImportController {
 
             edge = getEdgeEntryForId(edgeId);
             createEdgeTableNodeSourceEnriesFor(edge);
-        });
+        }
 
         JsonArray edgeIdListUnresolved = getEdgeIdListUnresolved();
-        edgeIdListUnresolved.forEach(_edgeId -> {
-            long edgeId = getLongValue(_edgeId);
+        LogUtils.log("unresolved edges = " + edgeIdListUnresolved.size());
+
+        progress=new ProgressBar(edgeIdListUnresolved.size());
+        progress.setMessage("createEdgeTableNodeEntries");
+        progress.printBar();
+
+        for (int i = 0; i < edgeIdListUnresolved.size(); i++) {
+            long edgeId = getLongValue(edgeIdListUnresolved.get(i));
+            progress.addValue();
+            progress.printBar();
 
             JsonObject edge = getEdgeEntryForId(edgeId);
             long source = getLongValue(edge.get("source"));
@@ -2410,11 +2767,58 @@ public class ImportController {
                 mEdgeSourceTargetId++;
                 updateTargetOfEdge(edgeId, target);
             }
-        });
+        }
     }
 
     public void removeOrphanedEdges() {
+        List<Long> edgeIdList = new ArrayList<>();
+        Statement stmt = null;
+        ResultSet rs = null;
+        int removeCount = 0;
 
+        ProgressBar progress=new ProgressBar(getTableSize(mEdgeConnection, "edgeTable"));
+        progress.setMessage("removeOrphanedEdges");
+        progress.printBar();
+
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("SELECT * FROM edgeTable");
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                progress.addValue();
+                progress.printBar();
+
+                try {
+                    JsonObject edge = geEdgeFromQuery(rs);
+                    long edgeId = getLongValue(edge.get("id"));
+                    long source = getLongValue(edge.get("source"));
+                    long target = getLongValue(edge.get("target"));
+
+                    JsonArray edgeList1 = getEdgeEntryForSource(target);
+                    JsonArray edgeList2 = getEdgeEntryForTarget(source);
+                    JsonArray edgeList3 = getEdgeEntryForSource(source);
+                    JsonArray edgeList4 = getEdgeEntryForTarget(target);
+                    if (edgeList1.size() == 0 && edgeList2.size() == 0 && edgeList3.size() == 1 && edgeList4.size() == 1) {
+                        edgeIdList.add(edgeId);
+                        removeCount++;
+                    }
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("removeOrphanedEdges", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+
+        deleteEdgeEntries(edgeIdList);
+        LogUtils.log("removed orphaned edges = " + removeCount);
     }
 
     public void removeOrphanedWays() {

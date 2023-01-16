@@ -4,9 +4,7 @@ import com.github.cliftonlabs.json_simple.JsonObject;
 import com.github.cliftonlabs.json_simple.Jsoner;
 import com.maxwen.osmviewer.shared.LogUtils;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
+import java.io.*;
 import java.math.BigDecimal;
 import java.util.*;
 
@@ -16,7 +14,6 @@ public class ImportMapping {
 
     private static ImportMapping sInstance;
     private JsonObject mProp = new JsonObject();
-    private File mConfigFile;
 
     private static Set<String> REQUIRED_HIGHWAY_TAGS_SET = Set.of("motorcar", "motor_vehicle", "access", "vehicle", "service", "lanes");
     private static Set<String> REQUIRED_AREA_TAGS_SET = Set.of("name", "ref", "landuse", "natural", "amenity", "tourism", "waterway", "railway", "aeroway", "highway", "building", "leisure", "bridge", "tunnel", "website", "url", "wikipedia", "addr:street");
@@ -84,14 +81,10 @@ public class ImportMapping {
     }
 
     private void load() {
-        File configDir = new File(System.getProperty("user.dir"));
-        if (!configDir.exists()) {
-            configDir.mkdirs();
-        }
-        mConfigFile = new File(configDir, "mapping.json");
-        if (mConfigFile.exists()) {
+        InputStream configFile = getClass().getResourceAsStream("mapping.json");
+        if (configFile != null) {
             try {
-                FileReader reader = new FileReader(mConfigFile);
+                InputStreamReader reader = new InputStreamReader(configFile);
                 mProp = (JsonObject) Jsoner.deserialize(reader);
 
                 mRequiredNodeTags = new HashSet<>();
@@ -192,14 +185,19 @@ public class ImportMapping {
             mProp.put("SHOP_POI_TYPE_DICT", SHOP_POI_TYPE_DICT);
             mProp.put("HIGHWAY_POI_TYPE_DICT", HIGHWAY_POI_TYPE_DICT);
             mProp.put("STREET_TYPE_DICT", STREET_TYPE_DICT);
-            save();
+            saveMappingFallback();
         }
     }
 
-    private void save() {
-        if (mConfigFile != null && mProp != null) {
+    private void saveMappingFallback() {
+        File configDir = new File(System.getProperty("user.dir"), "config");
+        if (!configDir.exists()) {
+            configDir.mkdirs();
+        }
+        File configFile = new File(configDir, "mapping.json");
+        if (mProp != null) {
             try {
-                FileWriter writer = new FileWriter(mConfigFile);
+                FileWriter writer = new FileWriter(configFile);
                 mProp.toJson(writer);
                 writer.close();
                 LogUtils.log("Mapping saved");
