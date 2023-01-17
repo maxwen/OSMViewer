@@ -45,7 +45,7 @@ public class QueryController {
         try {
             mEdgeConnection = connect("jdbc:sqlite:" + mDBHome + "/edge.db");
             mAreaConnection = connect("jdbc:sqlite:" + mDBHome + "/area.db");
-            mAddressConnection = connect("jdbc:sqlite:" + mDBHome + "/adress.db");
+            mAddressConnection = connect("jdbc:sqlite:" + mDBHome + "/address.db");
             mWaysConnection = connect("jdbc:sqlite:" + mDBHome + "/ways.db");
             mNodeConnection = connect("jdbc:sqlite:" + mDBHome + "/nodes.db");
             mAdminConnection = connect("jdbc:sqlite:" + mDBHome + "/admin.db");

@@ -8,7 +8,7 @@ version '1.0-SNAPSHOT'
 
 application {
     mainClass = 'com.maxwen.osmviewer.importer.Importer'
-    applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db", "-Xmx8192m"]
+    applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db", "-Dosm.map.path=${System.properties['user.home']}/Downloads/geofabrik", "-Xmx8192m"]
 }
 
 jar {

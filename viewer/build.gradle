@@ -14,7 +14,7 @@ version '1.0-SNAPSHOT'
 
 application {
     mainClass = 'com.maxwen.osmviewer.Main'
-    applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db1", "-Xmx4096m", "-Djdk.gtk.verbose=true", "-Dprism.forceGPU=true"]
+    applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db", "-Xmx4096m", "-Djdk.gtk.verbose=true", "-Dprism.forceGPU=true"]
 }
 
 sourceSets.main {

@@ -2,17 +2,16 @@ package com.maxwen.osmviewer.importer;
 
 import com.github.cliftonlabs.json_simple.JsonObject;
 import com.maxwen.osmviewer.shared.LogUtils;
-import com.maxwen.osmviewer.shared.OSMUtils;
-import com.maxwen.osmviewer.shared.ProgressBar;
+import com.wolt.osm.parallelpbf.entity.Node;
 import com.wolt.osm.parallelpbf.entity.Way;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 public class Importer implements PBFParser.ParseJobCallback {
     private CountDownLatch mParseLatch;
@@ -29,7 +28,7 @@ public class Importer implements PBFParser.ParseJobCallback {
         ImportController.getInstance().removeCoordsDB();
         ImportController.getInstance().removeTmpDB();
         ImportController.getInstance().removeNodeDB();
-        ImportController.getInstance().removeAdressDB();
+        ImportController.getInstance().removeAddressDB();
         ImportController.getInstance().removeWaysDB();
         ImportController.getInstance().removeAreaDB();
         ImportController.getInstance().removeEdgeDB();
@@ -52,11 +51,12 @@ public class Importer implements PBFParser.ParseJobCallback {
         LogUtils.log("finish");
         ImportController.getInstance().analyze();
         ImportController.getInstance().disconnectAll();
+        mExecutorService.shutdown();
     }
 
     public void parseThreadFinished() {
         mParseLatch.countDown();
-        LogUtils.log("mParseLatch = " + mParseLatch.getCount());
+        System.out.println();
     }
 
     @Override
@@ -80,6 +80,11 @@ public class Importer implements PBFParser.ParseJobCallback {
         parseProgress();
     }
 
+    @Override
+    public void onNodeDone(JsonObject parseJob, Node node) {
+        parseProgress();
+    }
+
     private void parseFile(JsonObject parseJob) {
         mExecutorService.execute(() -> {
             try {
@@ -91,20 +96,22 @@ public class Importer implements PBFParser.ParseJobCallback {
     }
 
     private void parseProgress() {
-        StringBuilder sb = new StringBuilder();
+        /*StringBuilder sb = new StringBuilder();
         for (JsonObject job : mParseJobs) {
             if ((int) job.get("pass") == 1) {
-                sb.append(job.get("id") + ":" + job.get("way") + "|" + job.get("ways") + " ");
+                sb.append("pass 1: " + job.get("id") + ":" + job.get("way") + "|" + job.get("ways") + " ");
+            } else {
+                sb.append("pass 0: " + job.get("id") + ":" + job.get("nodes"));
             }
         }
         sb.append("\r");
-        System.out.print(sb);
+        System.out.print(sb);*/
     }
 
     public void parse() throws InterruptedException {
         mParseJobs = new ArrayList<>();
         JsonObject parseJob = new JsonObject();
-        parseJob.put("file", "/home/maxl/Downloads/geofabrik/liechtenstein-latest.osm.pbf");
+        parseJob.put("file", new File(ImportController.getInstance().getMapHome(), "liechtenstein-latest.osm.pbf").getAbsolutePath());
         parseJob.put("ways", 0);
         parseJob.put("way", 0);
         parseJob.put("nodes", 0);
@@ -113,7 +120,7 @@ public class Importer implements PBFParser.ParseJobCallback {
         mParseJobs.add(parseJob);
 
         parseJob = new JsonObject();
-        parseJob.put("file", "/home/maxl/Downloads/geofabrik/austria-latest.osm.pbf");
+        parseJob.put("file", new File(ImportController.getInstance().getMapHome(), "austria-latest.osm.pbf").getAbsolutePath());
         parseJob.put("ways", 0);
         parseJob.put("way", 0);
         parseJob.put("nodes", 0);
@@ -122,7 +129,7 @@ public class Importer implements PBFParser.ParseJobCallback {
         mParseJobs.add(parseJob);
 
         parseJob = new JsonObject();
-        parseJob.put("file", "/home/maxl/Downloads/geofabrik/switzerland-latest.osm.pbf");
+        parseJob.put("file", new File(ImportController.getInstance().getMapHome(), "switzerland-latest.osm.pbf").getAbsolutePath());
         parseJob.put("ways", 0);
         parseJob.put("way", 0);
         parseJob.put("nodes", 0);
@@ -139,7 +146,6 @@ public class Importer implements PBFParser.ParseJobCallback {
 
         mParseLatch.await();
         System.out.println();
-        LogUtils.log("mParseLatch = " + mParseLatch.getCount());
     }
 
     public static void main(String[] args) {
@@ -148,16 +154,19 @@ public class Importer implements PBFParser.ParseJobCallback {
         i.open();
         try {
             i.parse();
-            LogUtils.log("createCrossingEntries");
+            ImportController.getInstance().removeEdgeDB();
+            ImportController.getInstance().createEdgeDB();
+
+            //LogUtils.log("createCrossingEntries");
             ImportController.getInstance().createCrossingEntries();
-            LogUtils.log("createEdgeTableEntries");
+            //LogUtils.log("createEdgeTableEntries");
             ImportController.getInstance().createEdgeTableEntries();
-            LogUtils.log("createEdgeTableNodeEntries");
+            //LogUtils.log("createEdgeTableNodeEntries");
             ImportController.getInstance().createEdgeTableNodeEntries();
-            LogUtils.log("removeOrphanedEdges");
+            //LogUtils.log("removeOrphanedEdges");
             ImportController.getInstance().removeOrphanedEdges();
-            LogUtils.log("removeOrphanedWays");
-            ImportController.getInstance().removeOrphanedWays();
+            //LogUtils.log("removeOrphanedWays");
+            //ImportController.getInstance().removeOrphanedWays();
         } catch (InterruptedException e) {
         }
         i.finish();

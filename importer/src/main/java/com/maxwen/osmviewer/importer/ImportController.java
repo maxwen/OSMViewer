@@ -25,7 +25,7 @@ public class ImportController {
 
     private Connection mEdgeConnection;
     private Connection mAreaConnection;
-    private Connection mAdressConnection;
+    private Connection mAddressConnection;
     private Connection mWaysConnection;
     private Connection mNodeConnection;
     private Connection mAdminConnection;
@@ -33,6 +33,7 @@ public class ImportController {
     private Connection mTmpConnection;
     private static ImportController sInstance;
     private final String mDBHome;
+    private final String mMapHome;
     private long mEdgeSourceTargetId = 1;
 
     public static ImportController getInstance() {
@@ -44,7 +45,13 @@ public class ImportController {
 
     private ImportController() {
         mDBHome = System.getProperty("osm.db.path");
+        mMapHome=System.getProperty("osm.map.path");
         LogUtils.log("ImportController db home: " + mDBHome);
+        LogUtils.log("ImportController map home: " + mMapHome);
+    }
+
+    public String getMapHome() {
+        return mMapHome;
     }
 
     public void disconnectAll() {
@@ -57,9 +64,9 @@ public class ImportController {
                 mAreaConnection.close();
                 mAreaConnection = null;
             }
-            if (mAdressConnection != null) {
-                mAdressConnection.close();
-                mAdressConnection = null;
+            if (mAddressConnection != null) {
+                mAddressConnection.close();
+                mAddressConnection = null;
             }
             if (mWaysConnection != null) {
                 mWaysConnection.close();
@@ -94,8 +101,8 @@ public class ImportController {
                 sql = "SELECT CreateSpatialIndex('areaLineTable', 'geom')";
                 stmt.execute(sql);
             }
-            if (mAdressConnection != null) {
-                stmt = mAdressConnection.createStatement();
+            if (mAddressConnection != null) {
+                stmt = mAddressConnection.createStatement();
                 String sql = "SELECT CreateSpatialIndex('addressTable', 'geom')";
                 stmt.execute(sql);
             }
@@ -144,8 +151,8 @@ public class ImportController {
                 sql = "ANALYZE areaLineTable";
                 stmt.execute(sql);
             }
-            if (mAdressConnection != null) {
-                stmt = mAdressConnection.createStatement();
+            if (mAddressConnection != null) {
+                stmt = mAddressConnection.createStatement();
                 String sql = "ANALYZE addressTable";
                 stmt.execute(sql);
             }
@@ -167,7 +174,7 @@ public class ImportController {
                 stmt.execute(sql);
             }
         } catch (SQLException e) {
-            LogUtils.error("createSpatialIndex", e);
+            LogUtils.error("analyze", e);
         } finally {
             try {
                 if (stmt != null) {
@@ -293,7 +300,7 @@ public class ImportController {
         }
     }
 
-    public void createAdressDB() {
+    public void createAddressDB() {
         /*self.cursorAdress.execute(
                 'CREATE TABLE addressTable (id INTEGER PRIMARY KEY, refId INTEGER, country INTEGER, city INTEGER, postCode INTEGER, streetName TEXT, houseNumber TEXT, lat REAL, lon REAL)')
         self.cursorAdress.execute(
@@ -304,20 +311,20 @@ public class ImportController {
                 "CREATE INDEX houseNumber_idx ON addressTable (houseNumber)")
         self.cursorAdress.execute(
                 "CREATE INDEX city_idx ON addressTable (city)")*/
-        if (mAdressConnection != null) {
+        if (mAddressConnection != null) {
             return;
         }
 
         Statement stmt = null;
         try {
-            mAdressConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/adress.db");
-            stmt = mAdressConnection.createStatement();
+            mAddressConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/address.db");
+            stmt = mAddressConnection.createStatement();
 
             String sql;
             sql = "SELECT InitSpatialMetaData(1)";
             stmt.execute(sql);
             // TODO should be lon lat but python depends on that order
-            sql = "CREATE TABLE IF NOT EXISTS addressTable (id INTEGER PRIMARY KEY AUTOINCREMENT, refId INTEGER, country INTEGER, city INTEGER, postCode INTEGER, streetName TEXT, houseNumber TEXT, lat REAL, lon REAL)";
+            sql = "CREATE TABLE IF NOT EXISTS addressTable (refId INTEGER PRIMARY KEY, country INTEGER, city INTEGER, postCode INTEGER, streetName TEXT, houseNumber TEXT)";
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS streetName_idx ON addressTable (streetName)";
             stmt.execute(sql);
@@ -332,7 +339,7 @@ public class ImportController {
             sql = "SELECT CreateMbrCache('addressTable', 'geom')";
             stmt.execute(sql);
         } catch (SQLException e) {
-            LogUtils.error("createAdressDB", e);
+            LogUtils.error("createAddressDB", e);
         } finally {
             try {
                 if (stmt != null) {
@@ -343,38 +350,38 @@ public class ImportController {
         }
     }
 
-    public void connectAdressDB() {
-        if (mAdressConnection != null) {
+    public void connectAddressDB() {
+        if (mAddressConnection != null) {
             return;
         }
         try {
-            mAdressConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/adress.db");
+            mAddressConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/address.db");
         } catch (SQLException e) {
-            LogUtils.error("connectAdressDB", e);
+            LogUtils.error("connectAddressDB", e);
         }
     }
 
-    public void removeAdressDB() {
+    public void removeAddressDB() {
         try {
-            if (mAdressConnection != null) {
-                mAdressConnection.close();
-                mAdressConnection = null;
+            if (mAddressConnection != null) {
+                mAddressConnection.close();
+                mAddressConnection = null;
             }
-            new File(mDBHome + "/adress.db").delete();
+            new File(mDBHome + "/address.db").delete();
         } catch (SQLException e) {
-            LogUtils.error("removeAdressDB", e);
+            LogUtils.error("removeAddressDB", e);
         }
     }
 
     public boolean addressDBExisats() {
-        return new File(mDBHome + "/adress.db").exists();
+        return new File(mDBHome + "/address.db").exists();
     }
 
     public void openAddressDB() {
         if (addressDBExisats()) {
-            connectAdressDB();
+            connectAddressDB();
         } else {
-            createAdressDB();
+            createAddressDB();
         }
     }
 
@@ -415,7 +422,7 @@ public class ImportController {
             sql = "SELECT CreateMbrCache('wayTable', 'geom')";
             stmt.execute(sql);
 
-            sql = "CREATE TABLE IF NOT EXISTS crossingTable (id INTEGER PRIMARY KEY AUTOINCREMENT, wayId INTEGER, refId INTEGER, nextWayIdList JSON)";
+            sql = "CREATE TABLE IF NOT EXISTS crossingTable (id INTEGER PRIMARY KEY AUTOINCREMENT, wayId INTEGER, refId INTEGER, nextWayIdList JSON, UNIQUE (wayId, refId) ON CONFLICT IGNORE)";
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS wayId_idx ON crossingTable (wayId)";
             stmt.execute(sql);
@@ -775,7 +782,7 @@ public class ImportController {
         try {
             mCoordsConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/coords.db");
             stmt = mCoordsConnection.createStatement();
-            String sql = "CREATE TABLE coordsTable (refId INTEGER PRIMARY KEY, lon REAL, lat REAL)";
+            String sql = "CREATE TABLE IF NOT EXISTS coordsTable (refId INTEGER PRIMARY KEY, lon REAL, lat REAL)";
             stmt.execute(sql);
         } catch (SQLException e) {
             LogUtils.error("createCoordsDB", e);
@@ -883,9 +890,9 @@ public class ImportController {
         try {
             mTmpConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/tmp.db");
             stmt = mTmpConnection.createStatement();
-            String sql = "CREATE TABLE refWayTable (refId INTEGER PRIMARY KEY, wayIdList JSON)";
+            String sql = "CREATE TABLE IF NOT EXISTS refWayTable (refId INTEGER PRIMARY KEY, wayIdList JSON)";
             stmt.execute(sql);
-            sql = "CREATE TABLE wayRefTable (wayId INTEGER PRIMARY KEY, refList JSON)";
+            sql = "CREATE TABLE IF NOT EXISTS wayRefTable (wayId INTEGER PRIMARY KEY, refList JSON)";
             stmt.execute(sql);
         } catch (SQLException e) {
             LogUtils.error("createTmpDB", e);
@@ -1055,33 +1062,14 @@ public class ImportController {
     }
 
     private void addToAddressTable(long ref, int country, int city, String streetName, String houseNumber, double lon, double lat) {
-        /*def addToAddressTable (self, refId, country, city, streetName, houseNumber, lat, lon):
-        cacheKey = "%s:%s" % (streetName, houseNumber)
-        if not cacheKey in self.addressCache:
-        self.cursorAdress.execute('INSERT INTO addressTable VALUES( ?, ?, ?, ?, ?, ?, ?, ?, ?)', (
-                self.addressId, refId, country, city, None, streetName, houseNumber, lat, lon))
-        self.addressId = self.addressId + 1
-        self.addressCache.add(cacheKey)
-            else:
-        resultList = self.getAdressListForStreetAndNumber(
-                streetName, houseNumber)
-        for address in resultList:
-        _, _, _, _, _, _, _, storedLat, storedLon = address
-        bbox = self.createBBoxAroundPoint(storedLat, storedLon, 0.0005)
-        if self.pointInsideBBox(bbox, lat, lon):
-        return
-
-                self.cursorAdress.execute('INSERT INTO addressTable VALUES( ?, ?, ?, ?, ?, ?, ?, ?, ?)', (
-                        self.addressId, refId, country, city, None, streetName, houseNumber, lat, lon))
-        self.addressId = self.addressId + 1*/
         Statement stmt = null;
         try {
             streetName = escapeSQLString(streetName);
             houseNumber = escapeSQLString(houseNumber);
             String pointString = createPointStringFromCoords(lon, lat);
 
-            stmt = mAdressConnection.createStatement();
-            String sql = String.format("INSERT INTO addressTable (refId, country, city, postCode, streetName, houseNumber, lon, lat, geom) VALUES( %d, %d, %d, %d, '%s', '%s', %f, %f, PointFromText(%s, 4326))", ref, country, city, -1, streetName, houseNumber, lon, lat, pointString);
+            stmt = mAddressConnection.createStatement();
+            String sql = String.format("INSERT OR IGNORE INTO addressTable (refId, country, city, postCode, streetName, houseNumber, geom) VALUES( %d, %d, %d, %d, '%s', '%s', PointFromText(%s, 4326))", ref, country, city, -1, streetName, houseNumber, pointString);
             stmt.execute(sql);
         } catch (SQLException e) {
             LogUtils.error("addToAddressTable", e);
@@ -1210,7 +1198,7 @@ public class ImportController {
                     wayIdList.add(wayId);
                     String wayIdListString = "'" + Jsoner.serialize(wayIdList) + "'";
                     stmt = mTmpConnection.createStatement();
-                    String sql = String.format("REPLACE INTO refWayTable VALUES( %d, %s)", refId, wayIdListString);
+                    String sql = String.format("UPDATE refWayTable SET wayIdList=%s WHERE refId=%d", wayIdListString, refId);
                     stmt.execute(sql);
                 }
             } else {
@@ -1234,7 +1222,9 @@ public class ImportController {
     }
 
     public void addWay(Way way) {
-        //LogUtils.log(way.toString());
+        if (hasWayEntryForId(way.getId())) {
+            return;
+        }
         Map<String, String> tags = way.getTags();
         String t = tags.get("highway");
         if (t != null) {
@@ -1509,7 +1499,7 @@ public class ImportController {
                 stmt.execute(sql);
 
                 coords.forEach(coord -> {
-                    long refId = getLongValue(((JsonObject) coord).get("ref"));
+                    long refId = getLongValue(((JsonObject) coord).get("refId"));
                     addToTmpRefWayTable(refId, way.getId());
                 });
             } catch (SQLException e) {
@@ -2139,6 +2129,54 @@ public class ImportController {
         return null;
     }
 
+    public boolean hasWayEntryForId(long wayId) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        try {
+            stmt = mWaysConnection.createStatement();
+            String sql = String.format("SELECT wayId FROM wayTable WHERE wayId=%d", wayId);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                return true;
+            }
+        } catch (SQLException e) {
+            LogUtils.error("hasWayEntryForId", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return false;
+    }
+
+    public void deleteWayEntry(long wayId) {
+        Statement stmt = null;
+        try {
+            stmt = mWaysConnection.createStatement();
+            String sql = String.format("DELETE FROM wayTable WHERE wayId=%d", wayId);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("deleteWayEntry", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public void deleteWayEntries(List<Long> wayIdList) {
+        for (int i = 0; i < wayIdList.size(); i++) {
+            long wayId = wayIdList.get(i);
+            deleteWayEntry(wayId);
+        }
+    }
+
     private boolean isEndRef(long refId, JsonArray refs) {
         return refId == getFirstRef(refs) || refId == getLastRef(refs);
     }
@@ -2437,7 +2475,7 @@ public class ImportController {
                                         }
                                     }
                                     JsonObject wayCrossing = new JsonObject();
-                                    wayCrossing.put("wayId", wayId);
+                                    wayCrossing.put("wayId", wayId2);
                                     wayCrossing.put("crossingType", crossingType);
                                     if (crossingInfo != null) {
                                         wayCrossing.put("crossingInfo", crossingInfo);
@@ -2547,7 +2585,6 @@ public class ImportController {
                     LogUtils.log(e.getMessage());
                 }
             }
-            LogUtils.log("ways = " + wayNum);
         } catch (SQLException e) {
             LogUtils.error("createEdgeTableEntries", e);
         } finally {
@@ -2720,7 +2757,6 @@ public class ImportController {
 
     public void createEdgeTableNodeEntries() {
         JsonArray edgeIdList = getEdgeIdList();
-        LogUtils.log("edges = " + edgeIdList.size());
 
         ProgressBar progress=new ProgressBar(edgeIdList.size());
         progress.setMessage("createEdgeTableNodeEntries");
@@ -2742,7 +2778,6 @@ public class ImportController {
         }
 
         JsonArray edgeIdListUnresolved = getEdgeIdListUnresolved();
-        LogUtils.log("unresolved edges = " + edgeIdListUnresolved.size());
 
         progress=new ProgressBar(edgeIdListUnresolved.size());
         progress.setMessage("createEdgeTableNodeEntries");
@@ -2822,6 +2857,42 @@ public class ImportController {
     }
 
     public void removeOrphanedWays() {
+        List<Long> wayIdList = new ArrayList<>();
+        Statement stmt = null;
+        ResultSet rs = null;
+        int removeCount = 0;
 
+        ProgressBar progress=new ProgressBar(getTableSize(mWaysConnection, "wayTable"));
+        progress.setMessage("removeOrphanedWays");
+        progress.printBar();
+
+        try {
+            stmt = mWaysConnection.createStatement();
+            String sql = String.format("SELECT wayId FROM wayTable");
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                progress.addValue();
+                progress.printBar();
+
+                long wayId = rs.getLong("wayId");
+                JsonArray edgeList = getEdgeEntryForWayId(wayId);
+                if (edgeList.size() == 0) {
+                    removeCount++;
+                    wayIdList.add(wayId);
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("removeOrphanedWays", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+
+        deleteWayEntries(wayIdList);
+        LogUtils.log("removed orphaned ways = " + removeCount);
     }
 }

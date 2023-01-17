@@ -15,6 +15,7 @@ public class PBFParser {
     interface ParseJobCallback {
         void onComplete(JsonObject parseJob);
         void onWayDone(JsonObject parseJob, Way way);
+        void onNodeDone(JsonObject parseJob, Node node);
     }
 
     private void addNode(Node node) {
@@ -48,7 +49,6 @@ public class PBFParser {
                     addWay(way);
                 })
                 .onComplete(() -> {
-                    LogUtils.log("parseSecondPass " + file + " onComplete");
                     callback.onComplete(parseJob);
                 })
                 .parse();
@@ -61,11 +61,11 @@ public class PBFParser {
         new ParallelBinaryParser(input, 4)
                 .onNode(node -> {
                     countNode(parseJob);
+                    callback.onNodeDone(parseJob, node);
                     addNode(node);
                 })
                 .onWay(way -> countWay(parseJob))
                 .onComplete(() -> {
-                    LogUtils.log("parseFile " + file + " onComplete");
                     callback.onComplete(parseJob);
                 })
                 .parse();
