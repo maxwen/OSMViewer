@@ -44,8 +44,11 @@ public class ImportController {
     }
 
     private ImportController() {
-        mDBHome = System.getProperty("osm.db.path");
-        mMapHome=System.getProperty("osm.map.path");
+        String dbHome = System.getProperty("osm.db.path");
+        mDBHome = System.getenv().getOrDefault("OSM_DB_PATH", dbHome);
+        String mapHome=System.getProperty("osm.map.path");
+        mMapHome = System.getenv().getOrDefault("OSM_MAPS_PATH", mapHome);
+
         LogUtils.log("ImportController db home: " + mDBHome);
         LogUtils.log("ImportController map home: " + mMapHome);
     }

@@ -104,7 +104,6 @@ public class ProgressBar{
                         .append("\r")
                         .toString()
         );
-        System.out.flush();
         if(percentage==100)
             System.out.println();
     }

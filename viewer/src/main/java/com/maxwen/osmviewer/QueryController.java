@@ -37,7 +37,8 @@ public class QueryController {
     }
 
     private QueryController() {
-        mDBHome = System.getProperty("osm.db.path");
+        String dbHome = System.getProperty("osm.db.path");
+        mDBHome = System.getenv().getOrDefault("OSM_DB_PATH", dbHome);
         LogUtils.log("DatabaseController db home: " + mDBHome);
     }
 
@@ -50,6 +51,11 @@ public class QueryController {
             mNodeConnection = connect("jdbc:sqlite:" + mDBHome + "/nodes.db");
             mAdminConnection = connect("jdbc:sqlite:" + mDBHome + "/admin.db");
             mConnected = true;
+
+            LogUtils.log("edges = " + getTableSize(mEdgeConnection, "edgeTable"));
+            LogUtils.log("ways = " + getTableSize(mWaysConnection, "wayTable"));
+            LogUtils.log("areas = " + getTableSize(mAreaConnection, "areaTable"));
+
             return true;
         } catch (SQLException e) {
             LogUtils.error("connextAll", e);
@@ -603,5 +609,28 @@ public class QueryController {
             }
         }
         return nodes;
+    }
+
+    public int getTableSize(Connection conn, String tableName) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        try {
+            stmt = conn.createStatement();
+            String sql = String.format("SELECT COUNT(*) as count FROM %s", tableName);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                return rs.getInt("count");
+            }
+        } catch (Exception e) {
+            LogUtils.error("getTableSize", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return 0;
     }
 }

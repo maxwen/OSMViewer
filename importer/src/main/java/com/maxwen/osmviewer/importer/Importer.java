@@ -96,7 +96,7 @@ public class Importer implements PBFParser.ParseJobCallback {
     }
 
     private void parseProgress() {
-        /*StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder();
         for (JsonObject job : mParseJobs) {
             if ((int) job.get("pass") == 1) {
                 sb.append("pass 1: " + job.get("id") + ":" + job.get("way") + "|" + job.get("ways") + " ");
@@ -105,7 +105,7 @@ public class Importer implements PBFParser.ParseJobCallback {
             }
         }
         sb.append("\r");
-        System.out.print(sb);*/
+        System.out.print(sb);
     }
 
     public void parse() throws InterruptedException {
@@ -134,6 +134,15 @@ public class Importer implements PBFParser.ParseJobCallback {
         parseJob.put("way", 0);
         parseJob.put("nodes", 0);
         parseJob.put("id", 2);
+        parseJob.put("pass", 0);
+        mParseJobs.add(parseJob);
+
+        parseJob = new JsonObject();
+        parseJob.put("file", new File(ImportController.getInstance().getMapHome(), "bayern-latest.osm.pbf").getAbsolutePath());
+        parseJob.put("ways", 0);
+        parseJob.put("way", 0);
+        parseJob.put("nodes", 0);
+        parseJob.put("id", 3);
         parseJob.put("pass", 0);
         mParseJobs.add(parseJob);
 
