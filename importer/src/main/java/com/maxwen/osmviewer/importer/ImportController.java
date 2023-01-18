@@ -9,6 +9,7 @@ import com.maxwen.osmviewer.shared.LogUtils;
 import com.maxwen.osmviewer.shared.OSMUtils;
 import com.maxwen.osmviewer.shared.ProgressBar;
 import com.wolt.osm.parallelpbf.entity.Node;
+import com.wolt.osm.parallelpbf.entity.Relation;
 import com.wolt.osm.parallelpbf.entity.Way;
 import org.sqlite.SQLiteConfig;
 
@@ -35,6 +36,7 @@ public class ImportController {
     private final String mDBHome;
     private final String mMapHome;
     private long mEdgeSourceTargetId = 1;
+    private boolean mImportProgress = true;
 
     public static ImportController getInstance() {
         if (sInstance == null) {
@@ -48,6 +50,7 @@ public class ImportController {
         mDBHome = System.getenv().getOrDefault("OSM_DB_PATH", dbHome);
         String mapHome=System.getProperty("osm.map.path");
         mMapHome = System.getenv().getOrDefault("OSM_MAPS_PATH", mapHome);
+        mImportProgress = System.getenv().getOrDefault("OSM_IMPORT_PROGRESS", "1").equals("1");
 
         LogUtils.log("ImportController db home: " + mDBHome);
         LogUtils.log("ImportController map home: " + mMapHome);
@@ -55,6 +58,10 @@ public class ImportController {
 
     public String getMapHome() {
         return mMapHome;
+    }
+
+    public boolean isImportProgress() {
+        return mImportProgress;
     }
 
     public void disconnectAll() {
@@ -705,11 +712,9 @@ public class ImportController {
             String sql;
             sql = "SELECT InitSpatialMetaData(1)";
             stmt.execute(sql);
-            sql = "CREATE TABLE IF NOT EXISTS adminAreaTable (osmId INTEGER PRIMARY KEY, tags JSON, adminLevel INTEGER, parent INTEGER)";
+            sql = "CREATE TABLE IF NOT EXISTS adminAreaTable (osmId INTEGER PRIMARY KEY, tags JSON, adminLevel INTEGER)";
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS adminLevel_idx ON adminAreaTable (adminLevel)";
-            stmt.execute(sql);
-            sql = "CREATE INDEX IF NOT EXISTS parent_idx ON adminAreaTable (parent)";
             stmt.execute(sql);
             sql = "SELECT AddGeometryColumn('adminAreaTable', 'geom', 4326, 'MULTIPOLYGON', 2)";
             stmt.execute(sql);
@@ -1086,7 +1091,7 @@ public class ImportController {
         }
     }
 
-    private String escapeSQLString(String s) {
+    public String escapeSQLString(String s) {
         return s.replace("'", "''");
     }
 
@@ -1238,6 +1243,9 @@ public class ImportController {
 
             addOtherWays(way);
         }
+    }
+
+    public void addRelation(Relation relation) {
     }
 
     private void addOtherWays(Way way) {
@@ -1525,10 +1533,32 @@ public class ImportController {
         try {
             stmt = mWaysConnection.createStatement();
             String nextWaysListString = "'" + Jsoner.serialize(nextWaysList) + "'";
-            String sql = String.format("INSERT INTO crossingTable (wayId, refId, nextWayIdList) VALUES( %d, %d, %s)", wayId, refId, nextWaysListString);
+            String sql = String.format("INSERT INTO crossingTable (wayId, refId, nextWayIdList) VALUES(%d, %d, %s)", wayId, refId, nextWaysListString);
             stmt.execute(sql);
         } catch (SQLException e) {
             LogUtils.error("addToCrossingsTable", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public void addToAdminAreaTable(long osmId, JsonObject tags, int adminLevel, String areaString) {
+        //        self.cursorAdmin.execute('INSERT OR IGNORE INTO adminAreaTable VALUES( ?, ?, ?, ?, MultiPolygonFromText(%s, 4326))' % (
+        //            polyString), (osmId, self.encodeTags(tags), adminLevel, None))
+        String tagsString = "'" + Jsoner.serialize(tags) + "'";
+        Statement stmt = null;
+        try {
+            stmt = mAdminConnection.createStatement();
+            String sql = String.format("INSERT OR IGNORE INTO adminAreaTable (osmId, tags, adminLevel, geom) VALUES(%d, %s, %d, MultiPolygonFromText(%s, 4326))"
+                    ,osmId, tagsString, adminLevel, areaString);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("addToAdminAreaTable", e);
         } finally {
             try {
                 if (stmt != null) {
@@ -1926,6 +1956,59 @@ public class ImportController {
         return edgeIdList;
     }
 
+    public void updateCostOfEdge(long edgeId, double cost, double reverseCost) {
+        Statement stmt = null;
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("UPDATE OR IGNORE edgeTable SET cost=%f, reverseCost=%f WHERE id=%d", cost, reverseCost, edgeId);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("updateCostOfEdge", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    private JsonObject getCostsOfWay(long wayId, JsonObject tags, long distance, int crossingFactor, JsonObject streetInfo, int maxspeed) {
+        int oneway = getIntValue(streetInfo.get("oneway"));
+        int roundabout = getIntValue(streetInfo.get("roundabout"));
+        int streetTypeId = getIntValue(streetInfo.get("streetTypeId"));
+
+        if (roundabout == 1) {
+            oneway = 1;
+        }
+
+        double cost;
+        double reverseCost;
+        int accessFactor = 1;
+        if (tags != null) {
+            accessFactor = getAccessCostFactor(tags, streetTypeId);
+        }
+        double streetTypeFactor = getStreetTypeCostFactor(streetTypeId);
+
+        cost = (distance * streetTypeFactor *
+                accessFactor * crossingFactor);
+
+        if (oneway == 1) {
+            reverseCost = -1.0;
+        } else if (oneway == 2) {
+            reverseCost = cost;
+            cost = -1.0;
+        } else {
+            reverseCost = cost;
+        }
+
+        JsonObject costs = new JsonObject();
+        costs.put("cost", cost);
+        costs.put("reverseCost", reverseCost);
+        return costs;
+    }
+
     private String filterListToIn(List<Integer> typeFilterList) {
         if (typeFilterList != null) {
             StringBuffer buffer = new StringBuffer();
@@ -2185,27 +2268,11 @@ public class ImportController {
     }
 
     private long getLongValue(Object jsonValue) {
-        if (jsonValue == null) {
-            return 0;
-        } else if (jsonValue instanceof BigDecimal) {
-            return ((BigDecimal) jsonValue).longValue();
-        } else if (jsonValue instanceof Long) {
-            return (Long) jsonValue;
-        } else if (jsonValue instanceof Integer) {
-            return (Integer) jsonValue;
-        }
-        throw new NumberFormatException("getLongValue");
+        return GISUtils.getLongValue(jsonValue);
     }
 
     private int getIntValue(Object jsonValue) {
-        if (jsonValue == null) {
-            return 0;
-        } else if (jsonValue instanceof BigDecimal) {
-            return ((BigDecimal) jsonValue).intValue();
-        } else if (jsonValue instanceof Integer) {
-            return (Integer) jsonValue;
-        }
-        throw new NumberFormatException("getIntValue");
+        return GISUtils.getIntValue(jsonValue);
     }
 
     private List<Long> jsonArrayRefsToList(JsonArray refs) {
@@ -2306,8 +2373,10 @@ public class ImportController {
         HashMap<String, JsonObject> poiDict = getPOINodes(List.of(POI_TYPE_BARRIER, POI_TYPE_MOTORWAY_JUNCTION));
 
         final ProgressBar progress=new ProgressBar(getTableSize(mWaysConnection, "wayTable"));
-        progress.setMessage("createCrossingEntries");
-        progress.printBar();
+        if (mImportProgress) {
+            progress.setMessage("createCrossingEntries");
+            progress.printBar();
+        }
 
         Statement stmt = null;
         ResultSet rs = null;
@@ -2316,8 +2385,10 @@ public class ImportController {
             String sql = "SELECT wayId,streetInfo,refs,name FROM wayTable";
             rs = stmt.executeQuery(sql);
             while (rs.next()) {
-                progress.addValue();
-                progress.printBar();
+                if (mImportProgress) {
+                    progress.addValue();
+                    progress.printBar();
+                }
                 try {
                     JsonObject way = getWayFromQuery(rs);
                     long wayId = getLongValue(way.get("wayId"));
@@ -2565,8 +2636,10 @@ public class ImportController {
 
     public void createEdgeTableEntries() {
         final ProgressBar progress=new ProgressBar(getTableSize(mWaysConnection, "wayTable"));
-        progress.setMessage("createEdgeTableEntries");
-        progress.printBar();
+        if (mImportProgress) {
+            progress.setMessage("createEdgeTableEntries");
+            progress.printBar();
+        }
 
         Statement stmt = null;
         ResultSet rs = null;
@@ -2577,8 +2650,10 @@ public class ImportController {
             String sql = String.format("SELECT * FROM wayTable");
             rs = stmt.executeQuery(sql);
             while (rs.next()) {
-                progress.addValue();
-                progress.printBar();
+                if (mImportProgress) {
+                    progress.addValue();
+                    progress.printBar();
+                }
 
                 try {
                     JsonObject way = getWayFromQuery(rs);
@@ -2660,8 +2735,8 @@ public class ImportController {
                     List<Long> refList = getRefListSubset(refs, startRef, endRef);
                     JsonArray edgeCoords = createRefsCoords(refList);
                     if (edgeCoords.size() >= 2) {
-                        // cost, reverseCost = self.getCostsOfWay( wayId, tags, distance, crossingFactor, streetInfo, maxspeed)
-                        addToEdgeTable(startRef, endRef, distance, wayId, 0, 0, streetTypeInfo, edgeCoords);
+                        JsonObject costs = getCostsOfWay(wayId, tags, distance, crossingFactor, typeInfo, maxspeed);
+                        addToEdgeTable(startRef, endRef, distance, wayId, (double) costs.get("cost"), (double) costs.get("reverseCost"), streetTypeInfo, edgeCoords);
                     }
                     refNodeList = new ArrayList<>();
                     distance = 0;
@@ -2677,8 +2752,8 @@ public class ImportController {
                 List<Long> refList = getRefListSubset(refs, startRef, endRef);
                 JsonArray edgeCoords = createRefsCoords(refList);
                 if (edgeCoords.size() >= 2) {
-                    // cost, reverseCost = self.getCostsOfWay( wayId, tags, distance, crossingFactor, streetInfo, maxspeed)
-                    addToEdgeTable(startRef, endRef, distance, wayId, 0, 0, streetTypeInfo, edgeCoords);
+                    JsonObject costs = getCostsOfWay(wayId, tags, distance, crossingFactor, typeInfo, maxspeed);
+                    addToEdgeTable(startRef, endRef, distance, wayId, (double) costs.get("cost"), (double) costs.get("reverseCost"), streetTypeInfo, edgeCoords);
                 }
             }
         }
@@ -2762,8 +2837,10 @@ public class ImportController {
         JsonArray edgeIdList = getEdgeIdList();
 
         ProgressBar progress=new ProgressBar(edgeIdList.size());
-        progress.setMessage("createEdgeTableNodeEntries");
-        progress.printBar();
+        if (mImportProgress) {
+            progress.setMessage("createEdgeTableNodeEntries");
+            progress.printBar();
+        }
 
         for (int i = 0; i < edgeIdList.size(); i++) {
             long edgeId = getLongValue(edgeIdList.get(i));
@@ -2783,13 +2860,17 @@ public class ImportController {
         JsonArray edgeIdListUnresolved = getEdgeIdListUnresolved();
 
         progress=new ProgressBar(edgeIdListUnresolved.size());
-        progress.setMessage("createEdgeTableNodeEntries");
-        progress.printBar();
+        if (mImportProgress) {
+            progress.setMessage("createEdgeTableNodeEntries");
+            progress.printBar();
+        }
 
         for (int i = 0; i < edgeIdListUnresolved.size(); i++) {
             long edgeId = getLongValue(edgeIdListUnresolved.get(i));
-            progress.addValue();
-            progress.printBar();
+            if (mImportProgress) {
+                progress.addValue();
+                progress.printBar();
+            }
 
             JsonObject edge = getEdgeEntryForId(edgeId);
             long source = getLongValue(edge.get("source"));
@@ -2815,16 +2896,20 @@ public class ImportController {
         int removeCount = 0;
 
         ProgressBar progress=new ProgressBar(getTableSize(mEdgeConnection, "edgeTable"));
-        progress.setMessage("removeOrphanedEdges");
-        progress.printBar();
+        if (mImportProgress) {
+            progress.setMessage("removeOrphanedEdges");
+            progress.printBar();
+        }
 
         try {
             stmt = mEdgeConnection.createStatement();
             String sql = String.format("SELECT * FROM edgeTable");
             rs = stmt.executeQuery(sql);
             while (rs.next()) {
-                progress.addValue();
-                progress.printBar();
+                if (mImportProgress) {
+                    progress.addValue();
+                    progress.printBar();
+                }
 
                 try {
                     JsonObject edge = geEdgeFromQuery(rs);
@@ -2866,16 +2951,20 @@ public class ImportController {
         int removeCount = 0;
 
         ProgressBar progress=new ProgressBar(getTableSize(mWaysConnection, "wayTable"));
-        progress.setMessage("removeOrphanedWays");
-        progress.printBar();
+        if (mImportProgress) {
+            progress.setMessage("removeOrphanedWays");
+            progress.printBar();
+        }
 
         try {
             stmt = mWaysConnection.createStatement();
             String sql = String.format("SELECT wayId FROM wayTable");
             rs = stmt.executeQuery(sql);
             while (rs.next()) {
-                progress.addValue();
-                progress.printBar();
+                if (mImportProgress) {
+                    progress.addValue();
+                    progress.printBar();
+                }
 
                 long wayId = rs.getLong("wayId");
                 JsonArray edgeList = getEdgeEntryForWayId(wayId);
