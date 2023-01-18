@@ -3,6 +3,7 @@ package com.maxwen.osmviewer.shared;
 import com.github.cliftonlabs.json_simple.JsonArray;
 import com.github.cliftonlabs.json_simple.JsonObject;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -264,6 +265,14 @@ public class GISUtils {
         return lineString + coordString + ")))'";
     }
 
+    public static String getMultiPolygonStart() {
+        return "'MULTIPOLYGON(";
+    }
+
+    public static String getMultiPolygonEnd() {
+        return ")'";
+    }
+
     public static JsonArray parseCoords(String coordsStr) {
         JsonArray coords = new JsonArray();
         String[] pairs = coordsStr.split(",");
@@ -317,5 +326,29 @@ public class GISUtils {
         double lonRangeMin = lon - margin * 1.4;
         Collections.addAll(bbox, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax);
         return bbox;
+    }
+
+    public static long getLongValue(Object jsonValue) {
+        if (jsonValue == null) {
+            return 0;
+        } else if (jsonValue instanceof BigDecimal) {
+            return ((BigDecimal) jsonValue).longValue();
+        } else if (jsonValue instanceof Long) {
+            return (Long) jsonValue;
+        } else if (jsonValue instanceof Integer) {
+            return (Integer) jsonValue;
+        }
+        throw new NumberFormatException("getLongValue");
+    }
+
+    public static int getIntValue(Object jsonValue) {
+        if (jsonValue == null) {
+            return 0;
+        } else if (jsonValue instanceof BigDecimal) {
+            return ((BigDecimal) jsonValue).intValue();
+        } else if (jsonValue instanceof Integer) {
+            return (Integer) jsonValue;
+        }
+        throw new NumberFormatException("getIntValue");
     }
 }

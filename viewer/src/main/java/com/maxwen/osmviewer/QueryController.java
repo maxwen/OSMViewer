@@ -389,8 +389,7 @@ public class QueryController {
         return adminLines;
     }
 
-    public JsonArray getAdminAreasOnPointWithGeom(double lon, double lat, double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax,
-                                                  String adminLevelList, MainController controller) {
+    public JsonArray getAdminAreasAtPointWithGeom(double lon, double lat, String adminLevelList, MainController controller) {
         Statement stmt = null;
         JsonArray adminAreas = new JsonArray();
         try {
@@ -398,26 +397,81 @@ public class QueryController {
             stmt = mAdminConnection.createStatement();
             ResultSet rs;
             if (adminLevelList != null && adminLevelList.length() != 0) {
-                rs = stmt.executeQuery(String.format("SELECT osmId, tags, adminLevel, AsText(geom) FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND adminLevel IN %s AND Contains(geom, MakePoint(%f, %f, 4236)) ORDER BY adminLevel", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, adminLevelList, lon, lat));
+                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrContains(%f, %f, %f, %f)) AND adminLevel IN %s AND Contains(geom, MakePoint(%f, %f, 4236)) ORDER BY adminLevel", lon, lat, lon, lat, adminLevelList, lon, lat));
             } else {
-                rs = stmt.executeQuery(String.format("SELECT osmId, tags, adminLevel, AsText(geom) FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND adminLevel IN %s AND Contains(geom, MakePoint(%f, %f, 4236))", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, lon, lat));
+                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrContains(%f, %f, %f, %f)) AND adminLevel IN %s AND Contains(geom, MakePoint(%f, %f, 4236))", lon, lat, lon, lat, lon, lat));
             }
             while (rs.next()) {
-                JsonObject area = new JsonObject();
-                area.put("osmId", rs.getLong(1));
-                int adminLevel = rs.getInt(3);
-                area.put("adminLevel", adminLevel);
+                JsonObject adminArea = new JsonObject();
+                long osmId = rs.getLong(1);
+                adminArea.put("osmId", osmId);
+                adminArea.put("adminLevel", rs.getInt(2));
+
                 JsonObject tags = null;
-                String tagsStr = rs.getString(2);
+                String tagsStr = rs.getString(3);
                 try {
                     if (tagsStr != null && tagsStr.length() != 0) {
                         tags = (JsonObject) Jsoner.deserialize(tagsStr);
-                        area.put("tags", tags);
+                        adminArea.put("tags", tags);
                     }
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());
                 }
-                adminAreas.add(area);
+                adminAreas.add(adminArea);
+            }
+        } catch (SQLException e) {
+            LogUtils.log(e.getMessage());
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return adminAreas;
+    }
+
+    public JsonArray getAdminAreasInBboxWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax,
+                                                 String typeFilterString, boolean withSimplify, double tolerance,
+                                                 Map<Integer, List<Node>> polylines, MainController controller) {
+        Statement stmt = null;
+        JsonArray adminAreas = new JsonArray();
+        try {
+            long t = System.currentTimeMillis();
+            stmt = mAdminConnection.createStatement();
+            ResultSet rs;
+
+            tolerance = GISUtils.degToMeter(tolerance);
+
+            String geom = "AsText(geom)";
+            if (withSimplify) {
+                geom = String.format("AsText(Simplify(geom, %f))", tolerance);
+            }
+            if (typeFilterString != null) {
+                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, %s FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND adminLevel IN %s", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, typeFilterString));
+            } else {
+                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, %s FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+            }
+
+            while (rs.next()) {
+                JsonObject adminArea = new JsonObject();
+                long osmId = rs.getLong(1);
+                adminArea.put("osmId", osmId);
+                adminArea.put("adminLevel", rs.getInt(2));
+                adminAreas.add(adminArea);
+                if (polylines != null) {
+                    try {
+                        JsonArray polygons = createCoordsFromPolygonString(rs.getString(3));
+                        for (int i =0; i < polygons.size(); i++) {
+                            Polyline polyline = controller.displayCoordsPolyline(osmId, (JsonArray) polygons.get(i));
+                            OSMStyle.amendAdminArea(adminArea, polyline, controller.getZoom());
+                            polylines.get(MainController.ADMIN_AREA_LAYER_LEVEL).add(polyline);
+                        }
+                    } catch (Exception e) {
+                        LogUtils.error("getAdminAreasInBboxWithGeom", e);
+                    }
+                }
             }
 
         } catch (SQLException e) {

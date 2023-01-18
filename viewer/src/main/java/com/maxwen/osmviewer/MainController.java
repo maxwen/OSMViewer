@@ -22,6 +22,7 @@ import javafx.scene.effect.DropShadow;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -97,7 +98,7 @@ public class MainController implements Initializable, NMEAHandler {
     @FXML
     Pane infoPane;
 
-    private static final int MIN_ZOOM = 10;
+    private static final int MIN_ZOOM = 6;
     private static final int MAX_ZOOM = 20;
     private int mMapZoom = 17;
     private double mMapZeroX;
@@ -171,6 +172,7 @@ public class MainController implements Initializable, NMEAHandler {
                     mouseEvent.getScreenY() - paneZeroPos.getY() + mMapZeroY);
 
             if (mouseEvent.getEventType() == MouseEvent.MOUSE_CLICKED) {
+                mMapPos = mapPos;
                 mMouseMoving = false;
                 mMovePoint = null;
 
@@ -360,6 +362,8 @@ public class MainController implements Initializable, NMEAHandler {
             }
             QueryController.getInstance().getAdminLineInBboxWithGeom(bbox.get(0), bbox.get(1),
                     bbox.get(2), bbox.get(3), OSMUtils.ADMIN_LEVEL_SET, mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mAreaPolylines, MainController.this);
+            QueryController.getInstance().getAdminAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
+                    bbox.get(2), bbox.get(3), OSMUtils.ADMIN_LEVEL_SET_MAP, mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mAreaPolylines, MainController.this);
             return null;
         }
     }
@@ -406,20 +410,20 @@ public class MainController implements Initializable, NMEAHandler {
         calcMapCenterPos();
 
         quitButton.setGraphic(new ImageView(new Image("/images/ui/quit.png")));
-        quitButton.setShape(new Circle(40));
+        //quitButton.setShape(new Circle(40));
         quitButton.setOnAction(e -> {
             Platform.exit();
         });
 
         menuButton.setGraphic(new ImageView(new Image("/images/ui/menu.png")));
-        menuButton.setShape(new Circle(30));
+        //menuButton.setShape(new Circle(30));
         menuButton.setOnMouseClicked(e -> {
             mContextMenu.show(menuButton, e.getScreenX(), e.getScreenY());
         });
 
 
         zoomInButton.setGraphic(new ImageView(new Image("/images/ui/plus.png")));
-        zoomInButton.setShape(new Circle(40));
+        //zoomInButton.setShape(new Circle(40));
         zoomInButton.setOnAction(e -> {
             int zoom = mMapZoom + 1;
             zoom = Math.min(MAX_ZOOM, zoom);
@@ -432,7 +436,7 @@ public class MainController implements Initializable, NMEAHandler {
             }
         });
         zoomOutButton.setGraphic(new ImageView(new Image("/images/ui/minus.png")));
-        zoomOutButton.setShape(new Circle(30));
+        //zoomOutButton.setShape(new Circle(30));
         zoomOutButton.setOnAction(e -> {
             int zoom = mMapZoom - 1;
             zoom = Math.max(MIN_ZOOM, zoom);
@@ -446,7 +450,7 @@ public class MainController implements Initializable, NMEAHandler {
         });
 
         trackModeButton.setGraphic(new ImageView(new Image(mTrackMode ? "/images/ui/gps.png" : "/images/ui/gps-circle.png")));
-        trackModeButton.setShape(new Circle(30));
+        //trackModeButton.setShape(new Circle(30));
         trackModeButton.setOnAction(event -> {
             if (!mTrackReplayMode) {
                 mTrackMode = trackModeButton.isSelected();
@@ -455,7 +459,7 @@ public class MainController implements Initializable, NMEAHandler {
         });
 
         startReplayButton.setGraphic(new ImageView(new Image("/images/ui/play.png")));
-        startReplayButton.setShape(new Circle(30));
+        //startReplayButton.setShape(new Circle(30));
         startReplayButton.setOnAction(event -> {
             if (mTrackReplayThread != null) {
                 mTrackReplayThread.startThread();
@@ -481,7 +485,7 @@ public class MainController implements Initializable, NMEAHandler {
             }
         });
         stopReplayButton.setGraphic(new ImageView(new Image("/images/ui/stop.png")));
-        stopReplayButton.setShape(new Circle(30));
+        //stopReplayButton.setShape(new Circle(30));
         stopReplayButton.setOnAction(event -> {
             startReplayButton.setDisable(false);
             stopReplayButton.setDisable(true);
@@ -493,14 +497,14 @@ public class MainController implements Initializable, NMEAHandler {
             drawShapes();
         });
         pauseReplayButton.setGraphic(new ImageView(new Image("/images/ui/pause.png")));
-        pauseReplayButton.setShape(new Circle(30));
+        //pauseReplayButton.setShape(new Circle(30));
         pauseReplayButton.setOnAction(event -> {
             if (mTrackReplayThread != null) {
                 mTrackReplayThread.pauseThread();
             }
         });
         stepReplayButton.setGraphic(new ImageView(new Image("/images/ui/next.png")));
-        stepReplayButton.setShape(new Circle(30));
+        //stepReplayButton.setShape(new Circle(30));
         stepReplayButton.setOnAction(event -> {
             if (mTrackReplayThread != null) {
                 mTrackReplayThread.stepThread();
@@ -516,9 +520,8 @@ public class MainController implements Initializable, NMEAHandler {
         menuItem.setOnAction(ev -> {
             if (mMapPos != null) {
                 Point2D coordPos = getCoordOfPos(mMapPos);
-                List<Double> bbox = createBBoxAroundPoint(coordPos.getX(), coordPos.getY(), 0.0);
-                JsonArray adminAreas = QueryController.getInstance().getAdminAreasOnPointWithGeom(coordPos.getX(), coordPos.getY(),
-                        bbox.get(0), bbox.get(1), bbox.get(2), bbox.get(3), OSMUtils.ADMIN_LEVEL_SET, this);
+                JsonArray adminAreas = QueryController.getInstance().getAdminAreasAtPointWithGeom(coordPos.getX(), coordPos.getY(),
+                        OSMUtils.ADMIN_LEVEL_SET, this);
                 StringBuilder s = new StringBuilder();
                 for (int i = 0; i < adminAreas.size(); i++) {
                     JsonObject area = (JsonObject) adminAreas.get(i);
@@ -1253,6 +1256,7 @@ public class MainController implements Initializable, NMEAHandler {
         }
         return null;
     }
+
     private OSMShape findShapeOfOSMId(long osmId) {
         OSMShape shape = findShapeOfOSMId(osmId, mPolylines);
         if (shape != null) {

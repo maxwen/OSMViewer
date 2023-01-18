@@ -156,6 +156,9 @@ public class OSMStyle {
     }
 
     public static Paint getNaturalAreaColor(JsonObject area, int zoom) {
+        if (mAreaColors == null) {
+            init();
+        }
         JsonObject tags = (JsonObject) area.get("tags");
         if (tags == null) {
             return mAreaColors.get("naturalColor");
@@ -189,6 +192,9 @@ public class OSMStyle {
     }
 
     public static Paint getLanduseAreaColor(JsonObject area, int zoom) {
+        if (mAreaColors == null) {
+            init();
+        }
         JsonObject tags = (JsonObject) area.get("tags");
         if (tags == null || tags.get("landuse") == null) {
             return mAreaColors.get("landuseColor");
@@ -386,6 +392,9 @@ public class OSMStyle {
     }
 
     public static void amendRailway(JsonObject area, Shape areaLine, int zoom) {
+        if (mAreaColors == null) {
+            init();
+        }
         areaLine.setStroke(mAreaColors.get("railwayColor"));
         double width = getRailwayPenWidthForZoom(zoom);
         areaLine.getStrokeDashArray().addAll(2 * width);
@@ -394,8 +403,28 @@ public class OSMStyle {
     }
 
     public static void amendAdminLine(JsonObject adminLine, Shape areaLine, int zoom) {
+        if (mAreaColors == null) {
+            init();
+        }
         int adminLevel = (int) adminLine.get("adminLevel");
         double width = getAdminLinePenWidthForZoom(zoom);
+        areaLine.getStrokeDashArray().addAll(2 * width);
+        areaLine.setStroke(mAreaColors.get("adminAreaColor"));
+        areaLine.setStrokeWidth(width);
+        //areaLine.setSmooth(true);
+    }
+
+    public static void amendAdminArea(JsonObject adminArea, Shape areaLine, int zoom) {
+        if (mAreaColors == null) {
+            init();
+        }
+        int adminLevel = (int) adminArea.get("adminLevel");
+        double width = getAdminLinePenWidthForZoom(zoom);
+        if (adminLevel == 2) {
+            width *= 2;
+        } else if (adminLevel == 4) {
+            width *= 1.5;
+        }
         areaLine.getStrokeDashArray().addAll(2 * width);
         areaLine.setStroke(mAreaColors.get("adminAreaColor"));
         areaLine.setStrokeWidth(width);

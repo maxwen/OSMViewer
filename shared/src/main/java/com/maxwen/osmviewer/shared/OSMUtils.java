@@ -3,6 +3,7 @@ package com.maxwen.osmviewer.shared;
 import com.github.cliftonlabs.json_simple.JsonArray;
 import com.github.cliftonlabs.json_simple.JsonObject;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -79,6 +80,8 @@ public class OSMUtils {
     public static final int CROSSING_TYPE_BARRIER = 10;
 
     public static final String ADMIN_LEVEL_SET = "(2, 4, 6, 8)";
+    public static final String ADMIN_LEVEL_SET_MAP = "(2, 4, 6)";
+
     public static final Set<String> LANDUSE_NATURAL_TYPE_SET = Set.of("forest", "grass", "field", "farm", "farmland", "meadow",
             "greenfield", "brownfield", "farmyard", "recreation_ground", "village_green", "allotments", "orchard");
     public static final Set<String> LANDUSE_WATER_TYPE_SET = Set.of("reservoir", "basin", "water");
@@ -87,7 +90,7 @@ public class OSMUtils {
 
     public static final Set<String> WATERWAY_TYPE_SET = Set.of("riverbank", "river", "stream", "drain", "ditch");
     public static final Set<String> NATURAL_TYPE_SET = Set.of("water", "wood", "tree", "forest", "riverbank", "fell", "scrub", "heath",
-                                   "grassland", "wetland", "scree", "marsh", "mud", "cliff", "glacier", "rock", "beach");
+            "grassland", "wetland", "scree", "marsh", "mud", "cliff", "glacier", "rock", "beach");
     public static final Set<String> LANDUSE_TYPE_SET = Set.of("forest", "grass", "field", "farm", "farmland", "farmyard", "meadow", "residential", "greenfield", "brownfield", "commercial", "industrial", "railway", "water", "reservoir", "basin", "cemetery", "military", "recreation_ground", "village_green", "allotments", "orchard", "retail", "quarry");
 
     public static final Set<Integer> SELECT_AREA_TYPE = Set.of(AREA_TYPE_BUILDING, AREA_TYPE_AMENITY, AREA_TYPE_LEISURE, AREA_TYPE_TOURISM);
@@ -141,5 +144,82 @@ public class OSMUtils {
         int bridge = (streetInfo & 511) >> 8;
         int streetTypeId = (streetInfo & 15);
         return new JsonObject().putChain("oneway", oneway).putChain("roundabout", roundabout).putChain("tunnel", tunnel).putChain("bridge", bridge).putChain("streetTypeId", streetTypeId);
+    }
+
+    public static double getStreetTypeCostFactor(int streetTypeId) {
+        if (streetTypeId == STREET_TYPE_MOTORWAY){
+            return 0.6;
+        }
+        if (streetTypeId == STREET_TYPE_MOTORWAY_LINK) {
+            return 0.8;
+        }
+        if (streetTypeId == STREET_TYPE_TRUNK) {
+            return 0.8;
+        }
+        if (streetTypeId == STREET_TYPE_TRUNK_LINK) {
+            return 1.0;
+        }
+        if (streetTypeId == STREET_TYPE_PRIMARY ||
+                streetTypeId == STREET_TYPE_PRIMARY_LINK) {
+            return 1.2;
+        }
+        if (streetTypeId == STREET_TYPE_SECONDARY ||
+                streetTypeId == STREET_TYPE_SECONDARY_LINK) {
+            return 1.4;
+        }
+        if (streetTypeId == STREET_TYPE_TERTIARY ||
+                streetTypeId == STREET_TYPE_TERTIARY_LINK) {
+            return 1.6;
+        }
+        if (streetTypeId == STREET_TYPE_RESIDENTIAL) {
+            return 1.8;
+        }
+        return 2.0;
+    }
+
+    public static int getAccessCostFactor(JsonObject tags, int streetTypeId) {
+        String tagValue = null;
+        if (tags.containsKey("vehicle")) {
+            tagValue = (String) tags.get("vehicle");
+        }
+        if (tags.containsKey("motorcar")) {
+            tagValue = (String) tags.get("motorcar");
+        }
+        if (tags.containsKey("motor_vehicle")) {
+            tagValue = (String) tags.get("motor_vehicle");
+        }
+        if (tags.containsKey("access")) {
+            tagValue = (String) tags.get("access");
+        }
+        if (tagValue != null) {
+            if (tagValue.equals("destination")) {
+                return 1000;
+            }
+            if (tagValue.equals("permissive")) {
+                return 1000;
+            }
+            if (tagValue.equals("private")) {
+                return 10000;
+            }
+            if (tagValue.equals("no")) {
+                return 10000;
+            }
+            return 10000;
+        }
+
+        // avoid living streets
+        if (streetTypeId == STREET_TYPE_LIVING_STREET) {
+            return 1000;
+        }
+
+        // never route over parking_aisle or driveways
+        if (tags.containsKey("service")) {
+            tagValue = (String) tags.get("service");
+            if (tagValue.equals("parking_aisle") || tagValue.equals("driveway")) {
+                return 10000;
+            }
+        }
+
+        return 1;
     }
 }
