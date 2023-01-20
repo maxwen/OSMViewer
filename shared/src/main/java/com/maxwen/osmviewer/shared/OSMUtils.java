@@ -65,6 +65,7 @@ public class OSMUtils {
     public static final int POI_TYPE_ATM = 24;
     public static final int POI_TYPE_POST = 25;
     public static final int POI_TYPE_EDUCATION = 26;
+    public static final int POI_TYPE_RESTRICTION = 27;
 
     public static final int CROSSING_TYPE_NONE = -1;
     public static final int CROSSING_TYPE_NORMAL = 0;
@@ -78,9 +79,6 @@ public class OSMUtils {
     public static final int CROSSING_TYPE_START = 98;
     public static final int CROSSING_TYPE_END = 99;
     public static final int CROSSING_TYPE_BARRIER = 10;
-
-    public static final String ADMIN_LEVEL_SET = "(2, 4, 6, 8)";
-    public static final String ADMIN_LEVEL_SET_MAP = "(2, 4, 6)";
 
     public static final Set<String> LANDUSE_NATURAL_TYPE_SET = Set.of("forest", "grass", "field", "farm", "farmland", "meadow",
             "greenfield", "brownfield", "farmyard", "recreation_ground", "village_green", "allotments", "orchard");
@@ -113,7 +111,8 @@ public class OSMUtils {
             POI_TYPE_BANK,
             POI_TYPE_ATM,
             POI_TYPE_POST,
-            POI_TYPE_EDUCATION);
+            POI_TYPE_EDUCATION,
+            POI_TYPE_RESTRICTION);
 
     public static boolean isValidOnewayEnter(int oneway, long crossingRef, JsonObject edge) {
         long startRef = (long) edge.get("startRef");

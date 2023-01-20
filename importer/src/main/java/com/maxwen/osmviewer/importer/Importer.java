@@ -131,7 +131,7 @@ public class Importer implements PBFParser.ParseJobCallback, GeoJsonParser.Parse
         parseJob.put("pass", 0);
         mPBFParseJobs.add(parseJob);
 
-        parseJob = new JsonObject();
+        /*parseJob = new JsonObject();
         parseJob.put("file", new File(ImportController.getInstance().getMapHome(), "austria-latest.osm.pbf").getAbsolutePath());
         parseJob.put("ways", 0);
         parseJob.put("way", 0);
@@ -162,7 +162,7 @@ public class Importer implements PBFParser.ParseJobCallback, GeoJsonParser.Parse
         parseJob.put("nodes", 0);
         parseJob.put("id", 3);
         parseJob.put("pass", 0);
-        mPBFParseJobs.add(parseJob);
+        mPBFParseJobs.add(parseJob);*/
 
         mParseLatch = new CountDownLatch(mPBFParseJobs.size() * 2);
 
@@ -199,6 +199,7 @@ public class Importer implements PBFParser.ParseJobCallback, GeoJsonParser.Parse
         }
 
         mParseLatch.await();
+        System.out.println();
     }
 
     private void parseGeoJsonFile(JsonObject parseJob) {
@@ -236,8 +237,10 @@ public class Importer implements PBFParser.ParseJobCallback, GeoJsonParser.Parse
             ImportController.getInstance().createCrossingEntries();
             //LogUtils.log("createEdgeTableEntries");
             ImportController.getInstance().createEdgeTableEntries();
+            ImportController.getInstance().createBarrierRestrictions();
             //LogUtils.log("createEdgeTableNodeEntries");
             ImportController.getInstance().createEdgeTableNodeEntries();
+            ImportController.getInstance().createWayRestrictions();
             //LogUtils.log("removeOrphanedEdges");
             ImportController.getInstance().removeOrphanedEdges();
             //LogUtils.log("removeOrphanedWays");

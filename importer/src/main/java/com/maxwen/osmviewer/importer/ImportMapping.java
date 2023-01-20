@@ -24,7 +24,7 @@ public class ImportMapping {
     private static Map<String, Integer> AEROWAY_POI_TYPE_DICT = Map.of("aerodrome", POI_TYPE_AIRPORT);
     public static Set<String> AEROWAY_AREA_TYPE_SET = Set.of("runway", "taxiway", "apron", "aerodrome");
 
-    private static Set<String> BARIER_NODES_TYPE_SET = Set.of("bollard", "block", "chain", "fence", "lift_gate");
+    private static Set<String> BARIER_NODES_TYPE_SET = Set.of("bollard", "block", "chain", "fence", "lift_gate", "restriction");
     private static Set<String> BOUNDARY_TYPE_SET = Set.of("administrative");
     private static Set<String> PLACE_NODES_TYPE_SET = Set.of("city", "village", "town", "suburb", "hamlet");
 

@@ -108,6 +108,7 @@ public class OSMStyle {
         mNodeImages.put(OSMUtils.POI_TYPE_POST, new Image("/images/poi/postal.png"));
         mNodeImages.put(OSMUtils.POI_TYPE_EDUCATION, new Image("/images/poi/school.png"));
         mNodeImages.put(OSMUtils.POI_TYPE_PLACE, new Image("/images/poi/star-3.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_RESTRICTION, new Image("/images/poi/accesdenied.png"));
     }
 
     public static Image getNodeTypeImage(int nodeType) {

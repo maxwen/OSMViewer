@@ -126,13 +126,14 @@ public class QueryController {
             if (typeFilterList != null && typeFilterList.size() != 0) {
                 rs = stmt.executeQuery(String.format("SELECT wayId, tags, refs, streetInfo, name, ref, maxspeed, poiList, layer, %s FROM wayTable WHERE ROWID IN (SELECT rowid FROM cache_wayTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND streetTypeId IN %s ORDER BY streetTypeId", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
             } else {
-                rs = stmt.executeQuery(String.format("SELECT wayId, tags, refs, streetInfo, name, ref, maxspeed, poiList, layer, %s FROM wayTable WHERE ROWID IN (SELECT rowid FROM cache_wayTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ORDER BY streetTypeId", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+                return ways;
+                //rs = stmt.executeQuery(String.format("SELECT wayId, tags, refs, streetInfo, name, ref, maxspeed, poiList, layer, %s FROM wayTable WHERE ROWID IN (SELECT rowid FROM cache_wayTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ORDER BY streetTypeId", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
 
             while (rs.next()) {
                 JsonObject way = new JsonObject();
-                long osmId = rs.getLong(1);
-                way.put("osmId", osmId);
+                long wayId = rs.getLong(1);
+                way.put("osmId", wayId);
                 way.put("name", rs.getString(5));
                 way.put("nameRef", rs.getString(6));
                 int layer = rs.getInt(9);
@@ -154,15 +155,16 @@ public class QueryController {
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());
                 }
+                way.put("type", "way");
 
-                controller.addToOSMCache(osmId, way);
+                controller.addToOSMCache(wayId, way);
                 ways.add(way);
 
                 boolean showCasing = controller.getZoom() >= 17;
                 Polyline polylineCasing = null;
-                Polyline polyline = controller.displayCoordsPolyline(osmId, createCoordsFromLineString(rs.getString(10)));
+                Polyline polyline = controller.displayCoordsPolyline(wayId, createCoordsFromLineString(rs.getString(10)));
                 if (showCasing) {
-                    polylineCasing = controller.clonePolyline(osmId, polyline);
+                    polylineCasing = controller.clonePolyline(wayId, polyline);
                     OSMStyle.amendWay(way, polylineCasing, controller.getZoom(), true);
                     OSMStyle.amendWay(way, polyline, controller.getZoom(), false);
                 } else {
@@ -212,7 +214,8 @@ public class QueryController {
             if (typeFilterList != null && typeFilterList.size() != 0) {
                 rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaTable WHERE ROWID IN (SELECT rowid FROM cache_areaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND type IN %s ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
             } else {
-                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaTable WHERE ROWID IN (SELECT rowid FROM cache_areaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+                return areas;
+                //rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaTable WHERE ROWID IN (SELECT rowid FROM cache_areaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
 
             while (rs.next()) {
@@ -231,6 +234,8 @@ public class QueryController {
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());
                 }
+                area.put("type", "area");
+
                 controller.addToOSMCache(osmId, area);
                 areas.add(area);
 
@@ -286,7 +291,8 @@ public class QueryController {
             if (typeFilterList != null && typeFilterList.size() != 0) {
                 rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaLineTable WHERE ROWID IN (SELECT rowid FROM cache_areaLineTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND type IN %s ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
             } else {
-                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaLineTable WHERE ROWID IN (SELECT rowid FROM cache_areaLineTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+                return areas;
+                //rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaLineTable WHERE ROWID IN (SELECT rowid FROM cache_areaLineTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
             while (rs.next()) {
                 JsonObject area = new JsonObject();
@@ -306,6 +312,8 @@ public class QueryController {
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());
                 }
+                area.put("type", "area");
+
                 controller.addToOSMCache(osmId, area);
                 areas.add(area);
 
@@ -627,7 +635,8 @@ public class QueryController {
             if (typeFilterList != null && typeFilterList.size() != 0) {
                 rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE ROWID IN (SELECT rowid FROM cache_poiRefTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND type IN %s", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
             } else {
-                rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE ROWID IN (SELECT rowid FROM cache_poiRefTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+                return nodes;
+                //rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE ROWID IN (SELECT rowid FROM cache_poiRefTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
 
             while (rs.next()) {
@@ -649,6 +658,8 @@ public class QueryController {
                 String coordsString = rs.getString(5);
                 JsonArray point = createPointFromPointString(coordsString);
                 node.put("coords", point);
+                node.put("type", "node");
+
                 controller.addToOSMCache(osmId, node);
                 nodes.add(node);
             }
@@ -686,5 +697,38 @@ public class QueryController {
             }
         }
         return 0;
+    }
+
+    public JsonArray getRestrictionsForTargedEdge(long targetEdgeId) {
+        //self.cursorEdge.execute('INSERT INTO restrictionTable VALUES( ?, ?, ?, ?, ?)',
+        //         (self.restrictionId,target,viaPath,toCost,osmId))
+        Statement stmt = null;
+        ResultSet rs = null;
+        JsonArray restrictionRules = new JsonArray();
+
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("SELECT (target, viaPath, toCost, osmId) FROM restrictionTable WHERE target=%d", targetEdgeId);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                JsonObject rule = new JsonObject();
+                rule.put("toEdgeId", rs.getLong(1));
+                rule.put("viaPath", rs.getString(2));
+                rule.put("osmId", rs.getLong(3));
+                rule.put("toCost", rs.getDouble(4));
+                restrictionRules.add(rule);
+            }
+        } catch (
+                SQLException e) {
+            LogUtils.error("getRestrictionsForTargedEdge", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return restrictionRules;
     }
 }

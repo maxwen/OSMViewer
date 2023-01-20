@@ -356,14 +356,14 @@ public class MainController implements Initializable, NMEAHandler {
                 LogUtils.log("LoadAdminAreaTask cancel");
                 return null;
             }
-            if (mMapZoom > 12) {
+            if (mMapZoom >= 13) {
                 QueryController.getInstance().getLineAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
                         bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mAreaPolylines, MainController.this);
             }
             QueryController.getInstance().getAdminLineInBboxWithGeom(bbox.get(0), bbox.get(1),
-                    bbox.get(2), bbox.get(3), OSMUtils.ADMIN_LEVEL_SET, mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mAreaPolylines, MainController.this);
+                    bbox.get(2), bbox.get(3), getAdminLevelListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mAreaPolylines, MainController.this);
             QueryController.getInstance().getAdminAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
-                    bbox.get(2), bbox.get(3), OSMUtils.ADMIN_LEVEL_SET_MAP, mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mAreaPolylines, MainController.this);
+                    bbox.get(2), bbox.get(3), getAdminLevelListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mAreaPolylines, MainController.this);
             return null;
         }
     }
@@ -521,7 +521,7 @@ public class MainController implements Initializable, NMEAHandler {
             if (mMapPos != null) {
                 Point2D coordPos = getCoordOfPos(mMapPos);
                 JsonArray adminAreas = QueryController.getInstance().getAdminAreasAtPointWithGeom(coordPos.getX(), coordPos.getY(),
-                        OSMUtils.ADMIN_LEVEL_SET, this);
+                       null, this);
                 StringBuilder s = new StringBuilder();
                 for (int i = 0; i < adminAreas.size(); i++) {
                     JsonObject area = (JsonObject) adminAreas.get(i);
@@ -692,6 +692,8 @@ public class MainController implements Initializable, NMEAHandler {
 
     private List<Integer> getStreetTypeListForZoom() {
         if (mMapZoom <= 12) {
+            return null;
+        } else if (mMapZoom <= 13) {
             List<Integer> typeFilterList = new ArrayList<>();
             Collections.addAll(typeFilterList, OSMUtils.STREET_TYPE_MOTORWAY,
                     OSMUtils.STREET_TYPE_MOTORWAY_LINK,
@@ -713,7 +715,7 @@ public class MainController implements Initializable, NMEAHandler {
                     OSMUtils.STREET_TYPE_TERTIARY,
                     OSMUtils.STREET_TYPE_TERTIARY_LINK);
             return typeFilterList;
-        } else if (mMapZoom <= 15) {
+        } else if (mMapZoom <= MAX_ZOOM) {
             List<Integer> typeFilterList = new ArrayList<>();
             Collections.addAll(typeFilterList, OSMUtils.STREET_TYPE_MOTORWAY,
                     OSMUtils.STREET_TYPE_MOTORWAY_LINK,
@@ -734,13 +736,24 @@ public class MainController implements Initializable, NMEAHandler {
         }
     }
 
+    private String getAdminLevelListForZoom() {
+        //public static final String ADMIN_LEVEL_SET = "(2, 4, 6, 8)";
+        //public static final String ADMIN_LEVEL_SET_MAP = "(2, 4, 6)";
+        if (mMapZoom <= 10) {
+            return "(2, 4)";
+        } else if (mMapZoom <= 12) {
+            return "(2, 4, 6)";
+        } else if (mMapZoom <= MAX_ZOOM) {
+            return "(2, 4, 6, 8)";
+        } else {
+            return null;
+        }
+    }
+
     private List<Integer> getAreaTypeListForZoom() {
         if (mMapZoom <= 12) {
-            List<Integer> typeFilterList = new ArrayList<>();
-            Collections.addAll(typeFilterList,
-                    OSMUtils.AREA_TYPE_RAILWAY);
-            return typeFilterList;
-        } else if (mMapZoom < 14) {
+            return null;
+        } else if (mMapZoom <= 13) {
             List<Integer> typeFilterList = new ArrayList<>();
             Collections.addAll(typeFilterList,
                     OSMUtils.AREA_TYPE_AEROWAY,
@@ -756,6 +769,18 @@ public class MainController implements Initializable, NMEAHandler {
                     OSMUtils.AREA_TYPE_RAILWAY,
                     OSMUtils.AREA_TYPE_TOURISM,
                     OSMUtils.AREA_TYPE_LEISURE,
+                    OSMUtils.AREA_TYPE_WATER);
+            return typeFilterList;
+        } else if (mMapZoom <= MAX_ZOOM) {
+            List<Integer> typeFilterList = new ArrayList<>();
+            Collections.addAll(typeFilterList, OSMUtils.AREA_TYPE_LANDUSE,
+                    OSMUtils.AREA_TYPE_NATURAL,
+                    OSMUtils.AREA_TYPE_HIGHWAY_AREA,
+                    OSMUtils.AREA_TYPE_AEROWAY,
+                    OSMUtils.AREA_TYPE_RAILWAY,
+                    OSMUtils.AREA_TYPE_TOURISM,
+                    OSMUtils.AREA_TYPE_LEISURE,
+                    OSMUtils.AREA_TYPE_BUILDING,
                     OSMUtils.AREA_TYPE_WATER);
             return typeFilterList;
         } else {
@@ -804,13 +829,14 @@ public class MainController implements Initializable, NMEAHandler {
         List<Double> bbox = getBBoxInDeg(mFetchBBox);
 
         // cant load areas async cause they are always on lowest level and ways are above
-        if (mMapZoom > 12) {
-            JsonArray areas = QueryController.getInstance().getAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
+        if (mMapZoom >= 13) {
+            QueryController.getInstance().getAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
                     bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mPolylines, this);
         }
-
-        JsonArray ways = QueryController.getInstance().getWaysInBboxWithGeom(bbox.get(0), bbox.get(1),
-                bbox.get(2), bbox.get(3), getStreetTypeListForZoom(), mMapZoom <= 12, mMapZoom <= 12 ? 20.0 : 0.0, mPolylines, this);
+        if (mMapZoom >= 13) {
+            QueryController.getInstance().getWaysInBboxWithGeom(bbox.get(0), bbox.get(1),
+                    bbox.get(2), bbox.get(3), getStreetTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mPolylines, this);
+        }
 
         //if (mMapZoom > 12) {
         //    // railway rails are above ways if not bridge anyway
@@ -896,7 +922,7 @@ public class MainController implements Initializable, NMEAHandler {
         Point2D paneZeroPos = mNodePane.localToScreen(0, 0);
 
         // same as buildings
-        if (mMapZoom > 16) {
+        if (mMapZoom > 13) {
             mLoadPOITask = new LoadPOITask(bbox, paneZeroPos);
 
             mLoadPOITask.setOnRunning((runEvent) -> {

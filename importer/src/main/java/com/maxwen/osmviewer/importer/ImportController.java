@@ -10,6 +10,7 @@ import com.maxwen.osmviewer.shared.OSMUtils;
 import com.maxwen.osmviewer.shared.ProgressBar;
 import com.wolt.osm.parallelpbf.entity.Node;
 import com.wolt.osm.parallelpbf.entity.Relation;
+import com.wolt.osm.parallelpbf.entity.RelationMember;
 import com.wolt.osm.parallelpbf.entity.Way;
 import org.sqlite.SQLiteConfig;
 
@@ -48,7 +49,7 @@ public class ImportController {
     private ImportController() {
         String dbHome = System.getProperty("osm.db.path");
         mDBHome = System.getenv().getOrDefault("OSM_DB_PATH", dbHome);
-        String mapHome=System.getProperty("osm.map.path");
+        String mapHome = System.getProperty("osm.map.path");
         mMapHome = System.getenv().getOrDefault("OSM_MAPS_PATH", mapHome);
         mImportProgress = System.getenv().getOrDefault("OSM_IMPORT_PROGRESS", "1").equals("1");
 
@@ -458,7 +459,7 @@ public class ImportController {
 
         try {
             mWaysConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/ways.db");
-        }catch (SQLException e) {
+        } catch (SQLException e) {
             LogUtils.error("connectWaysDB", e);
         }
     }
@@ -630,7 +631,7 @@ public class ImportController {
             sql = "SELECT CreateMbrCache('edgeTable', 'geom')";
             stmt.execute(sql);
 
-            sql = "CREATE TABLE IF NOT EXISTS restrictionTable (id INTEGER PRIMARY KEY, target INTEGER, viaPath TEXT, toCost REAL, osmId INTEGER)";
+            sql = "CREATE TABLE IF NOT EXISTS restrictionTable (id INTEGER PRIMARY KEY AUTOINCREMENT, target INTEGER, viaPath TEXT, toCost REAL, osmId INTEGER)";
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS restrictionTarget_idx ON restrictionTable (target)";
             stmt.execute(sql);
@@ -902,6 +903,10 @@ public class ImportController {
             stmt.execute(sql);
             sql = "CREATE TABLE IF NOT EXISTS wayRefTable (wayId INTEGER PRIMARY KEY, refList JSON)";
             stmt.execute(sql);
+            sql = "CREATE TABLE IF NOT EXISTS wayRestrictionTable (osmId INTEGER PRIMARY KEY, type TEXT, toId INTEGER, fromId INTEGER, viaNodeId INTEGER, viaWayIdList JSON)";
+            stmt.execute(sql);
+            sql = "CREATE TABLE IF NOT EXISTS barrierRestrictionTable (refId INTEGER PRIMARY KEY, wayId INTEGER)";
+            stmt.execute(sql);
         } catch (SQLException e) {
             LogUtils.error("createTmpDB", e);
         } finally {
@@ -1029,7 +1034,7 @@ public class ImportController {
                 t = tags.get("barrier");
                 if (t != null) {
                     if (ImportMapping.getInstance().isUsableBarrierNodeType(t)) {
-                        nodeType = POI_TYPE_BARRIER;
+                        nodeType = t.equals("restriction") ? POI_TYPE_RESTRICTION : POI_TYPE_BARRIER;
                         String sql = String.format("INSERT INTO poiRefTable VALUES( %d, %d, %s, %d, %d, NULL, NULL, PointFromText(%s, 4326))", ref, refType, tagsString, nodeType, layer, pointString);
                         stmt.execute(sql);
                     }
@@ -1136,6 +1141,398 @@ public class ImportController {
             } catch (SQLException e) {
             }
         }
+    }
+
+    private void addToWayRestrictionTable(long osmId, String type, long toId, long fromId, long viaNode, JsonArray viaWay) {
+        //sql = "CREATE TABLE IF NOT EXISTS wayRestrictionTable (id INTEGER PRIMARY KEY, type TEXT, toId INTEGER, fromId INTEGER, viaNodeId INTEGER, viaWayIdList JSON)";
+        Statement stmt = null;
+        try {
+            stmt = mTmpConnection.createStatement();
+            String viaWayString = "'" + Jsoner.serialize(viaWay) + "'";
+            String typeString = "'" + escapeSQLString(type) + "'";
+            String sql = String.format("INSERT OR IGNORE INTO   wayRestrictionTable VALUES( %d, %s, %d, %d, %d, %s)", osmId, typeString, toId, fromId, viaNode, viaWayString);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("addToWayRestrictionTable", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    private void addToBarrierRestrictionTable(long refId, long wayId) {
+        //sql = "CREATE TABLE IF NOT EXISTS barrierRestrictionTable (refIf INTEGER PRIMARY KEY, wayId INTEGER)";
+        Statement stmt = null;
+        try {
+            stmt = mTmpConnection.createStatement();
+            String sql = String.format("INSERT OR IGNORE INTO barrierRestrictionTable VALUES( %d, %d)", refId, wayId);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("addToBarrierRestrictionTable", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public void createBarrierRestrictions() {
+        Statement stmt = null;
+        ResultSet rs = null;
+
+        final ProgressBar progress = new ProgressBar(getTableSize(mTmpConnection, "barrierRestrictionTable"));
+        if (mImportProgress) {
+            progress.setMessage("createBarrierRestrictions");
+            progress.printBar();
+        }
+
+        try {
+            stmt = mTmpConnection.createStatement();
+            String sql = String.format("SELECT refId, wayId FROM barrierRestrictionTable");
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                if (mImportProgress) {
+                    progress.addValue();
+                    progress.printBar();
+                }
+                long refId = rs.getLong(1);
+                long wayId = rs.getLong(2);
+
+                JsonObject way = getWayEntryForId(wayId);
+                if (way != null) {
+                    JsonArray refs = (JsonArray) way.get("refs");
+                    List<Long> refList = jsonArrayRefsToList(refs);
+                    if (!refList.contains(refId)) {
+                        continue;
+                    }
+
+                    long fromEdgeId = -1;
+                    long toEdgeId = -1;
+
+                    if (refList.get(0) == refId || refList.get(refList.size() - 1) == refId) {
+                        // barrier at start or end of way
+                        JsonArray edgeList = getEdgeEntryForStartOrEndPoint(refId);
+                        for (int i = 0; i < edgeList.size(); i++) {
+                            JsonObject edge = (JsonObject) edgeList.get(i);
+                            long edgeWayId = getLongValue(edge.get("wayId"));
+                            // find first edge with the wayId
+                            if (edgeWayId == wayId) {
+                                fromEdgeId = getLongValue(edge.get("id"));
+                                break;
+                            }
+                        }
+                        if (fromEdgeId != -1) {
+                            // add restriction from and to all others
+                            for (int i = 0; i < edgeList.size(); i++) {
+                                JsonObject edge = (JsonObject) edgeList.get(i);
+                                long edgeId = getLongValue(edge.get("id"));
+                                if (fromEdgeId == edgeId) {
+                                    continue;
+                                }
+
+                                toEdgeId = edgeId;
+                                JsonArray viaPathEdgeList = new JsonArray();
+                                viaPathEdgeList.add(fromEdgeId);
+                                addToRestrictionTable(toEdgeId, viaPathEdgeList, 100000, -1);
+
+                                viaPathEdgeList = new JsonArray();
+                                viaPathEdgeList.add(toEdgeId);
+                                addToRestrictionTable(fromEdgeId, viaPathEdgeList, 100000, -1);
+                            }
+                        }
+                    } else {
+                        // barrier in the midle
+                        JsonArray edgeList = getEdgeEntryForWayId(wayId);
+                        for (int i = 0; i < edgeList.size(); i++) {
+                            JsonObject edge = (JsonObject) edgeList.get(i);
+                            long startRef = getLongValue(edge.get("startRef"));
+                            long endRef = getLongValue(edge.get("endRef"));
+                            long edgeId = getLongValue(edge.get("id"));
+                            if (startRef == refId || endRef == refId) {
+                                if (fromEdgeId == -1) {
+                                    fromEdgeId = edgeId;
+                                } else {
+                                    toEdgeId = edgeId;
+                                    break;
+                                }
+                            }
+                        }
+                        if (fromEdgeId != -1 && toEdgeId != -1) {
+                            JsonArray viaPathEdgeList = new JsonArray();
+                            viaPathEdgeList.add(fromEdgeId);
+                            addToRestrictionTable(toEdgeId, viaPathEdgeList, 100000, -1);
+
+                            viaPathEdgeList = new JsonArray();
+                            viaPathEdgeList.add(toEdgeId);
+                            addToRestrictionTable(fromEdgeId, viaPathEdgeList, 100000, -1);
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("createBarrierRestrictions", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public void createWayRestrictions() {
+        Statement stmt = null;
+        ResultSet rs = null;
+
+        final ProgressBar progress = new ProgressBar(getTableSize(mTmpConnection, "wayRestrictionTable"));
+        if (mImportProgress) {
+            progress.setMessage("createWayRestrictions");
+            progress.printBar();
+        }
+
+        try {
+            JsonArray restrictionList = new JsonArray();
+
+            stmt = mTmpConnection.createStatement();
+            String sql = String.format("SELECT osmId, type, toId, fromId, viaNodeId, viaWayIdList FROM wayRestrictionTable");
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                if (mImportProgress) {
+                    progress.addValue();
+                    progress.printBar();
+                }
+                JsonArray viaWayIdList = new JsonArray();
+                long osmId = rs.getLong(1);
+                String type = rs.getString(2);
+                long toWayId = rs.getLong(3);
+                long fromWayId = rs.getLong(4);
+                long viaNodeId = rs.getLong(5);
+                String viaWayIdListString = rs.getString(6);
+                if (viaWayIdListString != null && viaWayIdListString.length() != 0) {
+                    try {
+                        viaWayIdList = (JsonArray) Jsoner.deserialize(viaWayIdListString);
+                    } catch (JsonException e) {
+                        LogUtils.error("wayRestrictionTable", e);
+                    }
+                }
+                JsonObject wayRestrictionEntry = new JsonObject();
+                wayRestrictionEntry.put("osmId", osmId);
+                wayRestrictionEntry.put("type", type);
+                wayRestrictionEntry.put("toWayId", toWayId);
+                wayRestrictionEntry.put("fromWayId", fromWayId);
+                wayRestrictionEntry.put("viaWayIdList", viaWayIdList);
+                wayRestrictionEntry.put("viaNodeId", viaNodeId);
+
+                if (viaWayIdList.size() != 0) {
+                    createWayRestrictionForViaWay(
+                            wayRestrictionEntry, restrictionList);
+                } else if (viaNodeId != -1) {
+                    // TODO: could use viaNode instead of finding crossingRef
+                    JsonObject crossingRefEntry = getCrossingRefBetweenWays(fromWayId, toWayId);
+                    if (crossingRefEntry != null) {
+                        long crossingRef = getLongValue(crossingRefEntry.get("crossingRef"));
+                        long fromEdgeId = getLongValue(crossingRefEntry.get("fromEdgeId"));
+                        long toEdgeId = getLongValue(crossingRefEntry.get("toEdgeId"));
+
+                        JsonArray viaEdgeIdList = new JsonArray();
+                        viaEdgeIdList.add(fromEdgeId);
+                        addRestrictionRule(crossingRef, type, toEdgeId, fromEdgeId, viaEdgeIdList, osmId, restrictionList);
+                    }
+                }
+            }
+            for (int i = 0; i < restrictionList.size(); i++) {
+                JsonObject rule = (JsonObject) restrictionList.get(i);
+                long toEdgeId = getLongValue(rule.get("toEdgeId"));
+                JsonArray viaEdgeIdList = (JsonArray) rule.get("viaEdgeIdList");
+                long osmId = getLongValue(rule.get("osmId"));
+                addToRestrictionTable(toEdgeId, viaEdgeIdList, 100000, osmId);
+
+                // xxx
+                JsonObject edge = getEdgeEntryForId(toEdgeId);
+                long edgeStartRef = getLongValue(edge.get("startRef"));
+                JsonObject coords = getCoordsEntry(edgeStartRef);
+                if (coords != null) {
+                    double lon = (double) coords.get("lon");
+                    double lat = (double) coords.get("lat");
+                    Map<String, String> tags = new HashMap<>();
+                    tags.put("barrier", "restriction");
+                    addToPOIRefTable(edgeStartRef, lon, lat, tags);
+                }
+            }
+
+        } catch (SQLException e) {
+            LogUtils.error("createWayRestrictions", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    // get list of connecting edges
+    private JsonArray getEdgeIdListForWayList(JsonArray wayIdList) {
+        JsonArray edgeIdList = new JsonArray();
+        int i = 1;
+        long nextEdgeEdgeId = -1;
+        for (int j = 0; j < wayIdList.size() - 1; j++) {
+            long wayId = getLongValue(wayIdList.get(j));
+
+            JsonArray edgeList = getEdgeEntryForWayId(wayId);
+            long nextWayId = getLongValue(wayIdList.get(i));
+            boolean nextEdgeFound = false;
+
+            for (int k = 0; k < edgeList.size(); k++) {
+                JsonObject edge = (JsonObject) edgeList.get(k);
+                long startRef = getLongValue(edge.get("startRef"));
+                long endRef = getLongValue(edge.get("endRef"));
+                long edgeId = getLongValue(edge.get("id"));
+
+                JsonArray nextEdgeList = getEdgeEntryForWayId(nextWayId);
+                for (int l = 0; l < nextEdgeList.size(); l++) {
+                    JsonObject nextEdge = (JsonObject) nextEdgeList.get(l);
+                    long nextEdgeStartRef = getLongValue(nextEdge.get("startRef"));
+                    long nextEdgeEndRef = getLongValue(nextEdge.get("endRef"));
+                    nextEdgeEdgeId = getLongValue(nextEdge.get("id"));
+
+                    if (endRef == nextEdgeStartRef || endRef == nextEdgeEndRef || startRef == nextEdgeStartRef || startRef == nextEdgeEndRef) {
+                        edgeIdList.add(edgeId);
+                        nextEdgeFound = true;
+                        break;
+                    }
+                }
+                if (nextEdgeFound) {
+                    break;
+                }
+            }
+            if (!nextEdgeFound) {
+                return null;
+            }
+            i = i + 1;
+        }
+
+        edgeIdList.add(nextEdgeEdgeId);
+        return edgeIdList;
+    }
+
+    private long getCrossingRefBetweenEdges(long fromEdgeId, long toEdgeId) {
+        long crossingRef = -1;
+        JsonObject fromEdge = getEdgeEntryForId(fromEdgeId);
+        long fromEdgeStartRef = getLongValue(fromEdge.get("startRef"));
+        long fromEdgeEndRef = getLongValue(fromEdge.get("endRef"));
+
+        JsonObject toEdge = getEdgeEntryForId(toEdgeId);
+        long toEdgeStartRef = getLongValue(toEdge.get("startRef"));
+        long toEdgeEndRef = getLongValue(toEdge.get("endRef"));
+
+        if (fromEdgeStartRef == toEdgeStartRef || fromEdgeEndRef == toEdgeStartRef) {
+            crossingRef = toEdgeStartRef;
+        }
+
+        if (fromEdgeEndRef == toEdgeEndRef || fromEdgeStartRef == toEdgeEndRef) {
+            crossingRef = fromEdgeEndRef;
+        }
+
+        return crossingRef;
+    }
+
+    JsonObject getCrossingRefBetweenWays(long fromWayId, long toWayId) {
+        JsonArray fromEdgeList = getEdgeEntryForWayId(fromWayId);
+        for (int i = 0; i < fromEdgeList.size(); i++) {
+            JsonObject fromEdge = (JsonObject) fromEdgeList.get(i);
+            long fromEdgeId = getLongValue(fromEdge.get("id"));
+
+            JsonArray toEdgeList = getEdgeEntryForWayId(toWayId);
+            for (int j = 0; j < toEdgeList.size(); j++) {
+                JsonObject toEdge = (JsonObject) toEdgeList.get(i);
+                long toEdgeId = getLongValue(toEdge.get("id"));
+                long crossingRef = getCrossingRefBetweenEdges(fromEdgeId, toEdgeId);
+
+                if (crossingRef != -1) {
+                    JsonObject crossingRefEntry = new JsonObject();
+                    crossingRefEntry.put("crossingRef", crossingRef);
+                    crossingRefEntry.put("fromEdgeId", fromEdgeId);
+                    crossingRefEntry.put("toEdgeId", toEdgeId);
+                    return crossingRefEntry;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void addRestrictionRule(long crossingRef, String type, long toEdgeId, long fromEdgeId, JsonArray viaEdgeIdList, long osmId, JsonArray toAddRules) {
+        if (type.startsWith("no_")) {
+            JsonObject rule = new JsonObject();
+            rule.put("toEdgeId", toEdgeId);
+            rule.put("viaEdgeIdList", viaEdgeIdList);
+            rule.put("osmId", osmId);
+
+            if (!toAddRules.contains(rule)) {
+                toAddRules.add(rule);
+            }
+        } else if (type.startsWith("only_")) {
+            JsonArray edgeList = getEdgeEntryForStartOrEndPoint(crossingRef);
+            for (int i = 0; i < edgeList.size(); i++) {
+                JsonObject edge = (JsonObject) edgeList.get(i);
+                long otherEdgeId = getLongValue(edge.get("id"));
+
+                if (otherEdgeId == fromEdgeId || otherEdgeId == toEdgeId) {
+                    continue;
+                }
+                JsonObject rule = new JsonObject();
+                rule.put("toEdgeId", otherEdgeId);
+                rule.put("viaEdgeIdList", viaEdgeIdList);
+                rule.put("osmId", osmId);
+
+                if (!toAddRules.contains(rule)) {
+                    toAddRules.add(rule);
+                }
+            }
+        }
+    }
+
+    private void createWayRestrictionForViaWay(JsonObject wayRestrictionEntry, JsonArray toAddRules) {
+        long fromWayId = (long) wayRestrictionEntry.get("fromWayId");
+        long toWayId = (long) wayRestrictionEntry.get("toWayId");
+        String type = (String) wayRestrictionEntry.get("type");
+        long osmId = (long) wayRestrictionEntry.get("osmId");
+
+        JsonArray viaWayIdList = (JsonArray) wayRestrictionEntry.get("viaWayIdList");
+        viaWayIdList.add(0, fromWayId);
+        viaWayIdList.add(toWayId);
+
+        JsonArray edgeIdList = getEdgeIdListForWayList(viaWayIdList);
+        if (edgeIdList == null) {
+            LogUtils.log("failed to resolve edgelist for " + wayRestrictionEntry);
+            return;
+        }
+
+        long toEdgeId = getLongValue(getLastRef(edgeIdList));
+        long restrictionEdgeId = getLongValue(edgeIdList.get(edgeIdList.size() - 2));
+        long crossingRef = getCrossingRefBetweenEdges(restrictionEdgeId, toEdgeId);
+
+        if (crossingRef == -1) {
+            LogUtils.log("failed to resolve crossingRef for " + wayRestrictionEntry);
+            return;
+        }
+
+        JsonArray viaEdgeIdList = new JsonArray();
+        for (int i = edgeIdList.size() - 2; i >= 0; i--) {
+            viaEdgeIdList.add(getLongValue(edgeIdList.get(i)));
+        }
+
+        addRestrictionRule(crossingRef, type, toEdgeId,
+                restrictionEdgeId, viaEdgeIdList, osmId, toAddRules);
     }
 
     private JsonArray getTmpWayRefEntry(long wayId) {
@@ -1246,6 +1643,47 @@ public class ImportController {
     }
 
     public void addRelation(Relation relation) {
+        Map<String, String> tags = relation.getTags();
+        if (tags.containsKey("type")) {
+            String type = tags.get("type");
+            if (type.equals("restriction")) {
+                String restrictionType = null;
+                if (tags.containsKey("restriction")) {
+                    restrictionType = tags.get("restriction");
+                } else if (tags.containsKey("restriction:motorcar")) {
+                    restrictionType = tags.get("restriction:motorcar");
+                }
+                if (restrictionType != null) {
+                    long fromWayId = -1;
+                    long toWayId = -1;
+                    long viaNode = -1;
+                    JsonArray viaWay = new JsonArray();
+                    List<RelationMember> relationMembers = relation.getMembers();
+                    for (RelationMember member : relationMembers) {
+                        String memberRole = member.getRole();
+                        RelationMember.Type memberType = member.getType();
+                        long roleId = member.getId();
+
+                        if (memberRole.equals("from")) {
+                            fromWayId = roleId;
+                        } else if (memberRole.equals("to")) {
+                            toWayId = roleId;
+                        } else if (memberRole.equals("via")) {
+                            if (memberType == RelationMember.Type.NODE) {
+                                viaNode = roleId;
+                            } else if (memberType == RelationMember.Type.WAY) {
+                                viaWay.add(roleId);
+                            }
+                        }
+                        if (fromWayId != -1 && toWayId != -1) {
+                            addToWayRestrictionTable(relation.getId(), restrictionType, fromWayId, toWayId, viaNode, viaWay);
+                        }
+                    }
+                }
+            } else if (type.equals("enforcement")) {
+                // todo maxspeed
+            }
+        }
     }
 
     private void addOtherWays(Way way) {
@@ -1555,7 +1993,7 @@ public class ImportController {
         try {
             stmt = mAdminConnection.createStatement();
             String sql = String.format("INSERT OR IGNORE INTO adminAreaTable (osmId, tags, adminLevel, geom) VALUES(%d, %s, %d, MultiPolygonFromText(%s, 4326))"
-                    ,osmId, tagsString, adminLevel, areaString);
+                    , osmId, tagsString, adminLevel, areaString);
             stmt.execute(sql);
         } catch (SQLException e) {
             LogUtils.error("addToAdminAreaTable", e);
@@ -1589,6 +2027,33 @@ public class ImportController {
                     }
                 } catch (SQLException e) {
                 }
+            }
+        }
+    }
+
+    private void addToRestrictionTable(long targetEdgeId, JsonArray viaPathEdgeIdList, double toCost, long osmId) {
+        //self.cursorEdge.execute('INSERT INTO restrictionTable VALUES( ?, ?, ?, ?, ?)',
+        //         (self.restrictionId,target,viaPath,toCost,osmId))
+        Statement stmt = null;
+        StringBuffer sb = new StringBuffer();
+        for (int i = 0; i < viaPathEdgeIdList.size(); i++) {
+            sb.append(getLongValue(viaPathEdgeIdList.get(i)));
+            sb.append(",");
+        }
+        String viaPathString = "'" + sb.deleteCharAt(sb.length() - 1) + "'";
+
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("INSERT INTO restrictionTable (target, viaPath, toCost, osmId) VALUES(%d, %s, %f, %d)", targetEdgeId, viaPathString, toCost, osmId);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("addToRestrictionTable", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
             }
         }
     }
@@ -1657,6 +2122,35 @@ public class ImportController {
             }
         } catch (SQLException e) {
             LogUtils.error("getEdgeEntryForStartAndEndPointAndWayId", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return edgeList;
+    }
+
+    public JsonArray getEdgeEntryForStartOrEndPoint(long refId) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        JsonArray edgeList = new JsonArray();
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("SELECT * FROM edgeTable WHERE startRef=%d OR endRef=%d", refId, refId);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                try {
+                    JsonObject edge = geEdgeFromQuery(rs);
+                    edgeList.add(edge);
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getEdgeEntryForStartOrEndPoint", e);
         } finally {
             try {
                 if (stmt != null) {
@@ -2078,7 +2572,8 @@ public class ImportController {
             if (typeFilterList != null && typeFilterList.size() != 0) {
                 rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE type IN %s", filterListToIn(typeFilterList)));
             } else {
-                rs = stmt.executeQuery("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable");
+                return nodes;
+                //rs = stmt.executeQuery("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable");
             }
 
             while (rs.next()) {
@@ -2372,7 +2867,7 @@ public class ImportController {
     public void createCrossingEntries() {
         HashMap<String, JsonObject> poiDict = getPOINodes(List.of(POI_TYPE_BARRIER, POI_TYPE_MOTORWAY_JUNCTION));
 
-        final ProgressBar progress=new ProgressBar(getTableSize(mWaysConnection, "wayTable"));
+        final ProgressBar progress = new ProgressBar(getTableSize(mWaysConnection, "wayTable"));
         if (mImportProgress) {
             progress.setMessage("createCrossingEntries");
             progress.printBar();
@@ -2402,7 +2897,7 @@ public class ImportController {
 
                     if (way.containsKey("refs")) {
                         JsonArray refs = (JsonArray) way.get("refs");
-                        for (int i =0; i < refs.size(); i ++) {
+                        for (int i = 0; i < refs.size(); i++) {
                             long refId = getLongValue(refs.get(i));
                             JsonArray nextWays = findWayWithRefInAllWays(refId, wayId);
                             if (nextWays.size() == 0) {
@@ -2411,7 +2906,8 @@ public class ImportController {
                                     if (poiDict.containsKey(poiKey)) {
                                         // barrier on a way - need to split
                                         // create a crossing with the same ways
-                                        // TODD remember barrierRestrictionList 0 maybe in tmp
+                                        addToBarrierRestrictionTable(refId, wayId);
+
                                         JsonArray wayList = new JsonArray();
                                         JsonObject wayCrossing = new JsonObject();
                                         wayCrossing.put("wayId", wayId);
@@ -2442,6 +2938,7 @@ public class ImportController {
                                 if (poiDict.containsKey(poiKey)) {
                                     // TODD remember barrierRestrictionList 0 maybe in tmp
                                     majorCrossingType = CROSSING_TYPE_BARRIER;
+                                    addToBarrierRestrictionTable(refId, wayId);
                                 }
                                 JsonArray wayList = new JsonArray();
                                 int finalMajorCrossingType = majorCrossingType;
@@ -2635,7 +3132,7 @@ public class ImportController {
     }
 
     public void createEdgeTableEntries() {
-        final ProgressBar progress=new ProgressBar(getTableSize(mWaysConnection, "wayTable"));
+        final ProgressBar progress = new ProgressBar(getTableSize(mWaysConnection, "wayTable"));
         if (mImportProgress) {
             progress.setMessage("createEdgeTableEntries");
             progress.printBar();
@@ -2836,7 +3333,7 @@ public class ImportController {
     public void createEdgeTableNodeEntries() {
         JsonArray edgeIdList = getEdgeIdList();
 
-        ProgressBar progress=new ProgressBar(edgeIdList.size());
+        ProgressBar progress = new ProgressBar(edgeIdList.size());
         if (mImportProgress) {
             progress.setMessage("createEdgeTableNodeEntries");
             progress.printBar();
@@ -2859,7 +3356,7 @@ public class ImportController {
 
         JsonArray edgeIdListUnresolved = getEdgeIdListUnresolved();
 
-        progress=new ProgressBar(edgeIdListUnresolved.size());
+        progress = new ProgressBar(edgeIdListUnresolved.size());
         if (mImportProgress) {
             progress.setMessage("createEdgeTableNodeEntries");
             progress.printBar();
@@ -2895,7 +3392,7 @@ public class ImportController {
         ResultSet rs = null;
         int removeCount = 0;
 
-        ProgressBar progress=new ProgressBar(getTableSize(mEdgeConnection, "edgeTable"));
+        ProgressBar progress = new ProgressBar(getTableSize(mEdgeConnection, "edgeTable"));
         if (mImportProgress) {
             progress.setMessage("removeOrphanedEdges");
             progress.printBar();
@@ -2950,7 +3447,7 @@ public class ImportController {
         ResultSet rs = null;
         int removeCount = 0;
 
-        ProgressBar progress=new ProgressBar(getTableSize(mWaysConnection, "wayTable"));
+        ProgressBar progress = new ProgressBar(getTableSize(mWaysConnection, "wayTable"));
         if (mImportProgress) {
             progress.setMessage("removeOrphanedWays");
             progress.printBar();

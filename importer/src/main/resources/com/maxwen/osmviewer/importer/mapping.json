@@ -74,7 +74,8 @@
     "chain",
     "fence",
     "block",
-    "bollard"
+    "bollard",
+    "restriction"
   ],
   "LEISURE_POI_TYPE_DICT": {
     "nature_reserve": 18,
