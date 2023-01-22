@@ -60,6 +60,6 @@ public class RoutingWrapper {
                                            long startEdgeId, double startPos, long endEdgeId, double endPos,
                                            StringBuffer routeString);
 
-    private native void resetData();
+    public native void resetData();
 
 }

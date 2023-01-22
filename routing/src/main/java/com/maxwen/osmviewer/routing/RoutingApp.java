@@ -11,9 +11,12 @@ class RoutingApp {
         if (route != null) {
             System.out.println("route = " + route);
         }
+        //app.routing.resetData();
+
         route = app.routing.computeRoute(1347, 0.f, 2235, 0.f);
         if (route != null) {
             System.out.println("route = " + route);
         }
+        app.routing.resetData();
     }
 }
