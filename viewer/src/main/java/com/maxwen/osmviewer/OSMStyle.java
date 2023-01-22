@@ -1,6 +1,7 @@
 package com.maxwen.osmviewer;
 
 import com.github.cliftonlabs.json_simple.JsonObject;
+import com.maxwen.osmviewer.shared.LogUtils;
 import com.maxwen.osmviewer.shared.OSMUtils;
 import javafx.scene.effect.BlurType;
 import javafx.scene.effect.DropShadow;
@@ -14,10 +15,14 @@ import javafx.scene.shape.StrokeLineJoin;
 
 import java.util.HashMap;
 
+import static javafx.scene.paint.Color.PALEGOLDENROD;
+import static javafx.scene.paint.Color.TRANSPARENT;
+
 public class OSMStyle {
 
     private static HashMap<Integer, Color> mStreetColors;
     private static HashMap<String, Paint> mAreaColors;
+    private static HashMap<Integer, Paint> mCountryColors;
     private static HashMap<Integer, Image> mNodeImages;
     private static final Image mDefaultNodeImage = new Image("/images/poi/star-3.png");
 
@@ -84,6 +89,19 @@ public class OSMStyle {
         mAreaColors.put("rockColor", Color.rgb(0xc1, 0xbf, 0xbf));
         mAreaColors.put("glacierColor", Color.rgb(0xaa, 0xd3, 0xdf));
         mAreaColors.put("beachColor", Color.rgb(0xfc, 0xd6, 0xa4));
+
+        // ['#8dd3c7','#ffffb3','#bebada','#fb8072','#80b1d3','#fdb462','#b3de69','#fccde5','#d9d9d9','#bc80bd','#ccebc5','#ffed6f']
+        mCountryColors = new HashMap();
+        mCountryColors.put(0, Color.rgb(0x8d, 0xd3, 0xc7));
+        mCountryColors.put(1, Color.rgb(0xff, 0xff, 0xb3));
+        mCountryColors.put(2, Color.rgb(0xbe, 0xba, 0xda));
+        mCountryColors.put(3, Color.rgb(0xfb, 0x80, 0x72));
+        mCountryColors.put(4, Color.rgb(0x80, 0xb1, 0xd3));
+        mCountryColors.put(5, Color.rgb(0xfd, 0xb4, 0x62));
+        mCountryColors.put(6, Color.rgb(0xb3, 0xde, 0x69));
+        mCountryColors.put(7, Color.rgb(0xfc, 0xcd, 0xe5));
+        mCountryColors.put(8, Color.rgb(0xd9, 0xd9, 0xd9));
+        mCountryColors.put(9, Color.rgb(0xbc, 0x80, 0xbd));
 
         mNodeImages = new HashMap<>();
         mNodeImages.put(OSMUtils.POI_TYPE_AIRPORT, new Image("/images/poi/airport.png"));
@@ -430,5 +448,14 @@ public class OSMStyle {
         areaLine.setStroke(mAreaColors.get("adminAreaColor"));
         areaLine.setStrokeWidth(width);
         //areaLine.setSmooth(true);
+        if (adminLevel == 2) {
+            if (adminArea.containsKey("id")) {
+                areaLine.setFill(mCountryColors.get((int) adminArea.get("id")));
+            } else {
+                areaLine.setFill(mCountryColors.get(adminArea.get(0)));
+            }
+        } else {
+            areaLine.setFill(TRANSPARENT);
+        }
     }
 }

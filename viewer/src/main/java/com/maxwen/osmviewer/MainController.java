@@ -148,6 +148,7 @@ public class MainController implements Initializable, NMEAHandler {
     private LoadPOITask mLoadPOITask;
     private LoadAdminAreaTask mLoadAdminAreaTask;
     private Map<Integer, List<Node>> mAreaPolylines;
+    private Map<Integer, List<Node>> mCountryPolylines;
 
     public static final int TUNNEL_LAYER_LEVEL = -1;
     public static final int AREA_LAYER_LEVEL = 0;
@@ -226,6 +227,12 @@ public class MainController implements Initializable, NMEAHandler {
                         mSelectdShape = clickedShape;
                         mSelectdShape.setSelected();
                         mSelectdOSMId = clickedShape.getOSMId();
+
+                        JsonObject osmObject = mOSMObjects.get(mSelectdOSMId);
+                        if (osmObject != null && osmObject.get("type").equals("way")) {
+                            JsonArray edgesOnWay = QueryController.getInstance().getEdgeEntryForWayId(mSelectdOSMId);
+                            LogUtils.log("edges = " + edgesOnWay);
+                        }
                     }
 
                     JsonObject osmObject = mOSMObjects.get(clickedShape.getOSMId());
@@ -402,6 +409,9 @@ public class MainController implements Initializable, NMEAHandler {
         mAreaPolylines.put(RAILWAY_LAYER_LEVEL, new ArrayList<>());
         mAreaPolylines.put(BRIDGE_LAYER_LEVEL, new ArrayList<>());
 
+        mCountryPolylines = new LinkedHashMap<>();
+        mCountryPolylines.put(ADMIN_AREA_LAYER_LEVEL, new ArrayList<>());
+
         mNodes = new ArrayList<>();
 
         mExecutorService = Executors.newFixedThreadPool(2);
@@ -521,7 +531,7 @@ public class MainController implements Initializable, NMEAHandler {
             if (mMapPos != null) {
                 Point2D coordPos = getCoordOfPos(mMapPos);
                 JsonArray adminAreas = QueryController.getInstance().getAdminAreasAtPointWithGeom(coordPos.getX(), coordPos.getY(),
-                       null, this);
+                        null, this);
                 StringBuilder s = new StringBuilder();
                 for (int i = 0; i < adminAreas.size(); i++) {
                     JsonObject area = (JsonObject) adminAreas.get(i);
@@ -737,17 +747,20 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private String getAdminLevelListForZoom() {
-        //public static final String ADMIN_LEVEL_SET = "(2, 4, 6, 8)";
-        //public static final String ADMIN_LEVEL_SET_MAP = "(2, 4, 6)";
+        // we alwats show level 2 == countries
         if (mMapZoom <= 10) {
-            return "(2, 4)";
-        } else if (mMapZoom <= 12) {
-            return "(2, 4, 6)";
+            return "(4)";
+        } else if (mMapZoom <= 14) {
+            return "(4, 6)";
         } else if (mMapZoom <= MAX_ZOOM) {
-            return "(2, 4, 6, 8)";
+            return "(4, 6, 8)";
         } else {
             return null;
         }
+    }
+
+    private String getAdminLevelListForCountries() {
+        return "(2)";
     }
 
     private List<Integer> getAreaTypeListForZoom() {
@@ -815,6 +828,10 @@ public class MainController implements Initializable, NMEAHandler {
         for (List<Node> polyList : mAreaPolylines.values()) {
             polyList.clear();
         }
+        for (List<Node> polyList : mCountryPolylines.values()) {
+            polyList.clear();
+        }
+
         LogUtils.log("mapCenterPos = " + mCenterPosX + " : " + mCenterPosY);
         LogUtils.log("mapZeroPos = " + mMapZeroX + " : " + mMapZeroY);
 
@@ -828,12 +845,16 @@ public class MainController implements Initializable, NMEAHandler {
 
         List<Double> bbox = getBBoxInDeg(mFetchBBox);
 
+        // always show countries
+        QueryController.getInstance().getAdminAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
+                bbox.get(2), bbox.get(3), getAdminLevelListForCountries(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mCountryPolylines, MainController.this);
+
         // cant load areas async cause they are always on lowest level and ways are above
-        if (mMapZoom >= 13) {
+        if (mMapZoom >= 15) {
             QueryController.getInstance().getAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
                     bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mPolylines, this);
         }
-        if (mMapZoom >= 13) {
+        if (mMapZoom >= 14) {
             QueryController.getInstance().getWaysInBboxWithGeom(bbox.get(0), bbox.get(1),
                     bbox.get(2), bbox.get(3), getStreetTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mPolylines, this);
         }
@@ -888,6 +909,9 @@ public class MainController implements Initializable, NMEAHandler {
                 mTrackingShape.setTracking();
             }
         }
+        for (List<Node> polyList : mCountryPolylines.values()) {
+            mMapPane.getChildren().addAll(polyList);
+        }
         for (List<Node> polyList : mPolylines.values()) {
             mMapPane.getChildren().addAll(polyList);
         }
@@ -922,7 +946,7 @@ public class MainController implements Initializable, NMEAHandler {
         Point2D paneZeroPos = mNodePane.localToScreen(0, 0);
 
         // same as buildings
-        if (mMapZoom > 13) {
+        if (mMapZoom >= 17) {
             mLoadPOITask = new LoadPOITask(bbox, paneZeroPos);
 
             mLoadPOITask.setOnRunning((runEvent) -> {
@@ -968,6 +992,13 @@ public class MainController implements Initializable, NMEAHandler {
             }
         }
 
+        for (List<Node> polyList : mCountryPolylines.values()) {
+            for (Node s : polyList) {
+                s.setTranslateX(-mMapZeroX);
+                s.setTranslateY(-mMapZeroY);
+            }
+        }
+
         if (mSelectdShape != null) {
             mSelectdShape.getShape().setTranslateX(-mMapZeroX);
             mSelectdShape.getShape().setTranslateY(-mMapZeroY);
@@ -975,6 +1006,9 @@ public class MainController implements Initializable, NMEAHandler {
         if (mTrackingShape != null) {
             mTrackingShape.getShape().setTranslateX(-mMapZeroX);
             mTrackingShape.getShape().setTranslateY(-mMapZeroY);
+        }
+        for (List<Node> polyList : mCountryPolylines.values()) {
+            mMapPane.getChildren().addAll(polyList);
         }
         for (List<Node> polyList : mPolylines.values()) {
             mMapPane.getChildren().addAll(polyList);

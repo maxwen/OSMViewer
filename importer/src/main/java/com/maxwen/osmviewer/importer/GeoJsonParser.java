@@ -62,6 +62,10 @@ public class GeoJsonParser {
                             JsonObject tags = (JsonObject) props.get("all_tags");
                             JsonObject tagsStripped = new JsonObject();
                             tagsStripped.put("name", ImportController.getInstance().escapeSQLString((String) tags.get("name")));
+                            if (tags.containsKey("name:en")) {
+                                tagsStripped.put("name:en", ImportController.getInstance().escapeSQLString((String) tags.get("name:en")));
+                            }
+                            tagsStripped.put("id", parseJob.get("id"));
                             ImportController.getInstance().addToAdminAreaTable(osmId, tagsStripped, adminLevel, polyString.toString());
                         }
                     }

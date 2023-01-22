@@ -177,18 +177,22 @@ public class Importer implements PBFParser.ParseJobCallback, GeoJsonParser.Parse
         mGeoJsonParseJobs = new ArrayList<>();
         JsonObject geoJsonParseJob = new JsonObject();
         geoJsonParseJob.put("geojson", new File(ImportController.getInstance().getMapHome(), "liechtenstein-admin.geojson").getAbsolutePath());
+        geoJsonParseJob.put("id", 0);
         mGeoJsonParseJobs.add(geoJsonParseJob);
 
         geoJsonParseJob = new JsonObject();
         geoJsonParseJob.put("geojson", new File(ImportController.getInstance().getMapHome(), "austria-admin.geojson").getAbsolutePath());
+        geoJsonParseJob.put("id", 1);
         mGeoJsonParseJobs.add(geoJsonParseJob);
 
         geoJsonParseJob = new JsonObject();
         geoJsonParseJob.put("geojson", new File(ImportController.getInstance().getMapHome(), "switzerland-admin.geojson").getAbsolutePath());
+        geoJsonParseJob.put("id", 2);
         mGeoJsonParseJobs.add(geoJsonParseJob);
 
         geoJsonParseJob = new JsonObject();
         geoJsonParseJob.put("geojson", new File(ImportController.getInstance().getMapHome(), "germany-admin.geojson").getAbsolutePath());
+        geoJsonParseJob.put("id", 3);
         mGeoJsonParseJobs.add(geoJsonParseJob);
 
         mParseLatch = new CountDownLatch(mGeoJsonParseJobs.size());
