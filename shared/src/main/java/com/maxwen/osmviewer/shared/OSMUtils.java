@@ -66,6 +66,9 @@ public class OSMUtils {
     public static final int POI_TYPE_POST = 25;
     public static final int POI_TYPE_EDUCATION = 26;
     public static final int POI_TYPE_RESTRICTION = 27;
+    public static final int POI_TYPE_FLAG = 28;
+    public static final int POI_TYPE_ROUTING_START = 29;
+    public static final int POI_TYPE_ROUTING_FINISH = 30;
 
     public static final int CROSSING_TYPE_NONE = -1;
     public static final int CROSSING_TYPE_NORMAL = 0;

@@ -1,6 +1,9 @@
+import org.gradle.internal.jvm.Jvm
+
 plugins {
     id 'java'
     id 'application'
+    id 'cpp'
     id 'org.openjfx.javafxplugin' version '0.0.10'
 }
 
@@ -14,7 +17,7 @@ version '1.0-SNAPSHOT'
 
 application {
     mainClass = 'com.maxwen.osmviewer.Main'
-    applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db", "-Xmx4096m", "-Djdk.gtk.verbose=true", "-Dprism.forceGPU=true"]
+    applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db", "-Djava.library.path=" + file("${buildDir}/libs/routing/shared").absolutePath, "-Xmx4096m", "-Djdk.gtk.verbose=true", "-Dprism.forceGPU=true"]
 }
 
 sourceSets.main {
@@ -38,3 +41,30 @@ dependencies {
     implementation 'org.xerial:sqlite-jdbc:3.34.0'
     implementation 'com.fazecast:jSerialComm:2.6.0'
 }
+
+model {
+    platforms {
+        x64 {
+            architecture "x86_64"
+        }
+    }
+
+    components {
+        routing(NativeLibrarySpec) {
+            targetPlatform "x64"
+            binaries.all {
+                def jvmHome = Jvm.current().javaHome
+                if (targetPlatform.operatingSystem.linux) {
+                    cppCompiler.args '-I', "${jvmHome}/include"
+                    cppCompiler.args '-I', "${jvmHome}/include/linux"
+                    cppCompiler.args '-D_FILE_OFFSET_BITS=64'
+                    linker.args '-L', "/home/maxl/Downloads/pgrouting/build/lib/"
+                    linker.args '-l', "pgrouting-3.4"
+                    linker.args '-l', "sqlite3"
+                }
+            }
+        }
+    }
+}
+
+classes.dependsOn 'routingSharedLibrary'

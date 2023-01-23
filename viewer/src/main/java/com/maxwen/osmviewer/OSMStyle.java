@@ -127,6 +127,10 @@ public class OSMStyle {
         mNodeImages.put(OSMUtils.POI_TYPE_EDUCATION, new Image("/images/poi/school.png"));
         mNodeImages.put(OSMUtils.POI_TYPE_PLACE, new Image("/images/poi/star-3.png"));
         mNodeImages.put(OSMUtils.POI_TYPE_RESTRICTION, new Image("/images/poi/accesdenied.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_FLAG, new Image("/images/poi/flag.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_ROUTING_START, new Image("/images/poi/start.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_ROUTING_FINISH, new Image("/images/poi/finish.png"));
+
     }
 
     public static Image getNodeTypeImage(int nodeType) {
@@ -358,7 +362,10 @@ public class OSMStyle {
         if (zoom == 19) {
             return (int) (baseSize * 2.0);
         }
-        return (int) (baseSize * 1.5);
+        if (zoom == 18) {
+            return (int) (baseSize * 1.5);
+        }
+        return baseSize;
     }
 
     public static void amendWay(JsonObject way, Shape wayLine, int zoom, boolean casing) {

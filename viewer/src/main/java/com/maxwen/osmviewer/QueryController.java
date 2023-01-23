@@ -112,7 +112,7 @@ public class QueryController {
 
     public JsonArray getWaysInBboxWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax,
                                            List<Integer> typeFilterList, boolean withSimplify, double tolerance,
-                                           Map<Integer, List<Node>> polylines,  MainController controller) {
+                                           Map<Integer, List<Node>> polylines, MainController controller) {
         Statement stmt = null;
         JsonArray ways = new JsonArray();
 
@@ -481,7 +481,7 @@ public class QueryController {
                 if (polylines != null) {
                     try {
                         JsonArray polygons = createCoordsFromPolygonString(rs.getString(4));
-                        for (int i =0; i < polygons.size(); i++) {
+                        for (int i = 0; i < polygons.size(); i++) {
                             Polyline polyline = controller.displayCoordsPolyline(osmId, (JsonArray) polygons.get(i));
                             OSMStyle.amendAdminArea(adminArea, polyline, controller.getZoom());
                             polylines.get(MainController.ADMIN_AREA_LAYER_LEVEL).add(polyline);
@@ -507,7 +507,7 @@ public class QueryController {
 
     public Map<Long, JsonObject> getEdgesAroundPointWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax) {
         Statement stmt = null;
-        Map<Long, JsonObject> edgeMap= new HashMap<>();
+        Map<Long, JsonObject> edgeMap = new HashMap<>();
         try {
             stmt = mEdgeConnection.createStatement();
             ResultSet rs = stmt.executeQuery(String.format("SELECT id, startRef, endRef, length, wayId, source, target, cost, reverseCost, streetInfo, AsText(geom) FROM edgeTable WHERE ROWID IN (SELECT rowid FROM cache_edgeTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
@@ -515,8 +515,8 @@ public class QueryController {
             while (rs.next()) {
                 JsonObject edge = new JsonObject();
                 long edgeId = rs.getLong(1);
-                edge.put("edgeId", edgeId);
-                edge.put("osmId", rs.getLong(5));
+                edge.put("id", edgeId);
+                edge.put("wayId", rs.getLong(5));
                 edge.put("startRef", rs.getLong(2));
                 edge.put("endRef", rs.getLong(3));
                 int streetTypeInfo = rs.getInt(10);
@@ -558,7 +558,7 @@ public class QueryController {
                 int distance = GISUtils.isMinimalDistanceOnLineBetweenPoints(lon, lat, lon1, lat1, lon2, lat2, maxDistance);
                 if (distance != -1) {
                     if (distance < thresholdDistance) {
-                        long edgeId = (long) edge.get("edgeId");
+                        long edgeId = (long) edge.get("id");
                         if (selectedEdgeMap.containsKey(edgeId)) {
                             int minDistance = edgeDistanceMap.get(edgeId);
                             if (distance < minDistance) {
@@ -572,7 +572,7 @@ public class QueryController {
                 }
             }
         }
-        System.out.println(edgeDistanceMap);
+        //System.out.println(edgeDistanceMap);
         for (Long edgeId : edgeDistanceMap.keySet()) {
             JsonObject edge = selectedEdgeMap.get(edgeId);
             int distance = edgeDistanceMap.get(edgeId);
@@ -610,8 +610,8 @@ public class QueryController {
             int count = 0;
             while (rs.next()) {
                 JsonObject edge = new JsonObject();
-                edge.put("edgeId", rs.getLong(1));
-                edge.put("osmId", rs.getLong(5));
+                edge.put("id", rs.getLong(1));
+                edge.put("wayId", rs.getLong(5));
                 edge.put("startRef", rs.getLong(2));
                 edge.put("endRef", rs.getLong(3));
                 int streetTypeInfo = rs.getInt(10);
@@ -742,70 +742,26 @@ public class QueryController {
         return restrictionRules;
     }
 
-    private JsonObject geEdgeFromQuery(ResultSet rs) throws SQLException, JsonException {
-        // (id INTEGER PRIMARY KEY, startRef INTEGER, endRef INTEGER, length INTEGER, wayId INTEGER, source INTEGER, target INTEGER, cost REAL, reverseCost REAL, streetInfo INTEGER)')
-        JsonObject edge = new JsonObject();
-        try {
-            edge.put("id", rs.getLong("id"));
-        } catch (SQLException e) {
-        }
-        try {
-            edge.put("startRef", rs.getLong("startRef"));
-        } catch (SQLException e) {
-        }
-        try {
-            edge.put("endRef", rs.getLong("endRef"));
-        } catch (SQLException e) {
-        }
-        try {
-            edge.put("wayId", rs.getLong("wayId"));
-        } catch (SQLException e) {
-        }
-        try {
-            edge.put("length", rs.getLong("length"));
-        } catch (SQLException e) {
-        }
-        try {
-            edge.put("source", rs.getLong("source"));
-        } catch (SQLException e) {
-        }
-        try {
-            edge.put("target", rs.getLong("target"));
-        } catch (SQLException e) {
-        }
-        try {
-            edge.put("cost", rs.getDouble("cost"));
-        } catch (SQLException e) {
-        }
-        try {
-            edge.put("reverseCost", rs.getDouble("reverseCost"));
-        } catch (SQLException e) {
-        }
-        try {
-            edge.put("streetTypeId", rs.getInt("streetTypeId"));
-        } catch (SQLException e) {
-        }
-        return edge;
-    }
-
-    public JsonArray getEdgeEntryForWayId(long wayId) {
+    public JsonObject getEdgeEntryForId(long edgeId) {
         Statement stmt = null;
         ResultSet rs = null;
         JsonArray edgeList = new JsonArray();
         try {
             stmt = mEdgeConnection.createStatement();
-            String sql = String.format("SELECT * FROM edgeTable WHERE wayId=%d", wayId);
+            String sql = String.format("SELECT id, wayId, AsText(geom) FROM edgeTable WHERE id=%d", edgeId);
             rs = stmt.executeQuery(sql);
             while (rs.next()) {
-                try {
-                    JsonObject edge = geEdgeFromQuery(rs);
-                    edgeList.add(edge);
-                } catch (JsonException e) {
-                    LogUtils.log(e.getMessage());
-                }
+                JsonObject edge = new JsonObject();
+                edge.put("id", rs.getLong(1));
+                edge.put("wayId", rs.getLong(2));
+                edge.put("coords", createCoordsFromLineString(rs.getString(3)));
+                edgeList.add(edge);
+            }
+            if (edgeList.size() == 1) {
+                return (JsonObject) edgeList.get(0);
             }
         } catch (SQLException e) {
-            LogUtils.error("getEdgeEntryForWayId", e);
+            LogUtils.error("getEdgeEntryForId", e);
         } finally {
             try {
                 if (stmt != null) {
@@ -814,6 +770,38 @@ public class QueryController {
             } catch (SQLException e) {
             }
         }
-        return edgeList;
+        return null;
     }
+
+    public JsonObject getEdgeEntryForIdInBBox(long edgeId, double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        JsonArray edgeList = new JsonArray();
+        try {
+            stmt = mEdgeConnection.createStatement();
+            String sql = String.format("SELECT id, wayId, AsText(geom) FROM edgeTable WHERE id=%d AND ROWID IN (SELECT rowid FROM cache_edgeTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", edgeId, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                JsonObject edge = new JsonObject();
+                edge.put("id", rs.getLong(1));
+                edge.put("wayId", rs.getLong(2));
+                edge.put("coords", createCoordsFromLineString(rs.getString(3)));
+                edgeList.add(edge);
+            }
+            if (edgeList.size() == 1) {
+                return (JsonObject) edgeList.get(0);
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getEdgeEntryForIdInBBox", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return null;
+    }
+
 }
