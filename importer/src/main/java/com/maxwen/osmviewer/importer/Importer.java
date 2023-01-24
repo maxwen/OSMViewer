@@ -131,38 +131,40 @@ public class Importer implements PBFParser.ParseJobCallback, GeoJsonParser.Parse
         parseJob.put("pass", 0);
         mPBFParseJobs.add(parseJob);
 
-        /*parseJob = new JsonObject();
-        parseJob.put("file", new File(ImportController.getInstance().getMapHome(), "austria-latest.osm.pbf").getAbsolutePath());
-        parseJob.put("ways", 0);
-        parseJob.put("way", 0);
-        parseJob.put("relations", 0);
-        parseJob.put("relation", 0);
-        parseJob.put("nodes", 0);
-        parseJob.put("id", 1);
-        parseJob.put("pass", 0);
-        mPBFParseJobs.add(parseJob);
+        if (ImportController.getInstance().isImportAll()) {
+            parseJob = new JsonObject();
+            parseJob.put("file", new File(ImportController.getInstance().getMapHome(), "austria-latest.osm.pbf").getAbsolutePath());
+            parseJob.put("ways", 0);
+            parseJob.put("way", 0);
+            parseJob.put("relations", 0);
+            parseJob.put("relation", 0);
+            parseJob.put("nodes", 0);
+            parseJob.put("id", 1);
+            parseJob.put("pass", 0);
+            mPBFParseJobs.add(parseJob);
 
-        parseJob = new JsonObject();
-        parseJob.put("file", new File(ImportController.getInstance().getMapHome(), "switzerland-latest.osm.pbf").getAbsolutePath());
-        parseJob.put("ways", 0);
-        parseJob.put("way", 0);
-        parseJob.put("relations", 0);
-        parseJob.put("relation", 0);
-        parseJob.put("nodes", 0);
-        parseJob.put("id", 2);
-        parseJob.put("pass", 0);
-        mPBFParseJobs.add(parseJob);
+            parseJob = new JsonObject();
+            parseJob.put("file", new File(ImportController.getInstance().getMapHome(), "switzerland-latest.osm.pbf").getAbsolutePath());
+            parseJob.put("ways", 0);
+            parseJob.put("way", 0);
+            parseJob.put("relations", 0);
+            parseJob.put("relation", 0);
+            parseJob.put("nodes", 0);
+            parseJob.put("id", 2);
+            parseJob.put("pass", 0);
+            mPBFParseJobs.add(parseJob);
 
-        parseJob = new JsonObject();
-        parseJob.put("file", new File(ImportController.getInstance().getMapHome(), "bayern-latest.osm.pbf").getAbsolutePath());
-        parseJob.put("ways", 0);
-        parseJob.put("way", 0);
-        parseJob.put("relations", 0);
-        parseJob.put("relation", 0);
-        parseJob.put("nodes", 0);
-        parseJob.put("id", 3);
-        parseJob.put("pass", 0);
-        mPBFParseJobs.add(parseJob);*/
+            parseJob = new JsonObject();
+            parseJob.put("file", new File(ImportController.getInstance().getMapHome(), "bayern-latest.osm.pbf").getAbsolutePath());
+            parseJob.put("ways", 0);
+            parseJob.put("way", 0);
+            parseJob.put("relations", 0);
+            parseJob.put("relation", 0);
+            parseJob.put("nodes", 0);
+            parseJob.put("id", 3);
+            parseJob.put("pass", 0);
+            mPBFParseJobs.add(parseJob);
+        }
 
         mParseLatch = new CountDownLatch(mPBFParseJobs.size() * 2);
 

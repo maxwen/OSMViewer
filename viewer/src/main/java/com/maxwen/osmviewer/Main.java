@@ -34,7 +34,7 @@ public class Main extends Application {
         primaryStage.show();
         primaryStage.getIcons().add(new Image("/images/launcher.png"));
 
-        mController.loadMapData();
+        mController.loadFirstMapData();
     }
 
     @Override

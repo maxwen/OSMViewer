@@ -127,7 +127,6 @@ public class QueryController {
                 rs = stmt.executeQuery(String.format("SELECT wayId, tags, refs, streetInfo, name, ref, maxspeed, poiList, layer, %s FROM wayTable WHERE ROWID IN (SELECT rowid FROM cache_wayTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND streetTypeId IN %s ORDER BY streetTypeId", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
             } else {
                 return ways;
-                //rs = stmt.executeQuery(String.format("SELECT wayId, tags, refs, streetInfo, name, ref, maxspeed, poiList, layer, %s FROM wayTable WHERE ROWID IN (SELECT rowid FROM cache_wayTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ORDER BY streetTypeId", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
 
             while (rs.next()) {
@@ -197,7 +196,7 @@ public class QueryController {
     }
 
     public JsonArray getAreasInBboxWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax,
-                                            List<Integer> typeFilterList, boolean withSimplify, double tolerance,
+                                            List<Integer> typeFilterList, boolean withSimplify, double tolerance, long minSize,
                                             Map<Integer, List<Node>> polylines, MainController controller) {
         Statement stmt = null;
         JsonArray areas = new JsonArray();
@@ -208,14 +207,18 @@ public class QueryController {
             tolerance = GISUtils.degToMeter(tolerance);
 
             String geom = "AsText(geom)";
+            String minSizeFilter = "";
+            if (minSize != 0) {
+                minSizeFilter = String.format("AND ST_Area(geom, FALSE) > %d", minSize);
+                //minSizeFilter = String.format("AND size > %d", minSize);
+            }
             if (withSimplify) {
                 geom = String.format("AsText(Simplify(geom, %f))", tolerance);
             }
             if (typeFilterList != null && typeFilterList.size() != 0) {
-                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaTable WHERE ROWID IN (SELECT rowid FROM cache_areaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND type IN %s ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
+                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaTable WHERE type IN %s AND ROWID IN (SELECT rowid FROM cache_areaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) %s ORDER BY layer", geom, filterListToIn(typeFilterList), lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, minSizeFilter));
             } else {
                 return areas;
-                //rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaTable WHERE ROWID IN (SELECT rowid FROM cache_areaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
 
             while (rs.next()) {
@@ -234,10 +237,8 @@ public class QueryController {
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());
                 }
-                area.put("type", "area");
 
-                controller.addToOSMCache(osmId, area);
-                areas.add(area);
+                area.put("type", "area");
 
                 boolean isBuilding = areaType == OSMUtils.AREA_TYPE_BUILDING;
 
@@ -258,7 +259,11 @@ public class QueryController {
                         polylines.get(MainController.AREA_LAYER_LEVEL).add(polygon);
                     }
                 }
+                controller.addToOSMCache(osmId, area);
+                areas.add(area);
             }
+            LogUtils.log("areas = " + areas.size());
+
         } catch (SQLException e) {
             LogUtils.log(e.getMessage());
         } finally {
@@ -289,10 +294,9 @@ public class QueryController {
             }
 
             if (typeFilterList != null && typeFilterList.size() != 0) {
-                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaLineTable WHERE ROWID IN (SELECT rowid FROM cache_areaLineTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND type IN %s ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
+                rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaLineTable WHERE type IN %s AND ROWID IN (SELECT rowid FROM cache_areaLineTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ORDER BY layer", geom, filterListToIn(typeFilterList), lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             } else {
                 return areas;
-                //rs = stmt.executeQuery(String.format("SELECT osmId, type, tags, layer, %s FROM areaLineTable WHERE ROWID IN (SELECT rowid FROM cache_areaLineTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ORDER BY layer", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
             while (rs.next()) {
                 JsonObject area = new JsonObject();
@@ -370,9 +374,9 @@ public class QueryController {
                 geom = String.format("AsText(Simplify(geom, %f))", tolerance);
             }
             if (typeFilterString != null) {
-                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, %s FROM adminLineTable WHERE ROWID IN (SELECT rowid FROM cache_adminLineTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND adminLevel IN %s", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, typeFilterString));
+                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, %s FROM adminLineTable WHERE adminLevel IN %s AND ROWID IN (SELECT rowid FROM cache_adminLineTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", geom, typeFilterString, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             } else {
-                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, %s FROM adminLineTable WHERE ROWID IN (SELECT rowid FROM cache_adminLineTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+                return adminLines;
             }
             while (rs.next()) {
                 JsonObject adminLine = new JsonObject();
@@ -405,7 +409,7 @@ public class QueryController {
             stmt = mAdminConnection.createStatement();
             ResultSet rs;
             if (adminLevelList != null && adminLevelList.length() != 0) {
-                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrContains(%f, %f, %f, %f)) AND adminLevel IN %s AND Contains(geom, MakePoint(%f, %f, 4236)) ORDER BY adminLevel", lon, lat, lon, lat, adminLevelList, lon, lat));
+                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags FROM adminAreaTable WHERE adminLevel IN %s AND ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrContains(%f, %f, %f, %f)) AND Contains(geom, MakePoint(%f, %f, 4236)) ORDER BY adminLevel", adminLevelList, lon, lat, lon, lat, lon, lat));
             } else {
                 rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrContains(%f, %f, %f, %f)) AND Contains(geom, MakePoint(%f, %f, 4236)) ORDER BY adminLevel", lon, lat, lon, lat, lon, lat));
             }
@@ -457,7 +461,7 @@ public class QueryController {
                 geom = String.format("AsText(Simplify(geom, %f))", tolerance);
             }
             if (typeFilterString != null) {
-                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags, %s FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND adminLevel IN %s", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, typeFilterString));
+                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags, %s FROM adminAreaTable WHERE adminLevel IN %s AND ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", geom, typeFilterString, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             } else {
                 rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags, %s FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
@@ -643,10 +647,9 @@ public class QueryController {
             ResultSet rs;
 
             if (typeFilterList != null && typeFilterList.size() != 0) {
-                rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE ROWID IN (SELECT rowid FROM cache_poiRefTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND type IN %s", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, filterListToIn(typeFilterList)));
+                rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE type IN %s AND ROWID IN (SELECT rowid FROM cache_poiRefTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) ", filterListToIn(typeFilterList), lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             } else {
                 return nodes;
-                //rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE ROWID IN (SELECT rowid FROM cache_poiRefTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
 
             while (rs.next()) {

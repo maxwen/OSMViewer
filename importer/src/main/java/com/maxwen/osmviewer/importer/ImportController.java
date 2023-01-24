@@ -38,6 +38,7 @@ public class ImportController {
     private final String mMapHome;
     private long mEdgeSourceTargetId = 1;
     private boolean mImportProgress = true;
+    private boolean mImportAll = false;
 
     public static ImportController getInstance() {
         if (sInstance == null) {
@@ -52,6 +53,7 @@ public class ImportController {
         String mapHome = System.getProperty("osm.map.path");
         mMapHome = System.getenv().getOrDefault("OSM_MAPS_PATH", mapHome);
         mImportProgress = System.getenv().getOrDefault("OSM_IMPORT_PROGRESS", "1").equals("1");
+        mImportAll = System.getenv().getOrDefault("OSM_IMPORT_ALL", "0").equals("1");
 
         LogUtils.log("ImportController db home: " + mDBHome);
         LogUtils.log("ImportController map home: " + mMapHome);
@@ -63,6 +65,10 @@ public class ImportController {
 
     public boolean isImportProgress() {
         return mImportProgress;
+    }
+
+    public boolean isImportAll() {
+        return mImportAll;
     }
 
     public void disconnectAll() {
@@ -516,7 +522,7 @@ public class ImportController {
             String sql;
             sql = "SELECT InitSpatialMetaData(1)";
             stmt.execute(sql);
-            sql = "CREATE TABLE IF NOT EXISTS areaTable (osmId INTEGER, areaId INTEGER , type INTEGER, tags JSON, layer INTEGER, UNIQUE (osmId, areaId) ON CONFLICT IGNORE)";
+            sql = "CREATE TABLE IF NOT EXISTS areaTable (osmId INTEGER, areaId INTEGER , type INTEGER, tags JSON, layer INTEGER, size REAL, UNIQUE (osmId, areaId) ON CONFLICT IGNORE)";
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS areaType_idx ON areaTable (type)";
             stmt.execute(sql);
@@ -1826,8 +1832,10 @@ public class ImportController {
                     if (isPolygon) {
                         /*self.cursorArea.execute('INSERT OR IGNORE INTO areaTable VALUES( ?, ?, ?, ?, ?, MultiPolygonFromText(%s, 4326))' % (
                                 polyString), (osmId, areaId, areaType, self.encodeTags(tags), layer))*/
-                        String sql = String.format("INSERT OR IGNORE INTO areaTable VALUES( %d, %d, %d, %s, %d, MultiPolygonFromText(%s, 4326))",
+                        String sql = String.format("INSERT OR IGNORE INTO areaTable VALUES( %d, %d, %d, %s, %d, 0, MultiPolygonFromText(%s, 4326))",
                                 way.getId(), 0, areaType, tagsString, layer, geomString);
+                        stmt.execute(sql);
+                        sql = String.format("UPDATE areaTable SET size=ST_Area(geom, FALSE) WHERE osmId=%d", way.getId());
                         stmt.execute(sql);
                     } else {
                         /*self.cursorArea.execute('INSERT OR IGNORE INTO areaLineTable VALUES( ?, ?, ?, ?, LineFromText(%s, 4326))' % (
@@ -2573,7 +2581,6 @@ public class ImportController {
                 rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE type IN %s", filterListToIn(typeFilterList)));
             } else {
                 return nodes;
-                //rs = stmt.executeQuery("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable");
             }
 
             while (rs.next()) {
