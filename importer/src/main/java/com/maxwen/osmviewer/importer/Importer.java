@@ -239,18 +239,14 @@ public class Importer implements PBFParser.ParseJobCallback, GeoJsonParser.Parse
             ImportController.getInstance().removeEdgeDB();
             ImportController.getInstance().createEdgeDB();
 
-            //LogUtils.log("createCrossingEntries");
             ImportController.getInstance().createCrossingEntries();
-            //LogUtils.log("createEdgeTableEntries");
             ImportController.getInstance().createEdgeTableEntries();
             ImportController.getInstance().createBarrierRestrictions();
-            //LogUtils.log("createEdgeTableNodeEntries");
             ImportController.getInstance().createEdgeTableNodeEntries();
             ImportController.getInstance().createWayRestrictions();
-            //LogUtils.log("removeOrphanedEdges");
             ImportController.getInstance().removeOrphanedEdges();
-            //LogUtils.log("removeOrphanedWays");
-            //ImportController.getInstance().removeOrphanedWays();
+            ImportController.getInstance().removeOrphanedWays();
+            ImportController.getInstance().calcAreaSizeColumns();
         } catch (InterruptedException e) {
         }
         i.finish();

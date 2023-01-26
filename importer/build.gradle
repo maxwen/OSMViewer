@@ -23,8 +23,7 @@ sourceSets.main {
         srcDir 'src/main/java'
     }
     resources {
-        srcDirs = ['src/main/java', 'src/main/resources']
-        exclude "**/*.java"
+        srcDirs = ['src/main/resources']
     }
 }
 

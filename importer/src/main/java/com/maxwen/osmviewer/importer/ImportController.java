@@ -137,8 +137,6 @@ public class ImportController {
                 stmt = mAdminConnection.createStatement();
                 String sql = "SELECT CreateSpatialIndex('adminAreaTable', 'geom')";
                 stmt.execute(sql);
-                sql = "SELECT CreateSpatialIndex('adminLineTable', 'geom')";
-                stmt.execute(sql);
             }
         } catch (SQLException e) {
             LogUtils.error("createSpatialIndex", e);
@@ -186,8 +184,6 @@ public class ImportController {
             if (mAdminConnection != null) {
                 stmt = mAdminConnection.createStatement();
                 String sql = "ANALYZE adminAreaTable";
-                stmt.execute(sql);
-                sql = "ANALYZE adminLineTable";
                 stmt.execute(sql);
             }
         } catch (SQLException e) {
@@ -522,7 +518,7 @@ public class ImportController {
             String sql;
             sql = "SELECT InitSpatialMetaData(1)";
             stmt.execute(sql);
-            sql = "CREATE TABLE IF NOT EXISTS areaTable (osmId INTEGER, areaId INTEGER , type INTEGER, tags JSON, layer INTEGER, size REAL, UNIQUE (osmId, areaId) ON CONFLICT IGNORE)";
+            sql = "CREATE TABLE IF NOT EXISTS areaTable (osmId INTEGER PRIMARY KEY, type INTEGER, tags JSON, layer INTEGER, size REAL)";
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS areaType_idx ON areaTable (type)";
             stmt.execute(sql);
@@ -699,14 +695,7 @@ public class ImportController {
         self.cursorAdmin.execute(
             "CREATE INDEX parent_idx ON adminAreaTable (parent)")
         self.cursorAdmin.execute(
-            "SELECT AddGeometryColumn('adminAreaTable', 'geom', 4326, 'MULTIPOLYGON', 2)")
-
-        self.cursorAdmin.execute(
-            'CREATE TABLE adminLineTable (osmId INTEGER PRIMARY KEY, adminLevel INTEGER)')
-        self.cursorAdmin.execute(
-            "CREATE INDEX adminLevelLine_idx ON adminLineTable (adminLevel)")
-        self.cursorAdmin.execute(
-            "SELECT AddGeometryColumn('adminLineTable', 'geom', 4326, 'LINESTRING', 2)")*/
+            "SELECT AddGeometryColumn('adminAreaTable', 'geom', 4326, 'MULTIPOLYGON', 2)")*/
         if (mAdminConnection != null) {
             return;
         }
@@ -726,15 +715,6 @@ public class ImportController {
             sql = "SELECT AddGeometryColumn('adminAreaTable', 'geom', 4326, 'MULTIPOLYGON', 2)";
             stmt.execute(sql);
             sql = "SELECT CreateMbrCache('adminAreaTable', 'geom')";
-            stmt.execute(sql);
-
-            sql = "CREATE TABLE IF NOT EXISTS adminLineTable (osmId INTEGER PRIMARY KEY, adminLevel INTEGER)";
-            stmt.execute(sql);
-            sql = "CREATE INDEX IF NOT EXISTS adminLevel_idx ON adminLineTable (adminLevel)";
-            stmt.execute(sql);
-            sql = "SELECT AddGeometryColumn('adminLineTable', 'geom', 4326, 'MULTIPOLYGON', 2)";
-            stmt.execute(sql);
-            sql = "SELECT CreateMbrCache('adminLineTable', 'geom')";
             stmt.execute(sql);
         } catch (SQLException e) {
             LogUtils.error("createAdminDB", e);
@@ -1156,7 +1136,7 @@ public class ImportController {
             stmt = mTmpConnection.createStatement();
             String viaWayString = "'" + Jsoner.serialize(viaWay) + "'";
             String typeString = "'" + escapeSQLString(type) + "'";
-            String sql = String.format("INSERT OR IGNORE INTO   wayRestrictionTable VALUES( %d, %s, %d, %d, %d, %s)", osmId, typeString, toId, fromId, viaNode, viaWayString);
+            String sql = String.format("INSERT OR IGNORE INTO wayRestrictionTable VALUES( %d, %s, %d, %d, %d, %s)", osmId, typeString, toId, fromId, viaNode, viaWayString);
             stmt.execute(sql);
         } catch (SQLException e) {
             LogUtils.error("addToWayRestrictionTable", e);
@@ -1460,7 +1440,7 @@ public class ImportController {
 
             JsonArray toEdgeList = getEdgeEntryForWayId(toWayId);
             for (int j = 0; j < toEdgeList.size(); j++) {
-                JsonObject toEdge = (JsonObject) toEdgeList.get(i);
+                JsonObject toEdge = (JsonObject) toEdgeList.get(j);
                 long toEdgeId = getLongValue(toEdge.get("id"));
                 long crossingRef = getCrossingRefBetweenEdges(fromEdgeId, toEdgeId);
 
@@ -1682,7 +1662,7 @@ public class ImportController {
                             }
                         }
                         if (fromWayId != -1 && toWayId != -1) {
-                            addToWayRestrictionTable(relation.getId(), restrictionType, fromWayId, toWayId, viaNode, viaWay);
+                            addToWayRestrictionTable(relation.getId(), restrictionType, toWayId, fromWayId, viaNode, viaWay);
                         }
                     }
                 }
@@ -1832,10 +1812,8 @@ public class ImportController {
                     if (isPolygon) {
                         /*self.cursorArea.execute('INSERT OR IGNORE INTO areaTable VALUES( ?, ?, ?, ?, ?, MultiPolygonFromText(%s, 4326))' % (
                                 polyString), (osmId, areaId, areaType, self.encodeTags(tags), layer))*/
-                        String sql = String.format("INSERT OR IGNORE INTO areaTable VALUES( %d, %d, %d, %s, %d, 0, MultiPolygonFromText(%s, 4326))",
-                                way.getId(), 0, areaType, tagsString, layer, geomString);
-                        stmt.execute(sql);
-                        sql = String.format("UPDATE areaTable SET size=ST_Area(geom, FALSE) WHERE osmId=%d", way.getId());
+                        String sql = String.format("INSERT OR IGNORE INTO areaTable VALUES( %d, %d, %s, %d, 0, MultiPolygonFromText(%s, 4326))",
+                                way.getId(), areaType, tagsString, layer, geomString);
                         stmt.execute(sql);
                     } else {
                         /*self.cursorArea.execute('INSERT OR IGNORE INTO areaLineTable VALUES( ?, ?, ?, ?, LineFromText(%s, 4326))' % (
@@ -2878,6 +2856,8 @@ public class ImportController {
         if (mImportProgress) {
             progress.setMessage("createCrossingEntries");
             progress.printBar();
+        } else {
+            LogUtils.log("createCrossingEntries");
         }
 
         Statement stmt = null;
@@ -3143,6 +3123,8 @@ public class ImportController {
         if (mImportProgress) {
             progress.setMessage("createEdgeTableEntries");
             progress.printBar();
+        } else {
+            LogUtils.log("createEdgeTableEntries");
         }
 
         Statement stmt = null;
@@ -3344,12 +3326,16 @@ public class ImportController {
         if (mImportProgress) {
             progress.setMessage("createEdgeTableNodeEntries");
             progress.printBar();
+        } else {
+            LogUtils.log("createEdgeTableNodeEntries");
         }
 
         for (int i = 0; i < edgeIdList.size(); i++) {
             long edgeId = getLongValue(edgeIdList.get(i));
-            progress.addValue();
-            progress.printBar();
+            if (mImportProgress) {
+                progress.addValue();
+                progress.printBar();
+            }
 
             JsonObject edge = getEdgeEntryForId(edgeId);
             createEdgeTableNodeSameStartEnriesFor(edge);
@@ -3403,6 +3389,8 @@ public class ImportController {
         if (mImportProgress) {
             progress.setMessage("removeOrphanedEdges");
             progress.printBar();
+        } else {
+            LogUtils.log("removeOrphanedEdges");
         }
 
         try {
@@ -3458,6 +3446,8 @@ public class ImportController {
         if (mImportProgress) {
             progress.setMessage("removeOrphanedWays");
             progress.printBar();
+        } else {
+            LogUtils.log("removeOrphanedWays");
         }
 
         try {
@@ -3490,5 +3480,46 @@ public class ImportController {
 
         deleteWayEntries(wayIdList);
         LogUtils.log("removed orphaned ways = " + removeCount);
+    }
+
+    public void calcAreaSizeColumns() {
+        Statement stmt = null;
+        Statement stmtUpdate = null;
+        ResultSet rs = null;
+        ProgressBar progress = new ProgressBar(getTableSize(mAreaConnection, "areaTable"));
+        if (mImportProgress) {
+            progress.setMessage("calcAreaSizeColumns");
+            progress.printBar();
+        } else {
+            LogUtils.log("calcAreaSizeColumns");
+        }
+
+        try {
+            stmt = mAreaConnection.createStatement();
+            stmtUpdate = mAreaConnection.createStatement();
+
+            rs = stmt.executeQuery(String.format("SELECT osmId FROM areaTable"));
+            while (rs.next()) {
+                if (mImportProgress) {
+                    progress.addValue();
+                    progress.printBar();
+                }
+                long id = rs.getLong(1);
+                String sql = String.format("UPDATE areaTable SET size=ST_Area(ST_SimplifyPreserveTopology(geom, 20.0), FALSE) WHERE osmId=%d", id);
+                stmtUpdate.execute(sql);
+            }
+        } catch (SQLException e) {
+            LogUtils.error("calcAreaSizeColumns", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+                if (stmtUpdate != null) {
+                    stmtUpdate.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
     }
 }
