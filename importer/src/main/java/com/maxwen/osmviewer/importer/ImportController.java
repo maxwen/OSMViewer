@@ -14,10 +14,12 @@ import com.wolt.osm.parallelpbf.entity.RelationMember;
 import com.wolt.osm.parallelpbf.entity.Way;
 import org.sqlite.SQLiteConfig;
 
+import java.awt.*;
 import java.io.File;
 import java.math.BigDecimal;
 import java.sql.*;
 import java.util.*;
+import java.util.List;
 
 import static com.maxwen.osmviewer.shared.GISUtils.createPointFromPointString;
 import static com.maxwen.osmviewer.shared.GISUtils.createPointStringFromCoords;
@@ -33,6 +35,7 @@ public class ImportController {
     private Connection mAdminConnection;
     private Connection mCoordsConnection;
     private Connection mTmpConnection;
+    private Connection mLinesConnection;
     private static ImportController sInstance;
     private final String mDBHome;
     private final String mMapHome;
@@ -102,54 +105,6 @@ public class ImportController {
         }
     }
 
-    public void createSpatialIndex() {
-        Statement stmt = null;
-        try {
-            LogUtils.log("createSpatialIndex");
-            if (mEdgeConnection != null) {
-                stmt = mEdgeConnection.createStatement();
-                String sql = "SELECT CreateSpatialIndex('edgeTable', 'geom')";
-                stmt.execute(sql);
-            }
-            if (mAreaConnection != null) {
-                stmt = mAreaConnection.createStatement();
-                String sql = "SELECT CreateSpatialIndex('areaTable', 'geom')";
-                stmt.execute(sql);
-                sql = "SELECT CreateSpatialIndex('areaLineTable', 'geom')";
-                stmt.execute(sql);
-            }
-            if (mAddressConnection != null) {
-                stmt = mAddressConnection.createStatement();
-                String sql = "SELECT CreateSpatialIndex('addressTable', 'geom')";
-                stmt.execute(sql);
-            }
-            if (mWaysConnection != null) {
-                stmt = mWaysConnection.createStatement();
-                String sql = "SELECT CreateSpatialIndex('wayTable', 'geom')";
-                stmt.execute(sql);
-            }
-            if (mNodeConnection != null) {
-                stmt = mNodeConnection.createStatement();
-                String sql = "SELECT CreateSpatialIndex('poiRefTable', 'geom')";
-                stmt.execute(sql);
-            }
-            if (mAdminConnection != null) {
-                stmt = mAdminConnection.createStatement();
-                String sql = "SELECT CreateSpatialIndex('adminAreaTable', 'geom')";
-                stmt.execute(sql);
-            }
-        } catch (SQLException e) {
-            LogUtils.error("createSpatialIndex", e);
-        } finally {
-            try {
-                if (stmt != null) {
-                    stmt.close();
-                }
-            } catch (SQLException e) {
-            }
-        }
-    }
-
     public void analyze() {
         Statement stmt = null;
         try {
@@ -163,8 +118,8 @@ public class ImportController {
                 stmt = mAreaConnection.createStatement();
                 String sql = "ANALYZE areaTable";
                 stmt.execute(sql);
-                sql = "ANALYZE areaLineTable";
-                stmt.execute(sql);
+                /*sql = "ANALYZE areaLineTable";
+                stmt.execute(sql);*/
             }
             if (mAddressConnection != null) {
                 stmt = mAddressConnection.createStatement();
@@ -184,6 +139,11 @@ public class ImportController {
             if (mAdminConnection != null) {
                 stmt = mAdminConnection.createStatement();
                 String sql = "ANALYZE adminAreaTable";
+                stmt.execute(sql);
+            }
+            if (mLinesConnection != null) {
+                stmt = mLinesConnection.createStatement();
+                String sql = "ANALYZE lineTable";
                 stmt.execute(sql);
             }
         } catch (SQLException e) {
@@ -231,14 +191,6 @@ public class ImportController {
     }
 
     public void createNodeDB() {
-        /*self.cursorNode.execute("SELECT InitSpatialMetaData(1)")
-
-        self.cursorNode.execute('CREATE TABLE IF NOT EXISTS poiRefTable (refId INTEGER, refType INTEGER, tags JSON, type INTEGER, layer INTEGER, country INTEGER, city INTEGER, UNIQUE (refId, refType, type) ON CONFLICT IGNORE)')
-        self.cursorNode.execute("CREATE INDEX poiRefId_idx ON poiRefTable (refId)")
-        self.cursorNode.execute("CREATE INDEX type_idx ON poiRefTable (type)")
-        self.cursorNode.execute("CREATE INDEX country_idx ON poiRefTable (country)")
-        self.cursorNode.execute("CREATE INDEX city_idx ON poiRefTable (city)")
-        self.cursorNode.execute("SELECT AddGeometryColumn('poiRefTable', 'geom', 4326, 'POINT', 2)")*/
         if (mNodeConnection != null) {
             return;
         }
@@ -252,15 +204,13 @@ public class ImportController {
 
             sql = "SELECT InitSpatialMetaData(1)";
             stmt.execute(sql);
-            sql = "CREATE TABLE IF NOT EXISTS poiRefTable (refId INTEGER, refType INTEGER, tags JSON, type INTEGER, layer INTEGER, country INTEGER, city INTEGER, UNIQUE (refId, refType, type) ON CONFLICT IGNORE)";
+            sql = "CREATE TABLE IF NOT EXISTS poiRefTable (id INTEGER PRIMARY KEY AUTOINCREMENT, nodeId INTEGER, tags JSON, type INTEGER, layer INTEGER, name TEXT)";
             stmt.execute(sql);
-            sql = "CREATE INDEX IF NOT EXISTS poiRefId_idx ON poiRefTable (refId)";
+            sql = "CREATE INDEX IF NOT EXISTS nodeId_idx ON poiRefTable (nodeId)";
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS type_idx ON poiRefTable (type)";
             stmt.execute(sql);
-            sql = "CREATE INDEX IF NOT EXISTS country_idx ON poiRefTable (country)";
-            stmt.execute(sql);
-            sql = "CREATE INDEX IF NOT EXISTS city_idx ON poiRefTable (city)";
+            sql = "CREATE INDEX IF NOT EXISTS name_idx ON poiRefTable (name)";
             stmt.execute(sql);
             sql = "SELECT AddGeometryColumn('poiRefTable', 'geom', 4326, 'POINT', 2)";
             stmt.execute(sql);
@@ -336,16 +286,11 @@ public class ImportController {
             String sql;
             sql = "SELECT InitSpatialMetaData(1)";
             stmt.execute(sql);
-            // TODO should be lon lat but python depends on that order
-            sql = "CREATE TABLE IF NOT EXISTS addressTable (refId INTEGER PRIMARY KEY, country INTEGER, city INTEGER, postCode INTEGER, streetName TEXT, houseNumber TEXT)";
+            sql = "CREATE TABLE IF NOT EXISTS addressTable (id INTEGER PRIMARY KEY AUTOINCREMENT, osmId INTEGER, streetName TEXT, houseNumber TEXT)";
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS streetName_idx ON addressTable (streetName)";
             stmt.execute(sql);
-            sql = "CREATE INDEX IF NOT EXISTS country_idx ON addressTable (country)";
-            stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS houseNumber_idx ON addressTable (houseNumber)";
-            stmt.execute(sql);
-            sql = "CREATE INDEX IF NOT EXISTS city_idx ON addressTable (city)";
             stmt.execute(sql);
             sql = "SELECT AddGeometryColumn('addressTable', 'geom', 4326, 'POINT', 2)";
             stmt.execute(sql);
@@ -527,14 +472,14 @@ public class ImportController {
             sql = "SELECT CreateMbrCache('areaTable', 'geom')";
             stmt.execute(sql);
 
-            sql = "CREATE TABLE IF NOT EXISTS areaLineTable (osmId INTEGER PRIMARY KEY, type INTEGER, tags JSON, layer INTEGER)";
+            /*sql = "CREATE TABLE IF NOT EXISTS areaLineTable (osmId INTEGER PRIMARY KEY, type INTEGER, tags JSON, layer INTEGER)";
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS areaLineType_idx ON areaLineTable (type)";
             stmt.execute(sql);
             sql = "SELECT AddGeometryColumn('areaLineTable', 'geom', 4326, 'LINESTRING', 2)";
             stmt.execute(sql);
             sql = "SELECT CreateMbrCache('areaLineTable', 'geom')";
-            stmt.execute(sql);
+            stmt.execute(sql);*/
         } catch (SQLException e) {
             LogUtils.error("createAreaDB", e);
         } finally {
@@ -826,6 +771,72 @@ public class ImportController {
         }
     }
 
+    public void createLinesDB() {
+        if (mLinesConnection != null) {
+            return;
+        }
+        Statement stmt = null;
+        try {
+            mLinesConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/lines.db");
+            stmt = mLinesConnection.createStatement();
+            String sql;
+            sql = "SELECT InitSpatialMetaData(1)";
+            stmt.execute(sql);
+            sql = "CREATE TABLE IF NOT EXISTS lineTable (osmId INTEGER PRIMARY KEY, type INTEGER, tags JSON, layer INTEGER)";
+            stmt.execute(sql);
+            sql = "CREATE INDEX IF NOT EXISTS lineType_idx ON lineTable (type)";
+            stmt.execute(sql);
+            sql = "SELECT AddGeometryColumn('lineTable', 'geom', 4326, 'LINESTRING', 2)";
+            stmt.execute(sql);
+            sql = "SELECT CreateMbrCache('lineTable', 'geom')";
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("createLinesDB", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public void removeLinesDB() {
+        try {
+            if (mLinesConnection != null) {
+                mLinesConnection.close();
+                mLinesConnection = null;
+            }
+            new File(mDBHome + "/lines.db").delete();
+        } catch (SQLException e) {
+            LogUtils.error("removeLinesDB", e);
+        }
+    }
+
+    public void connectLinesDB() {
+        if (mLinesConnection != null) {
+            return;
+        }
+        try {
+            mLinesConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/lines.db");
+        } catch (SQLException e) {
+            LogUtils.error("connectLinesDB", e);
+        }
+    }
+
+    public boolean linesDBExists() {
+        return new File(mDBHome + "/lines.db").exists();
+    }
+
+    public void openLinesDB() {
+        if (linesDBExists()) {
+            connectLinesDB();
+        } else {
+            createLinesDB();
+        }
+    }
+
     private synchronized void addToCoordsTable(long ref, double lon, double lat) {
         Statement stmt = null;
         try {
@@ -948,12 +959,17 @@ public class ImportController {
             stmt = mNodeConnection.createStatement();
             String pointString = createPointStringFromCoords(lon, lat);
             int layer = 0;
-            int refType = 0;
             int nodeType = 0;
 
             String tagsString = "NULL";
             if (tags.size() != 0) {
                 tagsString = stripAndEscapeTags(tags, ImportMapping.getInstance().getRequiredNodeTags());
+                String name = tags.get("name");
+                if (name == null) {
+                    name = "NULL";
+                } else {
+                    name = "'" + escapeSQLString(name) + "'";
+                }
                 String t = tags.get("layer");
                 if (t != null) {
                     try {
@@ -965,7 +981,7 @@ public class ImportController {
                 if (t != null) {
                     nodeType = ImportMapping.getInstance().getHighwayNodeTypeId(t);
                     if (nodeType != -1) {
-                        String sql = String.format("INSERT INTO poiRefTable VALUES( %d, %d, %s, %d, %d, NULL, NULL, PointFromText(%s, 4326))", ref, refType, tagsString, nodeType, layer, pointString);
+                        String sql = String.format("INSERT INTO poiRefTable (nodeId, tags, type, layer, name, geom) VALUES( %d, %s, %d, %d, %s, PointFromText(%s, 4326))", ref, tagsString, nodeType, layer, name, pointString);
                         stmt.execute(sql);
                     }
                 }
@@ -973,7 +989,7 @@ public class ImportController {
                 if (t != null) {
                     nodeType = ImportMapping.getInstance().getAmenityNodeTypeId(t);
                     if (nodeType != -1) {
-                        String sql = String.format("INSERT INTO poiRefTable VALUES( %d, %d, %s, %d, %d, NULL, NULL, PointFromText(%s, 4326))", ref, refType, tagsString, nodeType, layer, pointString);
+                        String sql = String.format("INSERT INTO poiRefTable (nodeId, tags, type, layer, name, geom) VALUES( %d, %s, %d, %d, %s, PointFromText(%s, 4326))", ref, tagsString, nodeType, layer, name, pointString);
                         stmt.execute(sql);
                     }
                 }
@@ -981,7 +997,7 @@ public class ImportController {
                 if (t != null) {
                     nodeType = ImportMapping.getInstance().getTourismNodeTypeId(t);
                     if (nodeType != -1) {
-                        String sql = String.format("INSERT INTO poiRefTable VALUES( %d, %d, %s, %d, %d, NULL, NULL, PointFromText(%s, 4326))", ref, refType, tagsString, nodeType, layer, pointString);
+                        String sql = String.format("INSERT INTO poiRefTable (nodeId, tags, type, layer, name, geom) VALUES( %d, %s, %d, %d, %s, PointFromText(%s, 4326))", ref, tagsString, nodeType, layer, name, pointString);
                         stmt.execute(sql);
                     }
                 }
@@ -989,7 +1005,7 @@ public class ImportController {
                 if (t != null) {
                     nodeType = ImportMapping.getInstance().getShopNodeTypeId(t);
                     if (nodeType != -1) {
-                        String sql = String.format("INSERT INTO poiRefTable VALUES( %d, %d, %s, %d, %d, NULL, NULL, PointFromText(%s, 4326))", ref, refType, tagsString, nodeType, layer, pointString);
+                        String sql = String.format("INSERT INTO poiRefTable (nodeId, tags, type, layer, name, geom) VALUES( %d, %s, %d, %d, %s, PointFromText(%s, 4326))", ref, tagsString, nodeType, layer, name, pointString);
                         stmt.execute(sql);
                     }
                 }
@@ -997,7 +1013,7 @@ public class ImportController {
                 if (t != null) {
                     nodeType = ImportMapping.getInstance().getRailwayNodeTypeId(t);
                     if (nodeType != -1) {
-                        String sql = String.format("INSERT INTO poiRefTable VALUES( %d, %d, %s, %d, %d, NULL, NULL, PointFromText(%s, 4326))", ref, refType, tagsString, nodeType, layer, pointString);
+                        String sql = String.format("INSERT INTO poiRefTable (nodeId, tags, type, layer, name, geom) VALUES( %d, %s, %d, %d, %s, PointFromText(%s, 4326))", ref, tagsString, nodeType, layer, name, pointString);
                         stmt.execute(sql);
                     }
                 }
@@ -1005,7 +1021,7 @@ public class ImportController {
                 if (t != null) {
                     nodeType = ImportMapping.getInstance().getAerowayNodeTypeId(t);
                     if (nodeType != -1) {
-                        String sql = String.format("INSERT INTO poiRefTable VALUES( %d, %d, %s, %d, %d, NULL, NULL, PointFromText(%s, 4326))", ref, refType, tagsString, nodeType, layer, pointString);
+                        String sql = String.format("INSERT INTO poiRefTable (nodeId, tags, type, layer, name, geom) VALUES( %d, %s, %d, %d, %s, PointFromText(%s, 4326))", ref, tagsString, nodeType, layer, name, pointString);
                         stmt.execute(sql);
                     }
                 }
@@ -1013,7 +1029,7 @@ public class ImportController {
                 if (t != null && tags.containsKey("name")) {
                     if (ImportMapping.getInstance().isUsablePlaceNodeType(t)) {
                         nodeType = POI_TYPE_PLACE;
-                        String sql = String.format("INSERT INTO poiRefTable VALUES( %d, %d, %s, %d, %d, NULL, NULL, PointFromText(%s, 4326))", ref, refType, tagsString, nodeType, layer, pointString);
+                        String sql = String.format("INSERT INTO poiRefTable (nodeId, tags, type, layer, name, geom) VALUES( %d, %s, %d, %d, %s, PointFromText(%s, 4326))", ref, tagsString, nodeType, layer, name, pointString);
                         stmt.execute(sql);
                     }
                 }
@@ -1021,7 +1037,15 @@ public class ImportController {
                 if (t != null) {
                     if (ImportMapping.getInstance().isUsableBarrierNodeType(t)) {
                         nodeType = t.equals("restriction") ? POI_TYPE_RESTRICTION : POI_TYPE_BARRIER;
-                        String sql = String.format("INSERT INTO poiRefTable VALUES( %d, %d, %s, %d, %d, NULL, NULL, PointFromText(%s, 4326))", ref, refType, tagsString, nodeType, layer, pointString);
+                        String sql = String.format("INSERT INTO poiRefTable (nodeId, tags, type, layer, name, geom) VALUES( %d, %s, %d, %d, %s, PointFromText(%s, 4326))", ref, tagsString, nodeType, layer, name, pointString);
+                        stmt.execute(sql);
+                    }
+                }
+                t = tags.get("building");
+                if (t != null) {
+                    nodeType = ImportMapping.getInstance().getBuildingNodeTypeId(t);
+                    if (nodeType != -1) {
+                        String sql = String.format("INSERT INTO poiRefTable (nodeId, tags, type, layer, name, geom) VALUES( %d, %s, %d, %d, %s, PointFromText(%s, 4326))", ref, tagsString, nodeType, layer, name, pointString);
                         stmt.execute(sql);
                     }
                 }
@@ -1056,19 +1080,19 @@ public class ImportController {
 
         if (streetName != null && houseNumber != null) {
             // rest of info is filled later on from admin boundaries
-            addToAddressTable(ref, -1, -1, streetName, houseNumber, lon, lat);
+            addToAddressTable(ref, streetName, houseNumber, lon, lat);
         }
     }
 
-    private void addToAddressTable(long ref, int country, int city, String streetName, String houseNumber, double lon, double lat) {
+    private void addToAddressTable(long ref, String streetName, String houseNumber, double lon, double lat) {
         Statement stmt = null;
         try {
-            streetName = escapeSQLString(streetName);
-            houseNumber = escapeSQLString(houseNumber);
+            streetName = "'" +escapeSQLString(streetName) + "'";
+            houseNumber = "'" +escapeSQLString(houseNumber) + "'";
             String pointString = createPointStringFromCoords(lon, lat);
 
             stmt = mAddressConnection.createStatement();
-            String sql = String.format("INSERT OR IGNORE INTO addressTable (refId, country, city, postCode, streetName, houseNumber, geom) VALUES( %d, %d, %d, %d, '%s', '%s', PointFromText(%s, 4326))", ref, country, city, -1, streetName, houseNumber, pointString);
+            String sql = String.format("INSERT INTO addressTable (osmId, streetName, houseNumber, geom) VALUES( %d, %s, %s, PointFromText(%s, 4326))", ref, streetName, houseNumber, pointString);
             stmt.execute(sql);
         } catch (SQLException e) {
             LogUtils.error("addToAddressTable", e);
@@ -1668,6 +1692,7 @@ public class ImportController {
                 }
             } else if (type.equals("enforcement")) {
                 // todo maxspeed
+                LogUtils.log("enforcement = " + tags);
             }
         }
     }
@@ -1691,6 +1716,7 @@ public class ImportController {
             boolean isTourism = false;
             boolean isAmenity = false;
             boolean isLeisure = false;
+            boolean isShop = false;
             int areaType = -1;
             int layer = 0;
 
@@ -1743,8 +1769,13 @@ public class ImportController {
                     isLeisure = true;
                 }
             }
+            t = tags.get("shop");
+            if (t != null) {
+                isShop = true;
+            }
             t = tags.get("building");
             if (t != null) {
+                // poi nodes will be created later
                 isLanduse = false;
                 isNatural = false;
                 isRailway = false;
@@ -1752,6 +1783,7 @@ public class ImportController {
                 isTourism = false;
                 isAmenity = false;
                 isLeisure = false;
+                isShop = false;
                 isBuilding = true;
             }
             t = tags.get("layer");
@@ -1791,13 +1823,12 @@ public class ImportController {
                 areaType = AREA_TYPE_AEROWAY;
             } else if (isTourism) {
                 areaType = AREA_TYPE_TOURISM;
-            } else if (isAmenity) {
+            } else if (isAmenity || isShop) {
                 areaType = AREA_TYPE_AMENITY;
             } else if (isLeisure) {
                 areaType = AREA_TYPE_LEISURE;
             }
             if (areaType != -1) {
-                // TODO add poiRefTable entries
                 String geomString = null;
                 if (isPolygon) {
                     geomString = GISUtils.createMultiPolygonFromCoords(coords);
@@ -1807,20 +1838,29 @@ public class ImportController {
                 String tagsString = stripAndEscapeTags(tags, ImportMapping.getInstance().getRequiredAreaTags());
 
                 Statement stmt = null;
+                Statement lineStmt = null;
+
                 try {
-                    stmt = mAreaConnection.createStatement();
                     if (isPolygon) {
+                        stmt = mAreaConnection.createStatement();
+
                         /*self.cursorArea.execute('INSERT OR IGNORE INTO areaTable VALUES( ?, ?, ?, ?, ?, MultiPolygonFromText(%s, 4326))' % (
                                 polyString), (osmId, areaId, areaType, self.encodeTags(tags), layer))*/
                         String sql = String.format("INSERT OR IGNORE INTO areaTable VALUES( %d, %d, %s, %d, 0, MultiPolygonFromText(%s, 4326))",
                                 way.getId(), areaType, tagsString, layer, geomString);
                         stmt.execute(sql);
                     } else {
+                        lineStmt = mLinesConnection.createStatement();
+
                         /*self.cursorArea.execute('INSERT OR IGNORE INTO areaLineTable VALUES( ?, ?, ?, ?, LineFromText(%s, 4326))' % (
                                 lineString), (osmId, areaType, tagsString, layer))*/
-                        String sql = String.format("INSERT OR IGNORE INTO areaLineTable VALUES( %d, %d, %s, %d, LineFromText(%s, 4326))",
+                        /*String sql = String.format("INSERT OR IGNORE INTO areaLineTable VALUES( %d, %d, %s, %d, LineFromText(%s, 4326))",
                                 way.getId(), areaType, tagsString, layer, geomString);
-                        stmt.execute(sql);
+                        stmt.execute(sql);*/
+
+                        String sql = String.format("INSERT OR IGNORE INTO lineTable VALUES( %d, %d, %s, %d, LineFromText(%s, 4326))",
+                                way.getId(), areaType, tagsString, layer, geomString);
+                        lineStmt.execute(sql);
                     }
                 } catch (SQLException e) {
                     LogUtils.error("addOtherWay " + tags, e);
@@ -1828,6 +1868,12 @@ public class ImportController {
                     try {
                         if (stmt != null) {
                             stmt.close();
+                        }
+                    } catch (SQLException e) {
+                    }
+                    try {
+                        if (lineStmt != null) {
+                            lineStmt.close();
                         }
                     } catch (SQLException e) {
                     }
@@ -2504,14 +2550,10 @@ public class ImportController {
     }
 
     private JsonObject getNodeFromQuery(ResultSet rs) throws SQLException, JsonException {
-        //  (refId INTEGER, refType INTEGER, tags JSON, type INTEGER, layer INTEGER, country INTEGER, city INTEGER, AsText(geom))";
+        //  (nodeId INTEGER, tags JSON, type INTEGER, layer INTEGER, name TEXT, AsText(geom))";
         JsonObject node = new JsonObject();
         try {
-            node.put("refId", rs.getLong("refId"));
-        } catch (SQLException e) {
-        }
-        try {
-            node.put("refType", rs.getObject("refType"));
+            node.put("nodeId", rs.getLong("nodeId"));
         } catch (SQLException e) {
         }
         try {
@@ -2530,11 +2572,7 @@ public class ImportController {
         } catch (SQLException e) {
         }
         try {
-            node.put("country", rs.getObject("country"));
-        } catch (SQLException e) {
-        }
-        try {
-            node.put("city", rs.getObject("city"));
+            node.put("name", rs.getObject("name"));
         } catch (SQLException e) {
         }
         try {
@@ -2556,7 +2594,7 @@ public class ImportController {
             ResultSet rs;
 
             if (typeFilterList != null && typeFilterList.size() != 0) {
-                rs = stmt.executeQuery(String.format("SELECT refId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE type IN %s", filterListToIn(typeFilterList)));
+                rs = stmt.executeQuery(String.format("SELECT nodeId, tags, type, layer, AsText(geom) FROM poiRefTable WHERE type IN %s", filterListToIn(typeFilterList)));
             } else {
                 return nodes;
             }
@@ -3517,6 +3555,99 @@ public class ImportController {
                 }
                 if (stmtUpdate != null) {
                     stmtUpdate.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public void createAreaPOINodes() {
+        Statement stmt = null;
+        ResultSet rs = null;
+        ProgressBar progress = new ProgressBar(getTableSize(mAreaConnection, "areaTable"));
+        if (mImportProgress) {
+            progress.setMessage("createAreaPOINodes");
+            progress.printBar();
+        } else {
+            LogUtils.log("createAreaPOINodes");
+        }
+
+        try {
+            stmt = mAreaConnection.createStatement();
+
+            List<Integer> typeFilterList = new ArrayList<>();
+            typeFilterList.add(AREA_TYPE_BUILDING);
+
+            rs = stmt.executeQuery(String.format("SELECT osmId, tags, AsText(ST_Centroid(geom)) FROM areaTable WHERE type IN %s", filterListToIn(typeFilterList)));
+            while (rs.next()) {
+                if (mImportProgress) {
+                    progress.addValue();
+                    progress.printBar();
+                }
+                long osmId = rs.getLong(1);
+                String tagsString = rs.getString(2);
+                Map<String, String> tags = new HashMap<>();
+                try {
+                    if (tagsString != null && tagsString.length() != 0) {
+                        JsonObject tagsJson = (JsonObject) Jsoner.deserialize(tagsString);
+                        for (Map.Entry<String, Object> entry : tagsJson.entrySet()) {
+                            tags.put(entry.getKey(), (String) entry.getValue());
+                        }
+                    }
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+                JsonArray areaCenter = new JsonArray();
+                try {
+                    String coordsString = rs.getString(3);
+                    if (coordsString != null && coordsString.length() != 0) {
+                        areaCenter = createPointFromPointString(coordsString);
+                    }
+                } catch (SQLException e) {
+                }
+
+                boolean isAmenityPoi = false;
+                boolean isShopPoi = false;
+
+                String t = tags.get("amenity");
+                if (t != null) {
+                    if (ImportMapping.getInstance().getAmenityNodeTypeId(t) != -1) {
+                        isAmenityPoi = true;
+                    } else {
+                        //LogUtils.log("amenity = " + t);
+                    }
+                }
+                t = tags.get("shop");
+                if (t != null) {
+                    if (ImportMapping.getInstance().getShopNodeTypeId(t) != -1) {
+                        isShopPoi = true;
+                    } else {
+                        //LogUtils.log("shop = " + t);
+                    }
+                }
+                t = tags.get("building");
+                if (t != null) {
+                    if (ImportMapping.getInstance().getBuildingNodeTypeId(t) != -1) {
+                        addToPOIRefTable(osmId, (double) areaCenter.get(0), (double) areaCenter.get(1), tags);
+                    } else if (isAmenityPoi) {
+                        addToPOIRefTable(osmId, (double) areaCenter.get(0), (double) areaCenter.get(1), tags);
+                    } else if (isShopPoi) {
+                        addToPOIRefTable(osmId, (double) areaCenter.get(0), (double) areaCenter.get(1), tags);
+                    } else {
+                        //LogUtils.log("building = " + t);
+                    }
+                    t = tags.get("addr:street");
+                    if (t != null) {
+                        parseFullAddress(tags, osmId, (double) areaCenter.get(0), (double) areaCenter.get(1));
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("createAreaPOINodes", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
                 }
             } catch (SQLException e) {
             }

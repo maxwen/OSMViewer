@@ -16,8 +16,8 @@ public class ImportMapping {
     private JsonObject mProp = new JsonObject();
 
     private static Set<String> REQUIRED_HIGHWAY_TAGS_SET = Set.of("motorcar", "motor_vehicle", "access", "vehicle", "service", "lanes");
-    private static Set<String> REQUIRED_AREA_TAGS_SET = Set.of("name", "ref", "landuse", "natural", "amenity", "tourism", "waterway", "railway", "aeroway", "highway", "building", "leisure", "bridge", "tunnel", "website", "url", "wikipedia", "addr:street");
-    private static Set<String> REQUIRED_NODE_TAGS_SET = Set.of("name", "ref", "place", "website", "url", "wikipedia", "addr:street");
+    private static Set<String> REQUIRED_AREA_TAGS_SET = Set.of("name", "ref", "landuse", "natural", "amenity", "tourism", "waterway", "railway", "aeroway", "highway", "building", "leisure", "bridge", "tunnel", "website", "url", "wikipedia", "addr:street", "addr:housenumber", "shop");
+    private static Set<String> REQUIRED_NODE_TAGS_SET = Set.of("name", "ref", "place", "website", "url", "wikipedia", "addr:street", "addr:housenumber");
 
     private static Map<String, Integer> RAILWAY_POI_TYPE_DICT = Map.of("station", POI_TYPE_RAILWAYSTATION);
     public static Set<String> RAILWAY_AREA_TYPE_SET = Set.of("rail");
@@ -66,6 +66,8 @@ public class ImportMapping {
     private Map<String, BigDecimal> mShopPOITypeDict;
     private Map<String, BigDecimal> mRailwayPOITypeDict;
     private Map<String, BigDecimal> mAerowayPOITypeDict;
+    private Map<String, BigDecimal> mBuildingPOITypeDict;
+
     private Set<String> mPlaceNodeTypeSet;
     private Set<String> mBarrierNodeTypeSet;
     private Set<String> mRequiredHighwayTags;
@@ -108,6 +110,11 @@ public class ImportMapping {
                 mRailwayPOITypeDict = new HashMap<>();
                 mRailwayPOITypeDict.putAll((Map<String, BigDecimal>) mProp.get("RAILWAY_POI_TYPE_DICT"));
 
+                mBuildingPOITypeDict = new HashMap<>();
+                mBuildingPOITypeDict.putAll((Map<String, BigDecimal>) mProp.get("AMENITY_POI_TYPE_DICT"));
+                mBuildingPOITypeDict.putAll((Map<String, BigDecimal>) mProp.get("TOURISM_POI_TYPE_DICT"));
+                mBuildingPOITypeDict.putAll((Map<String, BigDecimal>) mProp.get("SHOP_POI_TYPE_DICT"));
+
                 mPlaceNodeTypeSet = new HashSet<>();
                 mPlaceNodeTypeSet.addAll((Collection<String>) mProp.get("PLACE_NODES_TYPE_SET"));
 
@@ -128,68 +135,74 @@ public class ImportMapping {
             } catch (Exception e) {
                 LogUtils.error("Mapping", e);
             }
-        } else {
-            mProp.put("REQUIRED_HIGHWAY_TAGS_SET", REQUIRED_HIGHWAY_TAGS_SET);
-            mProp.put("REQUIRED_AREA_TAGS_SET", REQUIRED_AREA_TAGS_SET);
-            mProp.put("REQUIRED_NODE_TAGS_SET", REQUIRED_NODE_TAGS_SET);
-            mProp.put("RAILWAY_POI_TYPE_DICT", RAILWAY_POI_TYPE_DICT);
-            mProp.put("RAILWAY_AREA_TYPE_SET", RAILWAY_AREA_TYPE_SET);
-            mProp.put("AEROWAY_POI_TYPE_DICT", AEROWAY_POI_TYPE_DICT);
-            mProp.put("AEROWAY_AREA_TYPE_SET", AEROWAY_AREA_TYPE_SET);
-            mProp.put("BARIER_NODES_TYPE_SET", BARIER_NODES_TYPE_SET);
-            mProp.put("BOUNDARY_TYPE_SET", BOUNDARY_TYPE_SET);
-            mProp.put("PLACE_NODES_TYPE_SET", PLACE_NODES_TYPE_SET);
-
-            AMENITY_POI_TYPE_DICT = new HashMap<>();
-            AMENITY_POI_TYPE_DICT.put("fuel", POI_TYPE_GAS_STATION);
-            AMENITY_POI_TYPE_DICT.put("parking", POI_TYPE_PARKING);
-            AMENITY_POI_TYPE_DICT.put("hospital", POI_TYPE_HOSPITAL);
-            AMENITY_POI_TYPE_DICT.put("police", POI_TYPE_POLICE);
-            AMENITY_POI_TYPE_DICT.put("veterinary", POI_TYPE_VETERIANERY);
-            AMENITY_POI_TYPE_DICT.put("clinic", POI_TYPE_CLINIC);
-            AMENITY_POI_TYPE_DICT.put("doctor", POI_TYPE_DOCTOR);
-            AMENITY_POI_TYPE_DICT.put("pharmacy", POI_TYPE_PHARMACY);
-            AMENITY_POI_TYPE_DICT.put("atm", POI_TYPE_ATM);
-            AMENITY_POI_TYPE_DICT.put("bank", POI_TYPE_BANK);
-            AMENITY_POI_TYPE_DICT.put("post_office", POI_TYPE_POST);
-            AMENITY_POI_TYPE_DICT.put("dentist", POI_TYPE_DOCTOR);
-            AMENITY_POI_TYPE_DICT.put("school", POI_TYPE_EDUCATION);
-            AMENITY_POI_TYPE_DICT.put("college", POI_TYPE_EDUCATION);
-            AMENITY_POI_TYPE_DICT.put("kindergarten", POI_TYPE_EDUCATION);
-            AMENITY_POI_TYPE_DICT.put("university", POI_TYPE_EDUCATION);
-
-            mProp.put("AMENITY_POI_TYPE_DICT", AMENITY_POI_TYPE_DICT);
-            mProp.put("AMENITY_AREA_TYPE_SET", AMENITY_AREA_TYPE_SET);
-            mProp.put("TOURISM_POI_TYPE_DICT", TOURISM_POI_TYPE_DICT);
-            mProp.put("TOURISM_AREA_TYPE_SET", TOURISM_AREA_TYPE_SET);
-            mProp.put("LEISURE_POI_TYPE_DICT", LEISURE_POI_TYPE_DICT);
-            mProp.put("LEISURE_AREA_TYPE_SET", LEISURE_AREA_TYPE_SET);
-
-            STREET_TYPE_DICT = new HashMap<>();
-            STREET_TYPE_DICT.put("road", STREET_TYPE_ROAD);
-            STREET_TYPE_DICT.put("unclassified", STREET_TYPE_UNCLASSIFIED);
-            STREET_TYPE_DICT.put("motorway", STREET_TYPE_MOTORWAY);
-            STREET_TYPE_DICT.put("motorway_link", STREET_TYPE_MOTORWAY_LINK);
-            STREET_TYPE_DICT.put("trunk", STREET_TYPE_TRUNK);
-            STREET_TYPE_DICT.put("trunk_link", STREET_TYPE_TRUNK_LINK);
-            STREET_TYPE_DICT.put("primary", STREET_TYPE_PRIMARY);
-            STREET_TYPE_DICT.put("primary_link", STREET_TYPE_PRIMARY_LINK);
-            STREET_TYPE_DICT.put("secondary", STREET_TYPE_SECONDARY);
-            STREET_TYPE_DICT.put("secondary_link", STREET_TYPE_SECONDARY_LINK);
-            STREET_TYPE_DICT.put("tertiary", STREET_TYPE_TERTIARY);
-            STREET_TYPE_DICT.put("tertiary_link", STREET_TYPE_TERTIARY_LINK);
-            STREET_TYPE_DICT.put("residential", STREET_TYPE_RESIDENTIAL);
-            STREET_TYPE_DICT.put("service", STREET_TYPE_SERVICE);
-            STREET_TYPE_DICT.put("living_street", STREET_TYPE_LIVING_STREET);
-
-            mProp.put("SHOP_POI_TYPE_DICT", SHOP_POI_TYPE_DICT);
-            mProp.put("HIGHWAY_POI_TYPE_DICT", HIGHWAY_POI_TYPE_DICT);
-            mProp.put("STREET_TYPE_DICT", STREET_TYPE_DICT);
-            saveMappingFallback();
         }
+
+        mProp.put("REQUIRED_HIGHWAY_TAGS_SET", REQUIRED_HIGHWAY_TAGS_SET);
+        mProp.put("REQUIRED_AREA_TAGS_SET", REQUIRED_AREA_TAGS_SET);
+        mProp.put("REQUIRED_NODE_TAGS_SET", REQUIRED_NODE_TAGS_SET);
+        mProp.put("RAILWAY_POI_TYPE_DICT", RAILWAY_POI_TYPE_DICT);
+        mProp.put("RAILWAY_AREA_TYPE_SET", RAILWAY_AREA_TYPE_SET);
+        mProp.put("AEROWAY_POI_TYPE_DICT", AEROWAY_POI_TYPE_DICT);
+        mProp.put("AEROWAY_AREA_TYPE_SET", AEROWAY_AREA_TYPE_SET);
+        mProp.put("BARIER_NODES_TYPE_SET", BARIER_NODES_TYPE_SET);
+        mProp.put("BOUNDARY_TYPE_SET", BOUNDARY_TYPE_SET);
+        mProp.put("PLACE_NODES_TYPE_SET", PLACE_NODES_TYPE_SET);
+
+        AMENITY_POI_TYPE_DICT = new HashMap<>();
+        AMENITY_POI_TYPE_DICT.put("fuel", POI_TYPE_GAS_STATION);
+        AMENITY_POI_TYPE_DICT.put("parking", POI_TYPE_PARKING);
+        AMENITY_POI_TYPE_DICT.put("hospital", POI_TYPE_HOSPITAL);
+        AMENITY_POI_TYPE_DICT.put("police", POI_TYPE_POLICE);
+        AMENITY_POI_TYPE_DICT.put("veterinary", POI_TYPE_VETERIANERY);
+        AMENITY_POI_TYPE_DICT.put("clinic", POI_TYPE_CLINIC);
+        AMENITY_POI_TYPE_DICT.put("doctor", POI_TYPE_DOCTOR);
+        AMENITY_POI_TYPE_DICT.put("pharmacy", POI_TYPE_PHARMACY);
+        AMENITY_POI_TYPE_DICT.put("atm", POI_TYPE_ATM);
+        AMENITY_POI_TYPE_DICT.put("bank", POI_TYPE_BANK);
+        AMENITY_POI_TYPE_DICT.put("post_office", POI_TYPE_POST);
+        AMENITY_POI_TYPE_DICT.put("dentist", POI_TYPE_DOCTOR);
+        AMENITY_POI_TYPE_DICT.put("school", POI_TYPE_EDUCATION);
+        AMENITY_POI_TYPE_DICT.put("college", POI_TYPE_EDUCATION);
+        AMENITY_POI_TYPE_DICT.put("kindergarten", POI_TYPE_EDUCATION);
+        AMENITY_POI_TYPE_DICT.put("university", POI_TYPE_EDUCATION);
+        AMENITY_POI_TYPE_DICT.put("cafe", POI_TYPE_EATING);
+        AMENITY_POI_TYPE_DICT.put("restaurant", POI_TYPE_EATING);
+        AMENITY_POI_TYPE_DICT.put("fast_food", POI_TYPE_EATING);
+        AMENITY_POI_TYPE_DICT.put("bar", POI_TYPE_EATING);
+        AMENITY_POI_TYPE_DICT.put("pub", POI_TYPE_EATING);
+
+        mProp.put("AMENITY_POI_TYPE_DICT", AMENITY_POI_TYPE_DICT);
+        mProp.put("AMENITY_AREA_TYPE_SET", AMENITY_AREA_TYPE_SET);
+        mProp.put("TOURISM_POI_TYPE_DICT", TOURISM_POI_TYPE_DICT);
+        mProp.put("TOURISM_AREA_TYPE_SET", TOURISM_AREA_TYPE_SET);
+        mProp.put("LEISURE_POI_TYPE_DICT", LEISURE_POI_TYPE_DICT);
+        mProp.put("LEISURE_AREA_TYPE_SET", LEISURE_AREA_TYPE_SET);
+
+        STREET_TYPE_DICT = new HashMap<>();
+        STREET_TYPE_DICT.put("road", STREET_TYPE_ROAD);
+        STREET_TYPE_DICT.put("unclassified", STREET_TYPE_UNCLASSIFIED);
+        STREET_TYPE_DICT.put("motorway", STREET_TYPE_MOTORWAY);
+        STREET_TYPE_DICT.put("motorway_link", STREET_TYPE_MOTORWAY_LINK);
+        STREET_TYPE_DICT.put("trunk", STREET_TYPE_TRUNK);
+        STREET_TYPE_DICT.put("trunk_link", STREET_TYPE_TRUNK_LINK);
+        STREET_TYPE_DICT.put("primary", STREET_TYPE_PRIMARY);
+        STREET_TYPE_DICT.put("primary_link", STREET_TYPE_PRIMARY_LINK);
+        STREET_TYPE_DICT.put("secondary", STREET_TYPE_SECONDARY);
+        STREET_TYPE_DICT.put("secondary_link", STREET_TYPE_SECONDARY_LINK);
+        STREET_TYPE_DICT.put("tertiary", STREET_TYPE_TERTIARY);
+        STREET_TYPE_DICT.put("tertiary_link", STREET_TYPE_TERTIARY_LINK);
+        STREET_TYPE_DICT.put("residential", STREET_TYPE_RESIDENTIAL);
+        STREET_TYPE_DICT.put("service", STREET_TYPE_SERVICE);
+        STREET_TYPE_DICT.put("living_street", STREET_TYPE_LIVING_STREET);
+
+        mProp.put("SHOP_POI_TYPE_DICT", SHOP_POI_TYPE_DICT);
+        mProp.put("HIGHWAY_POI_TYPE_DICT", HIGHWAY_POI_TYPE_DICT);
+        mProp.put("STREET_TYPE_DICT", STREET_TYPE_DICT);
+        saveMappingFallback();
     }
 
     private void saveMappingFallback() {
+        // TODO must be copied when content changes
         File configDir = new File(System.getProperty("user.dir"), "config");
         if (!configDir.exists()) {
             configDir.mkdirs();
@@ -239,6 +252,11 @@ public class ImportMapping {
 
     public int getShopNodeTypeId(String nodeTag) {
         BigDecimal o = mShopPOITypeDict.get(nodeTag);
+        return o == null ? -1 : o.intValue();
+    }
+
+    public int getBuildingNodeTypeId(String nodeTag) {
+        BigDecimal o = mBuildingPOITypeDict.get(nodeTag);
         return o == null ? -1 : o.intValue();
     }
 

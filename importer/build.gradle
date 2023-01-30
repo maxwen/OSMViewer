@@ -6,6 +6,9 @@ plugins {
 group 'com.maxwen'
 version '1.0-SNAPSHOT'
 
+sourceCompatibility = '13'
+targetCompatibility = '13'
+
 application {
     mainClass = 'com.maxwen.osmviewer.importer.Importer'
     applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db", "-Dosm.map.path=${System.properties['user.home']}/Downloads/geofabrik", "-Xmx8192m"]
@@ -38,3 +41,10 @@ dependencies {
     implementation 'org.xerial:sqlite-jdbc:3.34.0'
     implementation 'com.wolt.osm:parallelpbf:0.3.1'
 }
+
+task copyImportMapping(type: Copy) {
+    from(layout.projectDirectory.dir("config/mapping.json"))
+    into(layout.projectDirectory.dir("src/main/resources/com/maxwen/osmviewer/importer"))
+}
+
+tasks.named("processResources") { finalizedBy("copyImportMapping") }

@@ -33,6 +33,7 @@ public class Importer implements PBFParser.ParseJobCallback, GeoJsonParser.Parse
         ImportController.getInstance().removeNodeDB();
         ImportController.getInstance().removeAddressDB();
         ImportController.getInstance().removeWaysDB();
+        ImportController.getInstance().removeLinesDB();
         ImportController.getInstance().removeAreaDB();
         ImportController.getInstance().removeEdgeDB();
         ImportController.getInstance().removeAdminDB();
@@ -45,6 +46,7 @@ public class Importer implements PBFParser.ParseJobCallback, GeoJsonParser.Parse
         ImportController.getInstance().openNodeDB();
         ImportController.getInstance().openAddressDB();
         ImportController.getInstance().openWaysDB();
+        ImportController.getInstance().openLinesDB();
         ImportController.getInstance().openAreaDB();
         ImportController.getInstance().openEdgeDB();
         ImportController.getInstance().openAdminDB();
@@ -247,6 +249,7 @@ public class Importer implements PBFParser.ParseJobCallback, GeoJsonParser.Parse
             ImportController.getInstance().removeOrphanedEdges();
             ImportController.getInstance().removeOrphanedWays();
             ImportController.getInstance().calcAreaSizeColumns();
+            ImportController.getInstance().createAreaPOINodes();
         } catch (InterruptedException e) {
         }
         i.finish();

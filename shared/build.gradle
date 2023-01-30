@@ -6,6 +6,9 @@ repositories {
     mavenCentral()
 }
 
+sourceCompatibility = '13'
+targetCompatibility = '13'
+
 dependencies {
     implementation 'com.github.cliftonlabs:json-simple:3.1.1'
 }

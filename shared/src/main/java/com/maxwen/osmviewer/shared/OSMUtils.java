@@ -70,6 +70,8 @@ public class OSMUtils {
     public static final int POI_TYPE_ROUTING_START = 29;
     public static final int POI_TYPE_ROUTING_FINISH = 30;
 
+    public static final int POI_TYPE_EATING = 31;
+
     public static final int CROSSING_TYPE_NONE = -1;
     public static final int CROSSING_TYPE_NORMAL = 0;
     public static final int CROSSING_TYPE_MOTORWAY_EXIT = 2;
@@ -94,7 +96,15 @@ public class OSMUtils {
             "grassland", "wetland", "scree", "marsh", "mud", "cliff", "glacier", "rock", "beach");
     public static final Set<String> LANDUSE_TYPE_SET = Set.of("forest", "grass", "field", "farm", "farmland", "farmyard", "meadow", "residential", "greenfield", "brownfield", "commercial", "industrial", "railway", "water", "reservoir", "basin", "cemetery", "military", "recreation_ground", "village_green", "allotments", "orchard", "retail", "quarry");
 
-    public static final Set<Integer> SELECT_AREA_TYPE = Set.of(AREA_TYPE_BUILDING, AREA_TYPE_AMENITY, AREA_TYPE_LEISURE, AREA_TYPE_TOURISM);
+    public static final Set<Integer> SELECT_AREA_TYPE = Set.of(AREA_TYPE_LANDUSE,
+            AREA_TYPE_NATURAL,
+            AREA_TYPE_HIGHWAY_AREA,
+            AREA_TYPE_AEROWAY,
+            AREA_TYPE_RAILWAY,
+            AREA_TYPE_TOURISM,
+            AREA_TYPE_LEISURE,
+            AREA_TYPE_BUILDING,
+            AREA_TYPE_WATER);
     public static final List<Integer> SELECT_POI_TYPE = List.of(POI_TYPE_GAS_STATION,
             POI_TYPE_PLACE,
             POI_TYPE_HOSPITAL,
@@ -115,7 +125,8 @@ public class OSMUtils {
             POI_TYPE_ATM,
             POI_TYPE_POST,
             POI_TYPE_EDUCATION,
-            POI_TYPE_RESTRICTION);
+            POI_TYPE_RESTRICTION,
+            POI_TYPE_EATING);
 
     public static boolean isValidOnewayEnter(int oneway, long crossingRef, JsonObject edge) {
         long startRef = (long) edge.get("startRef");
