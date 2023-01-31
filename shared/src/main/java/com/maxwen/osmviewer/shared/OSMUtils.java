@@ -126,7 +126,8 @@ public class OSMUtils {
             POI_TYPE_POST,
             POI_TYPE_EDUCATION,
             POI_TYPE_RESTRICTION,
-            POI_TYPE_EATING);
+            POI_TYPE_EATING,
+            POI_TYPE_PARKING);
 
     public static boolean isValidOnewayEnter(int oneway, long crossingRef, JsonObject edge) {
         long startRef = (long) edge.get("startRef");
