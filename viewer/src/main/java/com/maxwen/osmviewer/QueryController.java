@@ -137,8 +137,6 @@ public class QueryController {
                 JsonObject way = new JsonObject();
                 long wayId = rs.getLong(1);
                 way.put("osmId", wayId);
-                way.put("name", rs.getString(5));
-                way.put("nameRef", rs.getString(6));
                 int layer = rs.getInt(9);
                 way.put("layer", layer);
                 int streetTypeInfo = rs.getInt(4);
@@ -150,14 +148,24 @@ public class QueryController {
                 int isBridge = (int) streetTypeDict.get("bridge");
 
                 way.put("streetTypeId", streetTypeId);
-                String tags = rs.getString(2);
+                JsonObject tags = new JsonObject();
+                String tagsString = rs.getString(2);
                 try {
-                    if (tags != null && tags.length() != 0) {
-                        way.put("tags", Jsoner.deserialize(tags));
+                    if (tagsString != null && tagsString.length() != 0) {
+                        tags = (JsonObject) Jsoner.deserialize(tagsString);
                     }
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());
                 }
+                String name = rs.getString(5);
+                if (name != null) {
+                    tags.put("name", name);
+                }
+                String ref = rs.getString(6);
+                if (ref != null) {
+                    tags.put("ref", ref);
+                }
+                way.put("tags", tags);
                 way.put("type", "way");
 
                 controller.addToOSMCache(wayId, way);

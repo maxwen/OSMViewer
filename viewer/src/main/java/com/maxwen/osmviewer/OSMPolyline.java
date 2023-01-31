@@ -1,5 +1,6 @@
 package com.maxwen.osmviewer;
 
+import com.github.cliftonlabs.json_simple.JsonObject;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Polyline;
 import javafx.scene.shape.Shape;
@@ -26,7 +27,7 @@ public class OSMPolyline extends Polyline implements OSMShape {
 
     @Override
     public void setSelected() {
-        setStroke(Color.rgb(255, 255, 0, 0.8));
+        setStroke(Color.rgb(255, 20, 20, 0.5));
     }
 
     @Override
@@ -42,5 +43,19 @@ public class OSMPolyline extends Polyline implements OSMShape {
     @Override
     public int getAreaType() {
         return -1;
+    }
+
+    @Override
+    public String getInfoLabel(JsonObject tags) {
+        StringBuffer s = new StringBuffer();
+        if (tags != null) {
+            if (tags.containsKey("name")) {
+                s.append((String) tags.get("name"));
+            }
+            if (tags.containsKey("ref")) {
+                s.append("  " + tags.get("ref"));
+            }
+        }
+        return s.toString();
     }
 }

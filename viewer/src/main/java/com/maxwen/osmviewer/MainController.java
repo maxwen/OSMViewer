@@ -18,6 +18,7 @@ import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.geometry.BoundingBox;
+import javafx.geometry.Insets;
 import javafx.geometry.Point2D;
 import javafx.scene.Node;
 import javafx.scene.Scene;
@@ -42,7 +43,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -126,7 +126,6 @@ public class MainController implements Initializable, NMEAHandler {
     private Stage mPrimaryStage;
     private boolean mShow3D;
     private Scene mScene;
-    private boolean mHeightUpdated;
     private BoundingBox mFetchBBox;
     private BoundingBox mVisibleBBox;
     private Rotate mRotate;
@@ -175,7 +174,14 @@ public class MainController implements Initializable, NMEAHandler {
     private LoadMapDataTask mLoadMapDataTask;
     private boolean mRigthSideExpanded = false;
     ObservableList<QueryItem> mQueryItems = FXCollections.observableArrayList();
-    private ImageView mCenterDot;
+    private Circle mCenterDot;
+
+    enum FilterType {
+        POI,
+        ADDRESS
+    }
+
+    private FilterType mFilterType = FilterType.POI;
 
     public static final int TUNNEL_LAYER_LEVEL = -1;
     public static final int ADMIN_AREA_LAYER_LEVEL = 0;
@@ -270,41 +276,24 @@ public class MainController implements Initializable, NMEAHandler {
                                 mExecutorService.submit(mResolvePositionTask);
                             }
                         }
+                        if (clickedShape instanceof OSMPolygon) {
+                            mSelectdShape = clickedShape;
+                            mSelectdShape.setSelected();
+                            drawShapes();
+                        }
 
                         final StringBuffer s = new StringBuffer();
                         JsonObject tags = (JsonObject) osmObject.get("tags");
+                        s.append(clickedShape.getInfoLabel(tags));
 
                         if (clickedShape instanceof OSMPolyline) {
-                            String name = (String) osmObject.get("name");
-                            String nameRef = (String) osmObject.get("nameRef");
-                            if (name != null) {
-                                s.append(name);
-                            }
-                            if (nameRef != null) {
-                                s.append("  " + nameRef);
-                            }
                             LogUtils.log("Polyline: " + mSelectdOSMId + "  " + tags);
                         } else if (clickedShape instanceof OSMPolygon) {
-                            if (tags != null) {
-                                if (tags.containsKey("name")) {
-                                    s.append((String) tags.get("name"));
-                                }
-                                if (tags.containsKey("addr:street")) {
-                                    s.append("  " + (String) tags.get("addr:street"));
-                                }
-                            }
                             LogUtils.log("Polygon: " + mSelectdOSMId + "  " + tags);
                         } else if (clickedShape instanceof OSMImageView) {
-                            if (tags != null) {
-                                if (tags.containsKey("name")) {
-                                    s.append((String) tags.get("name"));
-                                }
-                            }
                             LogUtils.log("Node: " + mSelectdOSMId + " " + tags);
                         }
-                        Platform.runLater(() -> {
-                            infoLabel.setText(s.toString().trim());
-                        });
+                        infoLabel.setText(s.toString().trim());
                     } else {
                         // admin areas
                     }
@@ -340,6 +329,7 @@ public class MainController implements Initializable, NMEAHandler {
     private ListView<QueryItem> mQueryListView;
     private TextField mQueryField;
     private QueryTaskPOI mQueryTask;
+    private String mQueryText;
 
     public class LoadPOITask extends LoadMapTask {
 
@@ -527,16 +517,21 @@ public class MainController implements Initializable, NMEAHandler {
 
     public class QueryTaskPOI extends Task<List<QueryItem>> implements QueryTaskCallback {
         private String mQueryString;
+        private FilterType mFilterType;
         private List<QueryItem> mQueryItems = new ArrayList<>();
 
-        public QueryTaskPOI(String queryString) {
+        public QueryTaskPOI(String queryString, FilterType filterType) {
             mQueryString = queryString;
+            mFilterType = filterType;
         }
 
         @Override
         protected List<QueryItem> call() {
-            //QueryController.getInstance().queryPOINodesMatchingName(mQueryString, null, this);
-            QueryController.getInstance().queryAddressMatchingName(mQueryString, this);
+            if (mFilterType == FilterType.POI) {
+                QueryController.getInstance().queryPOINodesMatchingName(mQueryString, null, this);
+            } else if (mFilterType == FilterType.ADDRESS) {
+                QueryController.getInstance().queryAddressMatchingName(mQueryString, this);
+            }
             return mQueryItems;
         }
 
@@ -550,7 +545,7 @@ public class MainController implements Initializable, NMEAHandler {
                 nodeArea.append(adminLevelData.get("name") + "/");
             }
 
-            String type = (String)node.get("type");
+            String type = (String) node.get("type");
             if (type.equals("poi")) {
                 int poiType = (int) node.get("nodeType");
                 QueryItem item = new QueryItem((String) node.get("name"), nodeArea.substring(0, nodeArea.length() - 1),
@@ -607,6 +602,7 @@ public class MainController implements Initializable, NMEAHandler {
             if (!mRigthSideExpanded) {
                 searchContent.setVisible(true);
                 rightPane.getChildren().add(0, searchContent);
+                // TODO move in func
                 Timer animTimer = new Timer();
                 animTimer.scheduleAtFixedRate(new TimerTask() {
                     int i = 0;
@@ -629,6 +625,7 @@ public class MainController implements Initializable, NMEAHandler {
 
                 }, 0, 25);
             } else {
+                // TODO move in func
                 Timer animTimer = new Timer();
                 animTimer.scheduleAtFixedRate(new TimerTask() {
                     int i = 0;
@@ -660,9 +657,36 @@ public class MainController implements Initializable, NMEAHandler {
         mQueryField.setMinHeight(40);
 
         mQueryField.setOnKeyReleased(event -> {
-            updateListContent(mQueryField.getText());
+            mQueryText = mQueryField.getText();
+            updateListContent();
         });
         searchContent.getChildren().add(mQueryField);
+
+        HBox filterSelect = new HBox();
+        filterSelect.setPadding(new Insets(10, 10, 10, 10));
+
+        ToggleGroup filterGroup = new ToggleGroup();
+
+        RadioButton poiFilter = new RadioButton("POI");
+        poiFilter.setToggleGroup(filterGroup);
+        poiFilter.setOnAction(event -> {
+            mFilterType = FilterType.POI;
+            updateListContent();
+        });
+
+        RadioButton addressFilter = new RadioButton("Address");
+        addressFilter.setPadding(new Insets(0, 0, 0, 10));
+
+        addressFilter.setToggleGroup(filterGroup);
+        addressFilter.setOnAction(event -> {
+            mFilterType = FilterType.ADDRESS;
+            updateListContent();
+        });
+        poiFilter.setSelected(true);
+
+        filterSelect.getChildren().add(poiFilter);
+        filterSelect.getChildren().add(addressFilter);
+        searchContent.getChildren().add(filterSelect);
 
         mQueryListView = new ListView<>();
 
@@ -678,6 +702,7 @@ public class MainController implements Initializable, NMEAHandler {
             public void changed(ObservableValue<? extends QueryItem> observable, QueryItem oldValue, QueryItem newValue) {
                 if (newValue != null) {
                     JsonArray coords = newValue.getCoords();
+                    infoLabel.setText(newValue.getName());
                     centerMapOnLocation((double) coords.get(0), (double) coords.get(1));
                     showCenterDot();
                 }
@@ -706,7 +731,7 @@ public class MainController implements Initializable, NMEAHandler {
                     mMapZoom = zoom;
                     zoomLabel.setText(String.valueOf(mMapZoom));
                     calcMapCenterPos();
-                    calcMapZeroPos();
+                    calcMapZeroPos(false);
                     setTransforms();
                     loadMapData();
                 }
@@ -722,7 +747,7 @@ public class MainController implements Initializable, NMEAHandler {
                     mMapZoom = zoom;
                     zoomLabel.setText(String.valueOf(mMapZoom));
                     calcMapCenterPos();
-                    calcMapZeroPos();
+                    calcMapZeroPos(false);
                     setTransforms();
                     loadMapData();
                 }
@@ -803,7 +828,11 @@ public class MainController implements Initializable, NMEAHandler {
         mGPSDot.setFill(Color.TRANSPARENT);
         mGPSDot.setStrokeWidth(2);
 
-        mCenterDot = new ImageView("/images/ui/plus.png");
+        mCenterDot = new Circle();
+        mCenterDot.setStroke(Color.BLACK);
+        mCenterDot.setFill(Color.TRANSPARENT);
+        mCenterDot.setStrokeWidth(3);
+        mCenterDot.setRadius(10);
         mCenterDot.setVisible(false);
 
         mRotate = new Rotate(-ROTATE_X_VALUE, Rotate.X_AXIS);
@@ -895,6 +924,16 @@ public class MainController implements Initializable, NMEAHandler {
 
     protected void setScene(Scene scene) {
         mScene = scene;
+        mScene.widthProperty().addListener((observableValue, oldSceneWidth, newSceneWidth) -> {
+            calcMapCenterPos();
+            calcMapZeroPos(true);
+            drawShapes();
+        });
+        mScene.heightProperty().addListener((observableValue, oldSceneHeight, newSceneHeight) -> {
+            calcMapCenterPos();
+            calcMapZeroPos(true);
+            drawShapes();
+        });
     }
 
     public void addToOSMCache(long osmId, JsonObject osmObject) {
@@ -1100,13 +1139,15 @@ public class MainController implements Initializable, NMEAHandler {
             mRoutingPane.getChildren().addAll(mRoutePolylineList);
         }
 
+        updateCenterDot();
+        mRoutingPane.getChildren().add(mCenterDot);
+
         mCalcPoint = new Circle();
         mCalcPoint.setCenterX(0);
         mCalcPoint.setCenterY(0);
         mCalcPoint.setRadius(0);
         mCalcPoint.setVisible(false);
         mTrackingPane.getChildren().add(mCalcPoint);
-        mTrackingPane.getChildren().add(mCenterDot);
 
         mLoadAdminAreaTask = new LoadAdminAreaTask(bbox);
 
@@ -1166,7 +1207,7 @@ public class MainController implements Initializable, NMEAHandler {
     public void loadFirstMapData() {
         startProgress();
         calcMapCenterPos();
-        calcMapZeroPos();
+        calcMapZeroPos(false);
         loadMapData();
     }
 
@@ -1269,6 +1310,10 @@ public class MainController implements Initializable, NMEAHandler {
         if (mSelectedEdgeShape != null) {
             mRoutingPane.getChildren().add(mSelectedEdgeShape);
         }
+
+        updateCenterDot();
+        mRoutingPane.getChildren().add(mCenterDot);
+
         if (mTrackingShape != null) {
             mTrackingPane.getChildren().add(mTrackingShape.getShape());
         }
@@ -1427,7 +1472,7 @@ public class MainController implements Initializable, NMEAHandler {
         mCenterLon = lon;
         mCenterLat = lat;
         calcMapCenterPos();
-        calcMapZeroPos();
+        calcMapZeroPos(false);
         loadMapData();
     }
 
@@ -1436,9 +1481,8 @@ public class MainController implements Initializable, NMEAHandler {
         mCenterPosY = getPixelYPosForLocationDeg(mCenterLat);
     }
 
-    private void calcMapZeroPos() {
-        if (!mHeightUpdated) {
-            mHeightUpdated = true;
+    private void calcMapZeroPos(boolean sceneChanged) {
+        if (!sceneChanged) {
             mRotate.setPivotY(mScene.getHeight() / 2);
             mZRotate.setPivotY(mScene.getHeight() / 2);
             mZRotate.setPivotX(mScene.getWidth() / 2);
@@ -1472,7 +1516,7 @@ public class MainController implements Initializable, NMEAHandler {
         mCenterPosY = mMapZeroY + posY;
 
         calcCenterCoord();
-        calcMapZeroPos();
+        calcMapZeroPos(false);
 
         BoundingBox bbox = getVisibleBBox();
         if (!mFetchBBox.contains(bbox)) {
@@ -1695,7 +1739,7 @@ public class MainController implements Initializable, NMEAHandler {
         altLabel.setText(String.valueOf(alt) + "m");
 
         calcMapCenterPos();
-        calcMapZeroPos();
+        calcMapZeroPos(false);
 
         BoundingBox bbox = getVisibleBBox();
         if (!mFetchBBox.contains(bbox)) {
@@ -1899,7 +1943,6 @@ public class MainController implements Initializable, NMEAHandler {
                             JsonObject way = mOSMObjects.get(mTrackingOSMId);
                             if (way != null) {
                                 String name = (String) way.get("name");
-                                String nameRef = (String) way.get("nameRef");
                                 if (name != null) {
                                     Platform.runLater(() -> {
                                         wayLabel.setText(name);
@@ -2006,16 +2049,22 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private void showCenterDot() {
-        Point2D centerPos  = new Point2D(getPixelXPosForLocationDeg(mCenterLon),
-                getPixelYPosForLocationDeg(mCenterLat));
-        mCenterDot.setX(centerPos.getX() - mMapZeroX - 36);
-        mCenterDot.setY(centerPos.getY() - mMapZeroY - 36);
+        updateCenterDot();
+        posLabel.setText(String.format("%.5f:%.5f", mCenterLon, mCenterLat));
         mCenterDot.setVisible(true);
     }
 
     private void hideCenterDot() {
         mCenterDot.setVisible(false);
     }
+
+    private void updateCenterDot() {
+        Point2D centerPos = new Point2D(getPixelXPosForLocationDeg(mCenterLon),
+                getPixelYPosForLocationDeg(mCenterLat));
+        mCenterDot.setCenterX(centerPos.getX() - mMapZeroX);
+        mCenterDot.setCenterY(centerPos.getY() - mMapZeroY);
+    }
+
     @Override
     public void onLocation(JsonObject gpsData) {
         Platform.runLater(new Runnable() {
@@ -2532,14 +2581,14 @@ public class MainController implements Initializable, NMEAHandler {
         progressBar.setVisible(false);
     }
 
-    private void updateListContent(String query) {
+    private void updateListContent() {
         if (mQueryTask != null) {
             mQueryTask.cancel(true);
             mQueryTask = null;
         }
         mQueryItems.clear();
-        if (query.length() > 1) {
-            mQueryTask = new QueryTaskPOI(query);
+        if (mQueryText.length() > 1) {
+            mQueryTask = new QueryTaskPOI(mQueryText, mFilterType);
             mQueryTask.setOnSucceeded((succeededEvent) -> {
                 LogUtils.log("QueryTaskPOI::succeeded " + mQueryTask.getValue().size());
                 mQueryItems.addAll(mQueryTask.getValue());

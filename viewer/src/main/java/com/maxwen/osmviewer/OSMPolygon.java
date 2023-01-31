@@ -1,5 +1,8 @@
 package com.maxwen.osmviewer;
 
+import com.github.cliftonlabs.json_simple.JsonObject;
+import com.maxwen.osmviewer.shared.OSMUtils;
+import javafx.scene.paint.Color;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Shape;
 
@@ -28,9 +31,11 @@ public class OSMPolygon extends Polygon implements OSMShape {
 
     @Override
     public void setSelected() {
-        /*setStroke(Color.rgb(255, 20, 20, 0.5));
-        setFill(Color.TRANSPARENT);
-        setStrokeWidth(3);*/
+        if (mAreaType == OSMUtils.AREA_TYPE_BUILDING) {
+            setStroke(Color.rgb(255, 20, 20, 0.5));
+            setFill(Color.TRANSPARENT);
+            setStrokeWidth(3);
+        }
     }
 
     @Override
@@ -42,4 +47,21 @@ public class OSMPolygon extends Polygon implements OSMShape {
     public int getAreaType() {
         return mAreaType;
     }
+    @Override
+    public String getInfoLabel(JsonObject tags) {
+        StringBuffer s = new StringBuffer();
+        if (tags != null) {
+            if (tags.containsKey("name")) {
+                s.append((String) tags.get("name"));
+            }
+            if (tags.containsKey("addr:street")) {
+                s.append("  " + (String) tags.get("addr:street"));
+            }
+            if (tags.containsKey("addr:housenumber")) {
+                s.append("  " + (String) tags.get("addr:housenumber"));
+            }
+        }
+        return s.toString();
+    }
+
 }

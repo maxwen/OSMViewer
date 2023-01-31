@@ -1,5 +1,6 @@
 package com.maxwen.osmviewer;
 
+import com.github.cliftonlabs.json_simple.JsonObject;
 import javafx.scene.shape.Shape;
 
 public interface OSMShape {
@@ -12,4 +13,6 @@ public interface OSMShape {
     Shape getShape();
 
     int getAreaType();
+
+    String getInfoLabel(JsonObject tags);
 }

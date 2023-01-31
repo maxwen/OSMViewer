@@ -6,7 +6,6 @@ import javafx.scene.image.Image;
 public class QueryItem {
     private String mName;
     private String mTags;
-
     private Image mImage;
     JsonArray mCoords = new JsonArray();
 

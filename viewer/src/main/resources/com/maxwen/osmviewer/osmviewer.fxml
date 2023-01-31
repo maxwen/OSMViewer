@@ -163,7 +163,7 @@
         <Pane fx:id="mainPane" BorderPane.alignment="CENTER"/>
     </center>
 
-    <VBox fx:id="searchContent" alignment="TOP_LEFT" visible="false" style="-fx-background-color: blue;">
+    <VBox fx:id="searchContent" alignment="TOP_LEFT" visible="false" style="-fx-background-color: white;">
         <children>
         </children>
     </VBox>
