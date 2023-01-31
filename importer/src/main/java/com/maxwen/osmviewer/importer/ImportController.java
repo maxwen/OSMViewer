@@ -204,7 +204,7 @@ public class ImportController {
 
             sql = "SELECT InitSpatialMetaData(1)";
             stmt.execute(sql);
-            sql = "CREATE TABLE IF NOT EXISTS poiRefTable (id INTEGER PRIMARY KEY AUTOINCREMENT, nodeId INTEGER, tags JSON, type INTEGER, layer INTEGER, name TEXT)";
+            sql = "CREATE TABLE IF NOT EXISTS poiRefTable (id INTEGER PRIMARY KEY AUTOINCREMENT, nodeId INTEGER, tags JSON, type INTEGER, layer INTEGER, name TEXT, adminData JSON)";
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS nodeId_idx ON poiRefTable (nodeId)";
             stmt.execute(sql);
@@ -286,11 +286,9 @@ public class ImportController {
             String sql;
             sql = "SELECT InitSpatialMetaData(1)";
             stmt.execute(sql);
-            sql = "CREATE TABLE IF NOT EXISTS addressTable (id INTEGER PRIMARY KEY AUTOINCREMENT, osmId INTEGER, streetName TEXT, houseNumber TEXT)";
+            sql = "CREATE TABLE IF NOT EXISTS addressTable (id INTEGER PRIMARY KEY AUTOINCREMENT, osmId INTEGER, streetName TEXT, houseNumber TEXT, adminData JSON, UNIQUE (osmId, streetName) ON CONFLICT IGNORE)";
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS streetName_idx ON addressTable (streetName)";
-            stmt.execute(sql);
-            sql = "CREATE INDEX IF NOT EXISTS houseNumber_idx ON addressTable (houseNumber)";
             stmt.execute(sql);
             sql = "SELECT AddGeometryColumn('addressTable', 'geom', 4326, 'POINT', 2)";
             stmt.execute(sql);
@@ -1049,6 +1047,14 @@ public class ImportController {
                         stmt.execute(sql);
                     }
                 }
+                t = tags.get("leisure");
+                if (t != null) {
+                    nodeType = ImportMapping.getInstance().getLeisureNodeTypeId(t);
+                    if (nodeType != -1) {
+                        String sql = String.format("INSERT INTO poiRefTable (nodeId, tags, type, layer, name, geom) VALUES( %d, %s, %d, %d, %s, PointFromText(%s, 4326))", ref, tagsString, nodeType, layer, name, pointString);
+                        stmt.execute(sql);
+                    }
+                }
                 t = tags.get("addr:street");
                 if (t != null) {
                     parseFullAddress(tags, ref, lon, lat);
@@ -1087,8 +1093,8 @@ public class ImportController {
     private void addToAddressTable(long ref, String streetName, String houseNumber, double lon, double lat) {
         Statement stmt = null;
         try {
-            streetName = "'" +escapeSQLString(streetName) + "'";
-            houseNumber = "'" +escapeSQLString(houseNumber) + "'";
+            streetName = "'" + escapeSQLString(streetName) + "'";
+            houseNumber = "'" + escapeSQLString(houseNumber) + "'";
             String pointString = createPointStringFromCoords(lon, lat);
 
             stmt = mAddressConnection.createStatement();
@@ -1692,7 +1698,7 @@ public class ImportController {
                 }
             } else if (type.equals("enforcement")) {
                 // todo maxspeed
-                LogUtils.log("enforcement = " + tags);
+                //LogUtils.log("enforcement = " + tags);
             }
         }
     }
@@ -3653,4 +3659,143 @@ public class ImportController {
             }
         }
     }
+
+    private JsonArray getAdminAreasAtPointWithGeom(double lon, double lat) {
+        Statement stmt = null;
+        JsonArray adminAreas = new JsonArray();
+        try {
+            stmt = mAdminConnection.createStatement();
+            ResultSet rs;
+            rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrContains(%f, %f, %f, %f)) AND ST_Contains(geom, MakePoint(%f, %f, 4236)) ORDER BY adminLevel", lon, lat, lon, lat, lon, lat));
+
+            while (rs.next()) {
+                JsonObject adminArea = new JsonObject();
+                long osmId = rs.getLong(1);
+                adminArea.put("osmId", osmId);
+                int adminLevel = rs.getInt(2);
+                adminArea.put("adminLevel", adminLevel);
+
+                JsonObject tags = null;
+                String tagsStr = rs.getString(3);
+                try {
+                    if (tagsStr != null && tagsStr.length() != 0) {
+                        tags = (JsonObject) Jsoner.deserialize(tagsStr);
+                        adminArea.put("tags", tags);
+                    }
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+                if (tags != null && tags.containsKey("name")) {
+                    adminArea.put("name", tags.get("name"));
+                } else {
+                    adminArea.put("name", "");
+                }
+                adminAreas.add(adminArea);
+            }
+        } catch (SQLException e) {
+            LogUtils.log(e.getMessage());
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return adminAreas;
+    }
+
+    public void createPOINodesAdminData() {
+        Statement stmt = null;
+        Statement stmtUpdate = null;
+        ResultSet rs = null;
+
+        ProgressBar progress = new ProgressBar(getTableSize(mNodeConnection, "poiRefTable"));
+        if (mImportProgress) {
+            progress.setMessage("createPOINodesAdminData");
+            progress.printBar();
+        } else {
+            LogUtils.log("createPOINodesAdminData");
+        }
+
+        try {
+            stmt = mNodeConnection.createStatement();
+            rs = stmt.executeQuery("SELECT id, AsText(geom) FROM poiRefTable");
+
+            while (rs.next()) {
+                if (mImportProgress) {
+                    progress.addValue();
+                    progress.printBar();
+                }
+                long id = rs.getLong(1);
+                String coordsString = rs.getString(2);
+                JsonArray point = createPointFromPointString(coordsString);
+
+                JsonArray adminAreas = getAdminAreasAtPointWithGeom((double) point.get(0), (double) point.get(1));
+                String adminAreasString = "'" + Jsoner.serialize(adminAreas) + "'";
+                stmtUpdate = mNodeConnection.createStatement();
+                String sql = String.format("UPDATE poiRefTable SET adminData=%s WHERE id=%d", adminAreasString, id);
+                stmtUpdate.execute(sql);
+            }
+        } catch (Exception e) {
+            LogUtils.log(e.getMessage());
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+                if (stmtUpdate != null) {
+                    stmtUpdate.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+    public void createAdressAdminData() {
+        Statement stmt = null;
+        Statement stmtUpdate = null;
+        ResultSet rs = null;
+
+        ProgressBar progress = new ProgressBar(getTableSize(mAddressConnection, "addressTable"));
+        if (mImportProgress) {
+            progress.setMessage("createAdressAdminData");
+            progress.printBar();
+        } else {
+            LogUtils.log("createAdressAdminData");
+        }
+
+        try {
+            stmt = mAddressConnection.createStatement();
+            rs = stmt.executeQuery("SELECT id, AsText(geom) FROM addressTable");
+
+            while (rs.next()) {
+                if (mImportProgress) {
+                    progress.addValue();
+                    progress.printBar();
+                }
+                long id = rs.getLong(1);
+                String coordsString = rs.getString(2);
+                JsonArray point = createPointFromPointString(coordsString);
+
+                JsonArray adminAreas = getAdminAreasAtPointWithGeom((double) point.get(0), (double) point.get(1));
+                String adminAreasString = "'" + Jsoner.serialize(adminAreas) + "'";
+                stmtUpdate = mAddressConnection.createStatement();
+                String sql = String.format("UPDATE addressTable SET adminData=%s WHERE id=%d", adminAreasString, id);
+                stmtUpdate.execute(sql);
+            }
+        } catch (Exception e) {
+            LogUtils.log(e.getMessage());
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+                if (stmtUpdate != null) {
+                    stmtUpdate.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
 }

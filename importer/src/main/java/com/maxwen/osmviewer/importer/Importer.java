@@ -250,6 +250,9 @@ public class Importer implements PBFParser.ParseJobCallback, GeoJsonParser.Parse
             ImportController.getInstance().removeOrphanedWays();
             ImportController.getInstance().calcAreaSizeColumns();
             ImportController.getInstance().createAreaPOINodes();
+            ImportController.getInstance().createPOINodesAdminData();
+            ImportController.getInstance().createAdressAdminData();
+
         } catch (InterruptedException e) {
         }
         i.finish();

@@ -17,7 +17,7 @@ public class ImportMapping {
 
     private static Set<String> REQUIRED_HIGHWAY_TAGS_SET = Set.of("motorcar", "motor_vehicle", "access", "vehicle", "service", "lanes");
     private static Set<String> REQUIRED_AREA_TAGS_SET = Set.of("name", "ref", "landuse", "natural", "amenity", "tourism", "waterway", "railway", "aeroway", "highway", "building", "leisure", "bridge", "tunnel", "website", "url", "wikipedia", "addr:street", "addr:housenumber", "shop");
-    private static Set<String> REQUIRED_NODE_TAGS_SET = Set.of("name", "ref", "place", "website", "url", "wikipedia", "addr:street", "addr:housenumber");
+    private static Set<String> REQUIRED_NODE_TAGS_SET = Set.of("name", "ref", "place", "website", "url", "wikipedia", "addr:street", "addr:housenumber", "amenity", "shop", "leisure", "tourism", "building", "barrier", "railway", "aeroway");
 
     private static Map<String, Integer> RAILWAY_POI_TYPE_DICT = Map.of("station", POI_TYPE_RAILWAYSTATION);
     public static Set<String> RAILWAY_AREA_TYPE_SET = Set.of("rail");
@@ -67,6 +67,7 @@ public class ImportMapping {
     private Map<String, BigDecimal> mRailwayPOITypeDict;
     private Map<String, BigDecimal> mAerowayPOITypeDict;
     private Map<String, BigDecimal> mBuildingPOITypeDict;
+    private Map<String, BigDecimal> mLeisurePOITypeDict;
 
     private Set<String> mPlaceNodeTypeSet;
     private Set<String> mBarrierNodeTypeSet;
@@ -110,10 +111,15 @@ public class ImportMapping {
                 mRailwayPOITypeDict = new HashMap<>();
                 mRailwayPOITypeDict.putAll((Map<String, BigDecimal>) mProp.get("RAILWAY_POI_TYPE_DICT"));
 
+                mLeisurePOITypeDict = new HashMap<>();
+                mLeisurePOITypeDict.putAll((Map<String, BigDecimal>) mProp.get("LEISURE_POI_TYPE_DICT"));
+
+                // building == ways for those we also create poi nodes
                 mBuildingPOITypeDict = new HashMap<>();
                 mBuildingPOITypeDict.putAll((Map<String, BigDecimal>) mProp.get("AMENITY_POI_TYPE_DICT"));
                 mBuildingPOITypeDict.putAll((Map<String, BigDecimal>) mProp.get("TOURISM_POI_TYPE_DICT"));
                 mBuildingPOITypeDict.putAll((Map<String, BigDecimal>) mProp.get("SHOP_POI_TYPE_DICT"));
+                mBuildingPOITypeDict.putAll((Map<String, BigDecimal>) mProp.get("LEISURE_POI_TYPE_DICT"));
 
                 mPlaceNodeTypeSet = new HashSet<>();
                 mPlaceNodeTypeSet.addAll((Collection<String>) mProp.get("PLACE_NODES_TYPE_SET"));
@@ -282,4 +288,10 @@ public class ImportMapping {
         BigDecimal o = mStreetTypeDict.get(nodeTag);
         return o == null ? -1 : o.intValue();
     }
+
+    public int getLeisureNodeTypeId(String nodeTag) {
+        BigDecimal o = mLeisurePOITypeDict.get(nodeTag);
+        return o == null ? -1 : o.intValue();
+    }
+
 }
