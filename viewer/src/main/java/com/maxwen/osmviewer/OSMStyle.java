@@ -93,15 +93,14 @@ public class OSMStyle {
         // ['#8dd3c7','#ffffb3','#bebada','#fb8072','#80b1d3','#fdb462','#b3de69','#fccde5','#d9d9d9','#bc80bd','#ccebc5','#ffed6f']
         mCountryColors = new HashMap();
         mCountryColors.put(0, Color.rgb(0x8d, 0xd3, 0xc7));
-        mCountryColors.put(1, Color.rgb(0xff, 0xff, 0xb3));
-        mCountryColors.put(2, Color.rgb(0xbe, 0xba, 0xda));
-        mCountryColors.put(3, Color.rgb(0xfb, 0x80, 0x72));
-        mCountryColors.put(4, Color.rgb(0x80, 0xb1, 0xd3));
-        mCountryColors.put(5, Color.rgb(0xfd, 0xb4, 0x62));
-        mCountryColors.put(6, Color.rgb(0xb3, 0xde, 0x69));
-        mCountryColors.put(7, Color.rgb(0xfc, 0xcd, 0xe5));
-        mCountryColors.put(8, Color.rgb(0xd9, 0xd9, 0xd9));
-        mCountryColors.put(9, Color.rgb(0xbc, 0x80, 0xbd));
+        mCountryColors.put(1, Color.rgb(0xbe, 0xba, 0xda));
+        mCountryColors.put(2, Color.rgb(0xfb, 0x80, 0x72));
+        mCountryColors.put(3, Color.rgb(0x80, 0xb1, 0xd3));
+        mCountryColors.put(4, Color.rgb(0xfd, 0xb4, 0x62));
+        mCountryColors.put(5, Color.rgb(0xb3, 0xde, 0x69));
+        mCountryColors.put(6, Color.rgb(0xfc, 0xcd, 0xe5));
+        mCountryColors.put(7, Color.rgb(0xd9, 0xd9, 0xd9));
+        mCountryColors.put(8, Color.rgb(0xbc, 0x80, 0xbd));
 
         mNodeImages = new HashMap<>();
         mNodeImages.put(OSMUtils.POI_TYPE_AIRPORT, new Image("/images/poi/airport.png"));
@@ -130,6 +129,7 @@ public class OSMStyle {
         mNodeImages.put(OSMUtils.POI_TYPE_FLAG, new Image("/images/poi/flag.png"));
         mNodeImages.put(OSMUtils.POI_TYPE_ROUTING_START, new Image("/images/poi/start.png"));
         mNodeImages.put(OSMUtils.POI_TYPE_ROUTING_FINISH, new Image("/images/poi/finish.png"));
+        mNodeImages.put(OSMUtils.POI_TYPE_EATING, new Image("/images/poi/restaurant.png"));
 
     }
 
@@ -394,7 +394,7 @@ public class OSMStyle {
         wayLine.setStrokeLineJoin(StrokeLineJoin.ROUND);
         if (casing) {
             DropShadow borderEffect = new DropShadow(
-                    BlurType.ONE_PASS_BOX, Color.LIGHTGRAY, 1.5, 1.5, 0, 0
+                    BlurType.ONE_PASS_BOX, Color.DARKGRAY, 2.5, 2.5, 0, 0
             );
             wayLine.setEffect(borderEffect);
         }

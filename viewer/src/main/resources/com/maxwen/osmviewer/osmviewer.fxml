@@ -116,58 +116,56 @@
                 <Pane HBox.hgrow="ALWAYS"/>
             </children>
         </HBox>
-        <VBox fx:id="leftPane" alignment="CENTER" minWidth="100.0">
+        <VBox fx:id="leftPane" alignment="CENTER">
             <children>
                 <Pane VBox.vgrow="ALWAYS"/>
-                <VBox fx:id="mapButtons" alignment="CENTER" minWidth="100.0">
+                <VBox fx:id="mapButtons" alignment="CENTER_LEFT">
                     <children>
                         <Button fx:id="zoomInButton" mnemonicParsing="false">
-                            <VBox.margin>
-                                <Insets bottom="5.0" top="10.0"/>
-                            </VBox.margin>
                         </Button>
-                        <Label fx:id="zoomLabel" alignment="CENTER" minHeight="60.0" minWidth="60.0" text="-">
+                        <Label fx:id="zoomLabel" alignment="CENTER" minHeight="60.0" text="-">
                             <font>
                                 <Font name="System Bold" size="24.0"/>
                             </font>
                         </Label>
                         <Button fx:id="zoomOutButton" mnemonicParsing="false">
-                            <VBox.margin>
-                                <Insets bottom="10.0" top="5.0"/>
-                            </VBox.margin>
                         </Button>
                     </children>
                 </VBox>
                 <Pane VBox.vgrow="ALWAYS"/>
             </children>
         </VBox>
-        <VBox fx:id="rightPane" alignment="CENTER" minWidth="100.0">
+        <HBox fx:id="rightPane" alignment="CENTER" >
             <children>
-                <Pane VBox.vgrow="ALWAYS"/>
-                <VBox fx:id="rightButtons" alignment="CENTER" minWidth="100.0">
+                <Pane HBox.hgrow="NEVER"/>
+                <VBox fx:id="rightButtons" alignment="CENTER_RIGHT" HBox.hgrow="NEVER">
                     <children>
                         <ToggleButton fx:id="trackModeButton" mnemonicParsing="false">
-                            <VBox.margin>
-                                <Insets bottom="5.0" top="10.0"/>
-                            </VBox.margin>
+
                         </ToggleButton>
                         <Button fx:id="menuButton" mnemonicParsing="false">
-                            <HBox.margin>
-                                <Insets bottom="5.0" top="5.0"/>
-                            </HBox.margin>
+
+                        </Button>
+                        <Button fx:id="searchButton" mnemonicParsing="false">
+
                         </Button>
                         <Button fx:id="quitButton" mnemonicParsing="false">
-                            <VBox.margin>
-                                <Insets bottom="10.0" top="5.0"/>
-                            </VBox.margin>
+
                         </Button>
+
                     </children>
                 </VBox>
-                <Pane VBox.vgrow="ALWAYS"/>
+                <Pane HBox.hgrow="NEVER"/>
             </children>
-        </VBox>
+        </HBox>
     </top>
     <center>
         <Pane fx:id="mainPane" BorderPane.alignment="CENTER"/>
     </center>
+
+    <VBox fx:id="searchContent" alignment="TOP_LEFT" visible="false" style="-fx-background-color: blue;">
+        <children>
+        </children>
+    </VBox>
 </BorderPane>
+

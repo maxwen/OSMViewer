@@ -14,7 +14,6 @@ public class RoutingNode extends ImageView {
     private long mEdgeId;
     private TYPE mType;
     private long mWayId;
-    private Point2D mNodePos;
 
     enum TYPE {
         START,
@@ -60,14 +59,6 @@ public class RoutingNode extends ImageView {
 
     public Point2D getCoordsPos() {
         return mCoordsPos;
-    }
-
-    public void setPos(Point2D nodePos) {
-        mNodePos = nodePos;
-    }
-
-    public Point2D getPos() {
-        return mNodePos;
     }
 
     public JsonObject toJson() {

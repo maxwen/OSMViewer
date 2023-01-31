@@ -4,20 +4,25 @@ plugins {
     id 'java'
     id 'application'
     id 'cpp'
-    id 'org.openjfx.javafxplugin' version '0.0.10'
+    id 'org.openjfx.javafxplugin' version '0.0.13'
 }
 
 javafx {
-    version = "16"
+    version = '17.0.2'
     modules = [ 'javafx.controls', 'javafx.fxml' ]
 }
+
+sourceCompatibility = '13'
+targetCompatibility = '13'
 
 group 'com.maxwen'
 version '1.0-SNAPSHOT'
 
 application {
     mainClass = 'com.maxwen.osmviewer.Main'
-    applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db", "-Djava.library.path=" + file("${buildDir}/libs/routing/shared").absolutePath, "-Xmx4096m", "-Djdk.gtk.verbose=true", "-Dprism.forceGPU=true"]
+    applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db",
+                                 "-Djava.library.path=" + file("${buildDir}/libs/routing/shared").absolutePath,
+                                 "-Xmx8192m", "-Dprism.verbose=true", "-Dprism.forceGPU=true" ]
 }
 
 sourceSets.main {
@@ -25,8 +30,7 @@ sourceSets.main {
         srcDir 'src/main/java'
     }
     resources {
-        srcDirs = ['src/main/java', 'src/main/resources']
-        exclude "**/*.java"
+        srcDirs = ['src/main/resources']
     }
 }
 
@@ -40,6 +44,7 @@ dependencies {
     implementation 'com.github.cliftonlabs:json-simple:3.1.1'
     implementation 'org.xerial:sqlite-jdbc:3.34.0'
     implementation 'com.fazecast:jSerialComm:2.6.0'
+    implementation('org.controlsfx:controlsfx:11.1.1')
 }
 
 model {
