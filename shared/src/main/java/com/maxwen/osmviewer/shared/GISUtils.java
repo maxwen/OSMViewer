@@ -351,4 +351,17 @@ public class GISUtils {
         }
         throw new NumberFormatException("getIntValue");
     }
+
+    public static double getDoubleValue(Object jsonValue) {
+        if (jsonValue == null) {
+            return 0;
+        } else if (jsonValue instanceof BigDecimal) {
+            return ((BigDecimal) jsonValue).doubleValue();
+        } else if (jsonValue instanceof Double) {
+            return (Double) jsonValue;
+        }
+        throw new NumberFormatException("getDoubleValue");
+    }
+
+
 }

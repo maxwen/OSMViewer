@@ -3674,21 +3674,14 @@ public class ImportController {
                 adminArea.put("osmId", osmId);
                 int adminLevel = rs.getInt(2);
                 adminArea.put("adminLevel", adminLevel);
-
-                JsonObject tags = null;
                 String tagsStr = rs.getString(3);
                 try {
                     if (tagsStr != null && tagsStr.length() != 0) {
-                        tags = (JsonObject) Jsoner.deserialize(tagsStr);
+                        JsonObject tags = (JsonObject) Jsoner.deserialize(tagsStr);
                         adminArea.put("tags", tags);
                     }
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());
-                }
-                if (tags != null && tags.containsKey("name")) {
-                    adminArea.put("name", tags.get("name"));
-                } else {
-                    adminArea.put("name", "");
                 }
                 adminAreas.add(adminArea);
             }
