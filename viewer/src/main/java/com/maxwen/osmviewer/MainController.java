@@ -17,9 +17,7 @@ import javafx.concurrent.Task;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
-import javafx.geometry.BoundingBox;
-import javafx.geometry.Insets;
-import javafx.geometry.Point2D;
+import javafx.geometry.*;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
@@ -121,8 +119,6 @@ public class MainController implements Initializable, NMEAHandler {
     private double mCenterPosY;
     private Point2D mMovePoint;
     private long mLastMoveHandled;
-    private Point2D mMouseClickedPos;
-    private Popup mContextPopup;
     private Stage mPrimaryStage;
     private boolean mShow3D;
     private Scene mScene;
@@ -174,7 +170,7 @@ public class MainController implements Initializable, NMEAHandler {
     private LoadMapDataTask mLoadMapDataTask;
     private boolean mRigthSideExpanded = false;
     ObservableList<QueryItem> mQueryItems = FXCollections.observableArrayList();
-    private Circle mCenterDot;
+    //private Circle mCenterDot;
 
     enum FilterType {
         POI,
@@ -182,6 +178,8 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private FilterType mFilterType = FilterType.POI;
+    private JsonArray mLocationHistory = new JsonArray();
+    private int mLocationHistoryIndex;
 
     public static final int TUNNEL_LAYER_LEVEL = -1;
     public static final int ADMIN_AREA_LAYER_LEVEL = 0;
@@ -195,13 +193,6 @@ public class MainController implements Initializable, NMEAHandler {
     EventHandler<MouseEvent> mouseHandler = new EventHandler<MouseEvent>() {
         @Override
         public void handle(MouseEvent mouseEvent) {
-            if (mContextPopup != null) {
-                mContextPopup.hide();
-                mContextPopup = null;
-            }
-
-            hideCenterDot();
-
             if (mouseEvent.getEventType() == MouseEvent.MOUSE_CLICKED) {
                 if (!mouseEvent.isStillSincePress()) {
                     return;
@@ -214,7 +205,6 @@ public class MainController implements Initializable, NMEAHandler {
                         mouseEvent.getScreenY() - paneZeroPos.getY() + mMapZeroY);
 
                 mMouseClickedNodePos = nodePos;
-                mMouseClickedPos = mouseScreenPos;
                 mMouseClickedCoordsPos = getCoordOfPos(mouseScreenPos);
                 mMovePoint = null;
 
@@ -228,6 +218,8 @@ public class MainController implements Initializable, NMEAHandler {
                     }
                     return;
                 }
+
+                LogUtils.log("admin = " + getAdminAreaStringAtPos(mMouseClickedCoordsPos));
 
                 if (mMapZoom > 16) {
                     // mouseScreenPos will be transformed pos
@@ -250,52 +242,25 @@ public class MainController implements Initializable, NMEAHandler {
                 }
 
                 if (clickedShape != null) {
-                    mSelectdOSMId = clickedShape.getOSMId();
-                    JsonObject osmObject = mOSMObjects.get(mSelectdOSMId);
-                    if (osmObject != null) {
-                        LogUtils.log("type = " + osmObject.get("type"));
-                        if (clickedShape instanceof OSMPolyline) {
-                            // only show ways as selected not areas
-                            if (osmObject.get("type").equals("way")) {
-                                mSelectdShape = clickedShape;
-                                mSelectdShape.setSelected();
-
-                                if (mResolvePositionTask != null) {
-                                    mResolvePositionTask.cancel();
-                                }
-                                mResolvePositionTask = new ResolvePositionTask(mMouseClickedCoordsPos, mSelectdOSMId);
-                                mResolvePositionTask.setOnSucceeded((succeededEvent) -> {
-                                    mSelectedEdge = mResolvePositionTask.getResolvedEdge();
-                                    if (mSelectedEdge != null) {
-                                        mSelectedEdgeShape = displayCoordsPolyline((JsonArray) mSelectedEdge.get("coords"));
-                                        mSelectedEdgeShape.setStrokeWidth(2);
-                                        mSelectedEdgeShape.setStroke(Color.GREEN);
-                                        drawShapes();
-                                    }
-                                });
-                                mExecutorService.submit(mResolvePositionTask);
+                    MainController.this.doSelectShape(clickedShape);
+                    if (mSelectdShape instanceof OSMPolyline) {
+                        JsonObject osmObject = mOSMObjects.get(mSelectdOSMId);
+                        if (osmObject.get("type").equals("way")) {
+                            if (mResolvePositionTask != null) {
+                                mResolvePositionTask.cancel();
                             }
+                            mResolvePositionTask = new ResolvePositionTask(mMouseClickedCoordsPos, mSelectdOSMId);
+                            mResolvePositionTask.setOnSucceeded((succeededEvent) -> {
+                                mSelectedEdge = mResolvePositionTask.getResolvedEdge();
+                                if (mSelectedEdge != null) {
+                                    mSelectedEdgeShape = displayCoordsPolyline((JsonArray) mSelectedEdge.get("coords"));
+                                    mSelectedEdgeShape.setStrokeWidth(2);
+                                    mSelectedEdgeShape.setStroke(Color.GREEN);
+                                    drawShapes();
+                                }
+                            });
+                            mExecutorService.submit(mResolvePositionTask);
                         }
-                        if (clickedShape instanceof OSMPolygon) {
-                            mSelectdShape = clickedShape;
-                            mSelectdShape.setSelected();
-                            drawShapes();
-                        }
-
-                        final StringBuffer s = new StringBuffer();
-                        JsonObject tags = (JsonObject) osmObject.get("tags");
-                        s.append(clickedShape.getInfoLabel(tags));
-
-                        if (clickedShape instanceof OSMPolyline) {
-                            LogUtils.log("Polyline: " + mSelectdOSMId + "  " + tags);
-                        } else if (clickedShape instanceof OSMPolygon) {
-                            LogUtils.log("Polygon: " + mSelectdOSMId + "  " + tags);
-                        } else if (clickedShape instanceof OSMImageView) {
-                            LogUtils.log("Node: " + mSelectdOSMId + " " + tags);
-                        }
-                        infoLabel.setText(s.toString().trim());
-                    } else {
-                        // admin areas
                     }
                 }
             }
@@ -507,10 +472,12 @@ public class MainController implements Initializable, NMEAHandler {
     public void initialize(URL location, ResourceBundle resources) {
         LogUtils.log("initialize");
 
-        mMapZoom = ((BigDecimal) Config.getInstance().get("zoom", new BigDecimal(mMapZoom))).intValue();
-        mCenterLon = ((BigDecimal) Config.getInstance().get("lon", new BigDecimal(mCenterLon))).doubleValue();
-        mCenterLat = ((BigDecimal) Config.getInstance().get("lat", new BigDecimal(mCenterLat))).doubleValue();
+        mMapZoom = GISUtils.getIntValue(Config.getInstance().get("zoom", mMapZoom));
+        mCenterLon = GISUtils.getDoubleValue(Config.getInstance().get("lon", mCenterLon));
+        mCenterLat = GISUtils.getDoubleValue(Config.getInstance().get("lat", mCenterLat));
         mShow3D = (boolean) Config.getInstance().get("show3D", mShow3D);
+        mLocationHistory = (JsonArray) Config.getInstance().get("locationHistory", new JsonArray());
+        mLocationHistoryIndex = mLocationHistory.size() - 1;
 
         init();
     }
@@ -542,17 +509,20 @@ public class MainController implements Initializable, NMEAHandler {
             StringBuffer nodeArea = new StringBuffer();
             for (int i = adminData.size() - 1; i >= 0; i--) {
                 JsonObject adminLevelData = (JsonObject) adminData.get(i);
-                nodeArea.append(adminLevelData.get("name") + "/");
+                nodeArea.append(adminLevelData.get("name"));
+                if (i != 0) {
+                    nodeArea.append("/");
+                }
             }
 
             String type = (String) node.get("type");
             if (type.equals("poi")) {
                 int poiType = (int) node.get("nodeType");
-                QueryItem item = new QueryItem((String) node.get("name"), nodeArea.substring(0, nodeArea.length() - 1),
+                QueryItem item = new QueryItem((String) node.get("name"), nodeArea.toString(),
                         OSMStyle.getNodeTypeImage(poiType), coords);
                 mQueryItems.add(item);
             } else if (type.equals("address")) {
-                QueryItem item = new QueryItem((String) node.get("name"), nodeArea.substring(0, nodeArea.length() - 1),
+                QueryItem item = new QueryItem((String) node.get("name"), nodeArea.toString(),
                         null, coords);
                 mQueryItems.add(item);
             }
@@ -702,9 +672,9 @@ public class MainController implements Initializable, NMEAHandler {
             public void changed(ObservableValue<? extends QueryItem> observable, QueryItem oldValue, QueryItem newValue) {
                 if (newValue != null) {
                     JsonArray coords = newValue.getCoords();
-                    infoLabel.setText(newValue.getName());
+                    //infoLabel.setText(newValue.getName());
                     centerMapOnLocation((double) coords.get(0), (double) coords.get(1));
-                    showCenterDot();
+                    addToLocationHistory(coords);
                 }
             }
         });
@@ -731,9 +701,8 @@ public class MainController implements Initializable, NMEAHandler {
                     mMapZoom = zoom;
                     zoomLabel.setText(String.valueOf(mMapZoom));
                     calcMapCenterPos();
-                    calcMapZeroPos(false);
-                    setTransforms();
-                    loadMapData();
+                    calcMapZeroPos(true);
+                    maybeLoadMapData(null);
                 }
             }
         });
@@ -747,9 +716,8 @@ public class MainController implements Initializable, NMEAHandler {
                     mMapZoom = zoom;
                     zoomLabel.setText(String.valueOf(mMapZoom));
                     calcMapCenterPos();
-                    calcMapZeroPos(false);
-                    setTransforms();
-                    loadMapData();
+                    calcMapZeroPos(true);
+                    maybeLoadMapData(null);
                 }
             }
         });
@@ -828,12 +796,12 @@ public class MainController implements Initializable, NMEAHandler {
         mGPSDot.setFill(Color.TRANSPARENT);
         mGPSDot.setStrokeWidth(2);
 
-        mCenterDot = new Circle();
-        mCenterDot.setStroke(Color.BLACK);
-        mCenterDot.setFill(Color.TRANSPARENT);
-        mCenterDot.setStrokeWidth(3);
-        mCenterDot.setRadius(10);
-        mCenterDot.setVisible(false);
+        //mCenterDot = new Circle();
+        //mCenterDot.setStroke(Color.BLACK);
+        //mCenterDot.setFill(Color.TRANSPARENT);
+        //mCenterDot.setStrokeWidth(3);
+        //mCenterDot.setRadius(50);
+        //mCenterDot.setVisible(true);
 
         mRotate = new Rotate(-ROTATE_X_VALUE, Rotate.X_AXIS);
         mZRotate = new Rotate();
@@ -880,6 +848,7 @@ public class MainController implements Initializable, NMEAHandler {
         mainPane.getChildren().add(mRoutingPane);
         mainPane.getChildren().add(mTrackingPane);
 
+        // pass events through
         mNodePane.setDisable(true);
         mRoutingPane.setDisable(true);
         mTrackingPane.setDisable(true);
@@ -898,13 +867,12 @@ public class MainController implements Initializable, NMEAHandler {
                 }
             }
         });
-        mainPane.addEventFilter(MouseEvent.MOUSE_RELEASED, mouseHandler);
-        mainPane.addEventFilter(MouseEvent.MOUSE_CLICKED, mouseHandler);
-        mainPane.addEventFilter(MouseEvent.MOUSE_DRAGGED, mouseHandler);
-        /*borderPane.addEventFilter(MouseEvent.MOUSE_RELEASED, event -> {
-            LogUtils.log("MOUSE_RELEASED:borderPane");
-            mMovePoint = null;
-        });*/
+
+        // NEVER EVER add eventlistener to anythign else
+        // needed for correct x,y translation in 3d mode
+        mMapPane.addEventFilter(MouseEvent.MOUSE_RELEASED, mouseHandler);
+        mMapPane.addEventFilter(MouseEvent.MOUSE_CLICKED, mouseHandler);
+        mMapPane.addEventFilter(MouseEvent.MOUSE_DRAGGED, mouseHandler);
 
         restoreRoutingNodes();
     }
@@ -1072,7 +1040,7 @@ public class MainController implements Initializable, NMEAHandler {
         return OSMUtils.SELECT_POI_TYPE;
     }
 
-    private void doUpdateMapData(List<Double> bbox) {
+    private void doUpdateMapData(List<Double> bbox, Runnable doAfter) {
         LogUtils.log("doUpdateMapData");
         long t = System.currentTimeMillis();
 
@@ -1139,8 +1107,8 @@ public class MainController implements Initializable, NMEAHandler {
             mRoutingPane.getChildren().addAll(mRoutePolylineList);
         }
 
-        updateCenterDot();
-        mRoutingPane.getChildren().add(mCenterDot);
+        //updateCenterDot();
+        //mTrackingPane.getChildren().add(mCenterDot);
 
         mCalcPoint = new Circle();
         mCalcPoint.setCenterX(0);
@@ -1171,6 +1139,9 @@ public class MainController implements Initializable, NMEAHandler {
         mExecutorService.submit(mLoadPOITask);
         stopProgress();
 
+        if (doAfter != null) {
+            doAfter.run();
+        }
         LogUtils.log("doUpdateMapData time = " + (System.currentTimeMillis() - t));
     }
 
@@ -1208,22 +1179,31 @@ public class MainController implements Initializable, NMEAHandler {
         startProgress();
         calcMapCenterPos();
         calcMapZeroPos(false);
-        loadMapData();
+        loadMapData(() -> showShapeAtCenter());
     }
 
-    public void loadMapData() {
+    private void maybeLoadMapData(Runnable doAfter) {
+        BoundingBox bbox = getVisibleBBox();
+        if (!mFetchBBox.contains(bbox)) {
+            if (!mMapLoading) {
+                loadMapData(doAfter);
+            }
+        } else {
+            drawShapes();
+            if (doAfter != null) {
+                doAfter.run();
+            }
+        }
+    }
+
+    public void loadMapData(Runnable doAfter) {
         if (mLoadMapDataTask != null) {
             mLoadMapDataTask.cancel();
         }
         LogUtils.log("loadMapData " + mMapZoom);
 
-        LogUtils.log("mapCenterPos = " + mCenterPosX + " : " + mCenterPosY);
-        LogUtils.log("mapZeroPos = " + mMapZeroX + " : " + mMapZeroY);
         mVisibleBBox = getVisibleBBox();
-        LogUtils.log("mVisibleBBox = " + mVisibleBBox.toString());
-
         mFetchBBox = getVisibleBBoxWithMargin(mVisibleBBox);
-        LogUtils.log("mFetchBBox = " + mFetchBBox.toString());
 
         if (mLoadPOITask != null) {
             LogUtils.log("loadMapData: LoadPOITask cancel");
@@ -1250,13 +1230,13 @@ public class MainController implements Initializable, NMEAHandler {
         mLoadMapDataTask = new LoadMapDataTask(bbox);
         mLoadMapDataTask.setOnSucceeded((succeededEvent) -> {
             LogUtils.log("loadMapDataTask: LoadMapDataTask succeededEvent");
-            doUpdateMapData(bbox);
+            doUpdateMapData(bbox, doAfter);
             mMapLoading = false;
         });
         mExecutorService.submit(mLoadMapDataTask);
     }
 
-    private void drawShapes() {
+    private synchronized void drawShapes() {
         //mMapPane.getChildren().clear();
         mNodePane.getChildren().clear();
         mRoutingPane.getChildren().clear();
@@ -1311,8 +1291,8 @@ public class MainController implements Initializable, NMEAHandler {
             mRoutingPane.getChildren().add(mSelectedEdgeShape);
         }
 
-        updateCenterDot();
-        mRoutingPane.getChildren().add(mCenterDot);
+        //updateCenterDot();
+        //mTrackingPane.getChildren().add(mCenterDot);
 
         if (mTrackingShape != null) {
             mTrackingPane.getChildren().add(mTrackingShape.getShape());
@@ -1333,7 +1313,6 @@ public class MainController implements Initializable, NMEAHandler {
             }
         }
         mTrackingPane.getChildren().add(mCalcPoint);
-        mTrackingPane.getChildren().add(mCenterDot);
 
         if (mMapZoom >= 17) {
             for (OSMImageView node : mNodes) {
@@ -1473,7 +1452,7 @@ public class MainController implements Initializable, NMEAHandler {
         mCenterLat = lat;
         calcMapCenterPos();
         calcMapZeroPos(false);
-        loadMapData();
+        maybeLoadMapData(() -> showShapeAtCenter());
     }
 
     private void calcMapCenterPos() {
@@ -1517,15 +1496,7 @@ public class MainController implements Initializable, NMEAHandler {
 
         calcCenterCoord();
         calcMapZeroPos(false);
-
-        BoundingBox bbox = getVisibleBBox();
-        if (!mFetchBBox.contains(bbox)) {
-            if (!mMapLoading) {
-                loadMapData();
-            }
-        } else {
-            drawShapes();
-        }
+        maybeLoadMapData(() -> infoLabel.setText(""));
     }
 
     private List<Double> createBBoxAroundPoint(double lon, double lat, double margin) {
@@ -1740,15 +1711,7 @@ public class MainController implements Initializable, NMEAHandler {
 
         calcMapCenterPos();
         calcMapZeroPos(false);
-
-        BoundingBox bbox = getVisibleBBox();
-        if (!mFetchBBox.contains(bbox)) {
-            if (!mMapLoading) {
-                loadMapData();
-            }
-        } else {
-            drawShapes();
-        }
+        maybeLoadMapData(null);
 
         Task<Void> findEdge = new Task() {
             @Override
@@ -2048,42 +2011,22 @@ public class MainController implements Initializable, NMEAHandler {
         mGPSDot.setCenterY(mMapGPSPos.getY() - mMapZeroY);
     }
 
-    private void showCenterDot() {
-        updateCenterDot();
-        posLabel.setText(String.format("%.5f:%.5f", mCenterLon, mCenterLat));
-        mCenterDot.setVisible(true);
-    }
-
-    private void hideCenterDot() {
-        mCenterDot.setVisible(false);
-    }
-
-    private void updateCenterDot() {
-        Point2D centerPos = new Point2D(getPixelXPosForLocationDeg(mCenterLon),
-                getPixelYPosForLocationDeg(mCenterLat));
-        mCenterDot.setCenterX(centerPos.getX() - mMapZeroX);
-        mCenterDot.setCenterY(centerPos.getY() - mMapZeroY);
-    }
-
     @Override
     public void onLocation(JsonObject gpsData) {
-        Platform.runLater(new Runnable() {
-            @Override
-            public void run() {
-                updateGPSPos(gpsData, false);
-            }
-        });
+        Platform.runLater(() -> updateGPSPos(gpsData, false));
     }
 
     @Override
     public void onLocation(JsonObject gpsData, boolean force) {
-        Platform.runLater(new Runnable() {
-            @Override
-            public void run() {
-                updateGPSPos(gpsData, force);
-            }
-        });
+        Platform.runLater(() -> updateGPSPos(gpsData, force));
     }
+
+    /*private void updateCenterDot() {
+        Point2D centerPos = new Point2D(getPixelXPosForLocationDeg(mCenterLon),
+                getPixelYPosForLocationDeg(mCenterLat));
+        mCenterDot.setCenterX(centerPos.getX() - mMapZeroX);
+        mCenterDot.setCenterY(centerPos.getY() - mMapZeroY);
+    }*/
 
     private void updateTrackMode() {
         if (mTrackMode) {
@@ -2329,28 +2272,7 @@ public class MainController implements Initializable, NMEAHandler {
 
     private void buildContextMenu() {
         mContextMenu.getItems().clear();
-        MenuItem menuItem = new MenuItem(" Mouse pos ");
-        menuItem.setOnAction(ev -> {
-            if (mMouseClickedPos != null) {
-                Point2D coordPos = getCoordOfPos(mMouseClickedPos);
-                JsonArray adminAreas = QueryController.getInstance().getAdminAreasAtPointWithGeom(coordPos.getX(), coordPos.getY(),
-                        null, this);
-                StringBuilder s = new StringBuilder();
-                for (int i = 0; i < adminAreas.size(); i++) {
-                    JsonObject area = (JsonObject) adminAreas.get(i);
-                    JsonObject tags = (JsonObject) area.get("tags");
-                    if (tags != null && tags.containsKey("name")) {
-                        s.append(tags.get("name") + "\n");
-                    }
-                }
-                mContextPopup = createPopup(s.toString());
-                mContextPopup.show(mPrimaryStage);
-            }
-        });
-        menuItem.setStyle("-fx-font-size: 20");
-        mContextMenu.getItems().add(menuItem);
-
-        mContextMenu.getItems().add(new SeparatorMenuItem());
+        MenuItem menuItem;
 
         RoutingNode node = getSelectedRoutingNode(mMouseClickedNodePos);
         if (node != null) {
@@ -2434,10 +2356,29 @@ public class MainController implements Initializable, NMEAHandler {
         menuItem.setOnAction(ev -> {
             mShow3D = !mShow3D;
             setTransforms();
-            drawShapes();
+            maybeLoadMapData(null);
         });
         menuItem.setStyle("-fx-font-size: 20");
         mContextMenu.getItems().add(menuItem);
+
+        mContextMenu.getItems().add(new SeparatorMenuItem());
+
+        if (mLocationHistory.size() != 0 && mLocationHistoryIndex != 0) {
+            menuItem = new MenuItem(" Back ");
+            menuItem.setOnAction(ev -> {
+                goBackInLocationHistory();
+            });
+            menuItem.setStyle("-fx-font-size: 20");
+            mContextMenu.getItems().add(menuItem);
+        }
+        if (mLocationHistory.size() != 0 && mLocationHistoryIndex < mLocationHistory.size() - 1) {
+            menuItem = new MenuItem(" Forward ");
+            menuItem.setOnAction(ev -> {
+                goForwardInLocationHistory();
+            });
+            menuItem.setStyle("-fx-font-size: 20");
+            mContextMenu.getItems().add(menuItem);
+        }
     }
 
     private void buildButtonMenu() {
@@ -2587,7 +2528,7 @@ public class MainController implements Initializable, NMEAHandler {
             mQueryTask = null;
         }
         mQueryItems.clear();
-        if (mQueryText.length() > 1) {
+        if (mQueryText != null && mQueryText.length() > 1) {
             mQueryTask = new QueryTaskPOI(mQueryText, mFilterType);
             mQueryTask.setOnSucceeded((succeededEvent) -> {
                 LogUtils.log("QueryTaskPOI::succeeded " + mQueryTask.getValue().size());
@@ -2599,4 +2540,105 @@ public class MainController implements Initializable, NMEAHandler {
             mExecutorService.submit(mQueryTask);
         }
     }
+
+    private void addToLocationHistory(JsonArray coords) {
+        if (mLocationHistory.size() > 0) {
+            if (mLocationHistory.get(mLocationHistory.size() - 1).equals(coords)) {
+                return;
+            }
+        }
+        if (mLocationHistory.size() == 10) {
+            mLocationHistory.remove(0);
+        }
+        mLocationHistory.add(coords);
+        mLocationHistoryIndex = mLocationHistory.size() - 1;
+        //LogUtils.log("locationHistory = " + mLocationHistory);
+        Config.getInstance().put("locationHistory", mLocationHistory);
+        Config.getInstance().save();
+    }
+
+    private void goBackInLocationHistory() {
+        if (mLocationHistoryIndex != 0) {
+            mLocationHistoryIndex--;
+            JsonArray coords = (JsonArray) mLocationHistory.get(mLocationHistoryIndex);
+            centerMapOnLocation(GISUtils.getDoubleValue(coords.get(0)), GISUtils.getDoubleValue(coords.get(1)));
+        }
+    }
+
+    private void goForwardInLocationHistory() {
+        if (mLocationHistoryIndex < mLocationHistory.size() - 1) {
+            mLocationHistoryIndex++;
+            JsonArray coords = (JsonArray) mLocationHistory.get(mLocationHistoryIndex);
+            centerMapOnLocation(GISUtils.getDoubleValue(coords.get(0)), GISUtils.getDoubleValue(coords.get(1)));
+        }
+    }
+
+    private void showShapeAtCenter() {
+        Point2D mapCenterPos = new Point2D(mCenterPosX, mCenterPosY);
+        OSMShape s = findShapeAtPoint(mapCenterPos, OSMUtils.SELECT_AREA_TYPE);
+        if (s != null) {
+            doSelectShape(s);
+        }
+    }
+
+    private void doSelectShape(OSMShape shape) {
+        mSelectdOSMId = shape.getOSMId();
+        JsonObject osmObject = mOSMObjects.get(mSelectdOSMId);
+        if (osmObject != null) {
+            JsonObject tags = (JsonObject) osmObject.get("tags");
+            LogUtils.log("type = " + osmObject.get("type"));
+            if (shape instanceof OSMPolyline) {
+                // only show ways as selected not areas
+                if (osmObject.get("type").equals("way")) {
+                    mSelectdShape = shape;
+                    mSelectdShape.setSelected();
+                }
+            }
+            if (shape instanceof OSMPolygon) {
+                if (shape.getAreaType() == OSMUtils.AREA_TYPE_BUILDING) {
+                    mSelectdShape = shape;
+                    mSelectdShape.setSelected();
+                }
+            }
+
+            final StringBuffer s = new StringBuffer();
+            s.append(shape.getInfoLabel(tags));
+
+            if (shape instanceof OSMPolyline) {
+                LogUtils.log("Polyline: " + mSelectdOSMId + "  " + tags);
+            } else if (shape instanceof OSMPolygon) {
+                LogUtils.log("Polygon: " + mSelectdOSMId + "  " + tags);
+            } else if (shape instanceof OSMImageView) {
+                LogUtils.log("Node: " + mSelectdOSMId + " " + tags);
+            }
+            infoLabel.setText(s.toString().trim());
+            drawShapes();
+        }
+    }
+
+    private String getAdminAreaStringAtPos(Point2D coordPos) {
+        JsonArray adminData = QueryController.getInstance().getAdminAreasAtPointWithGeom(coordPos.getX(), coordPos.getY(),
+                null, this);
+
+        StringBuilder s = new StringBuilder();
+        for (int i = adminData.size() - 1; i >= 0; i--) {
+            JsonObject area = (JsonObject) adminData.get(i);
+            JsonObject tags = (JsonObject) area.get("tags");
+            if (tags != null && tags.containsKey("name")) {
+                s.append(tags.get("name"));
+                if (i != 0) {
+                    s.append("/");
+                }
+            }
+        }
+        return s.toString();
+    }
+
+    private void saveCurrentMapPos() {
+        Config.getInstance().put("zoom", mMapZoom);
+        Config.getInstance().put("lon", mCenterLon);
+        Config.getInstance().put("lat", mCenterLat);
+        Config.getInstance().save();
+    }
 }
+

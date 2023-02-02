@@ -45,7 +45,7 @@ public class OSMStyle {
         mStreetColors.put(OSMUtils.STREET_TYPE_LIVING_STREET, Color.rgb(0xff, 0xff, 0xff));
 
         mAreaColors = new HashMap();
-        mAreaColors.put("adminAreaColor", Color.rgb(0xac, 0x46, 0xac));
+        mAreaColors.put("adminAreaColor", Color.rgb(0xac, 0x46, 0xac, 0.8d));
         mAreaColors.put("backgroundColor", Color.rgb(120, 120, 120, 0.8d));
         mAreaColors.put("mapBackgroundColor", Color.rgb(0xf1, 0xee, 0xe8));
         mAreaColors.put("wayCasingColor", Color.rgb(0x70, 0x7d, 0x05));

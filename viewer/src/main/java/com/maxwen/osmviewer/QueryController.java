@@ -470,12 +470,10 @@ public class QueryController {
                 long osmId = rs.getLong(1);
                 adminArea.put("osmId", osmId);
                 adminArea.put("adminLevel", rs.getInt(2));
-
-                JsonObject tags = null;
                 String tagsStr = rs.getString(3);
                 try {
                     if (tagsStr != null && tagsStr.length() != 0) {
-                        tags = (JsonObject) Jsoner.deserialize(tagsStr);
+                        JsonObject tags = (JsonObject) Jsoner.deserialize(tagsStr);
                         adminArea.put("tags", tags);
                     }
                 } catch (JsonException e) {
