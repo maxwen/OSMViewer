@@ -222,7 +222,7 @@ public class ImportMapping {
                 LogUtils.log("Mapping saved");
             } catch (Exception e) {
                 LogUtils.error("Mapping save", e);
-                e.printStackTrace();
+                //e.printStackTrace();
             }
         } else {
             LogUtils.error("Mapping save without load");
