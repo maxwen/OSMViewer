@@ -373,8 +373,8 @@ public class QueryController {
     }*/
 
     public JsonArray getLinesInBboxWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax,
-                                                List<Integer> typeFilterList, boolean withSimplify, double tolerance,
-                                                Map<Integer, List<Node>> polylines, MainController controller) {
+                                            List<Integer> typeFilterList, boolean withSimplify, double tolerance,
+                                            Map<Integer, List<Node>> polylines, MainController controller) {
         Statement stmt = null;
         JsonArray areas = new JsonArray();
 
@@ -453,15 +453,15 @@ public class QueryController {
         return areas;
     }
 
-    public JsonArray getAdminAreasAtPointWithGeom(double lon, double lat, String adminLevelList, MainController controller) {
+    public JsonArray getAdminAreasAtPointWithGeom(double lon, double lat, String adminLevelFilter, MainController controller) {
         Statement stmt = null;
         JsonArray adminAreas = new JsonArray();
         try {
             long t = System.currentTimeMillis();
             stmt = mAdminConnection.createStatement();
             ResultSet rs;
-            if (adminLevelList != null && adminLevelList.length() != 0) {
-                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags FROM adminAreaTable WHERE adminLevel IN %s AND ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrContains(%f, %f, %f, %f)) AND ST_Contains(geom, MakePoint(%f, %f, 4236)) ORDER BY adminLevel", adminLevelList, lon, lat, lon, lat, lon, lat));
+            if (adminLevelFilter != null && adminLevelFilter.length() != 0) {
+                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags FROM adminAreaTable WHERE adminLevel IN %s AND ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrContains(%f, %f, %f, %f)) AND ST_Contains(geom, MakePoint(%f, %f, 4236)) ORDER BY adminLevel", adminLevelFilter, lon, lat, lon, lat, lon, lat));
             } else {
                 rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrContains(%f, %f, %f, %f)) AND ST_Contains(geom, MakePoint(%f, %f, 4236)) ORDER BY adminLevel", lon, lat, lon, lat, lon, lat));
             }
@@ -495,7 +495,7 @@ public class QueryController {
     }
 
     public JsonArray getAdminAreasInBboxWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax,
-                                                 String typeFilterString, boolean withSimplify, double tolerance,
+                                                 String adminLevelFilter, boolean withSimplify, double tolerance,
                                                  Map<Integer, List<Node>> polylines, MainController controller) {
         Statement stmt = null;
         JsonArray adminAreas = new JsonArray();
@@ -506,12 +506,29 @@ public class QueryController {
 
             tolerance = GISUtils.degToMeter(tolerance);
 
-            String geom = "AsText(geom)";
+            String polyString = String.format("'POLYGON((%f %f, %f %f, %f %f, %f %f, %f %f))'", lonRangeMin, latRangeMin, lonRangeMin, latRangeMax, lonRangeMax, latRangeMax, lonRangeMax, latRangeMin, lonRangeMin, latRangeMin);
+            LogUtils.log("" + polyString);
+            String bboxAsGeom = String.format("ST_PolyFromText(%s, 4326)", polyString);
+
+            String geomPart = String.format("ST_Intersection(%s, ST_ExteriorRing(geom))", bboxAsGeom);
+            geomPart = "geom";
             if (withSimplify) {
-                geom = String.format("AsText(ST_SimplifyPreserveTopology(geom, %f))", tolerance);
+                geomPart = String.format("ST_Simplify(geom, %f)", tolerance);
             }
-            if (typeFilterString != null) {
-                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags, %s FROM adminAreaTable WHERE adminLevel IN %s AND ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", geom, typeFilterString, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+            String geom = String.format("AsText(%s)", geomPart);
+
+            /*String geom = String.format("AsText(%s)", geomPart);
+            if (adminLevelFilter != null && adminLevelFilter.equals("(2)")) {
+                //geom = "AsText(geom)";
+                if (withSimplify) {
+                    geom = String.format("AsText(ST_Simplify(geom, %f))", tolerance);
+                } else {
+                    geom = String.format("AsText(ST_Simplify(geom, %f))", tolerance / 2);
+                }
+            }*/
+
+            if (adminLevelFilter != null) {
+                rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags, %s FROM adminAreaTable WHERE adminLevel IN %s AND ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", geom, adminLevelFilter, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             } else {
                 rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags, %s FROM adminAreaTable WHERE ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
             }
@@ -535,12 +552,24 @@ public class QueryController {
                 adminAreas.add(adminArea);
                 if (polylines != null) {
                     try {
-                        JsonArray polygons = createCoordsFromPolygonString(rs.getString(4));
-                        for (int i = 0; i < polygons.size(); i++) {
-                            Polyline polyline = controller.displayCoordsPolyline(osmId, (JsonArray) polygons.get(i));
-                            OSMStyle.amendAdminArea(adminArea, polyline, controller.getZoom());
-                            polylines.get(MainController.ADMIN_AREA_LAYER_LEVEL).add(polyline);
-                            controller.addToOSMCache(osmId, adminArea);
+                        String geomString = rs.getString(4);
+                        JsonArray polygons = createCoordsFromPolygonString(geomString);
+                        if (polygons.size() != 0) {
+                            if (geomString.startsWith("LINESTRING")) {
+                                LogUtils.log(((JsonObject)adminArea.get("tags")).get("name") +  " lines " + polygons.size());
+                                Polyline polyline = controller.displayCoordsPolyline(osmId, polygons);
+                                OSMStyle.amendAdminArea(adminArea, polyline, controller.getZoom());
+                                polylines.get(MainController.ADMIN_AREA_LAYER_LEVEL).add(polyline);
+                                controller.addToOSMCache(osmId, adminArea);
+                            } else {
+                                for (int i = 0; i < polygons.size(); i++) {
+                                    LogUtils.log(((JsonObject)adminArea.get("tags")).get("name") +  " polygons " + ((JsonArray)polygons.get(i)).size());
+                                    Polyline polyline = controller.displayCoordsPolyline(osmId, (JsonArray) polygons.get(i));
+                                    OSMStyle.amendAdminArea(adminArea, polyline, controller.getZoom());
+                                    polylines.get(MainController.ADMIN_AREA_LAYER_LEVEL).add(polyline);
+                                    controller.addToOSMCache(osmId, adminArea);
+                                }
+                            }
                         }
                     } catch (Exception e) {
                         LogUtils.error("getAdminAreasInBboxWithGeom", e);
@@ -559,6 +588,43 @@ public class QueryController {
             }
         }
         return adminAreas;
+    }
+
+    public JsonObject getAdminAreasWithId(long id) {
+        Statement stmt = null;
+        try {
+            long t = System.currentTimeMillis();
+            stmt = mAdminConnection.createStatement();
+            ResultSet rs;
+            rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags FROM adminAreaTable WHERE osmId=%d", id));
+
+            while (rs.next()) {
+                JsonObject adminArea = new JsonObject();
+                long osmId = rs.getLong(1);
+                adminArea.put("osmId", osmId);
+                adminArea.put("adminLevel", rs.getInt(2));
+                String tagsStr = rs.getString(3);
+                try {
+                    if (tagsStr != null && tagsStr.length() != 0) {
+                        JsonObject tags = (JsonObject) Jsoner.deserialize(tagsStr);
+                        adminArea.put("tags", tags);
+                    }
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+                return adminArea;
+            }
+        } catch (SQLException e) {
+            LogUtils.log(e.getMessage());
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return null;
     }
 
     public Map<Long, JsonObject> getEdgesAroundPointWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax) {
@@ -817,7 +883,7 @@ public class QueryController {
             ResultSet rs;
 
             String searchNamePattern = "'%" + searchName + "%'";
-            rs = stmt.executeQuery(String.format("SELECT streetName, houseNumber, adminData, AsText(geom) FROM addressTable WHERE streetName LIKE %s ORDER BY LOWER(streetName), houseNumber", searchNamePattern));
+            rs = stmt.executeQuery(String.format("SELECT streetName, houseNumber, adminData, AsText(geom) FROM addressTable WHERE streetName LIKE %s ORDER BY LOWER(streetName), houseNumber * 1", searchNamePattern));
 
             while (rs.next()) {
                 JsonObject node = new JsonObject();

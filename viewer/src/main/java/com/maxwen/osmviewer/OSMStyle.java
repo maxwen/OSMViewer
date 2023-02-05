@@ -455,14 +455,14 @@ public class OSMStyle {
         areaLine.setStroke(mAreaColors.get("adminAreaColor"));
         areaLine.setStrokeWidth(width);
         //areaLine.setSmooth(true);
-        if (adminLevel == 2) {
+        /*if (adminLevel == 2) {
             if (adminArea.containsKey("id")) {
                 areaLine.setFill(mCountryColors.get((int) adminArea.get("id")));
             } else {
                 areaLine.setFill(mCountryColors.get(adminArea.get(0)));
             }
-        } else {
+        } else {*/
             areaLine.setFill(TRANSPARENT);
-        }
+        //}
     }
 }
