@@ -313,6 +313,8 @@ public class GISUtils {
                 return createCoordsFromMultiPolygon(coordsStr.substring("MULTIPOLYGON(((".length(), coordsStr.length() - 3));
             } else if (coordsStr.startsWith("POLYGON((")) {
                 return createCoordsFromMultiPolygon(coordsStr.substring("POLYGON((".length(), coordsStr.length() - 2));
+            } else if (coordsStr.startsWith("LINESTRING(")) {
+                return createCoordsFromLineString(coordsStr);
             }
         }
         return new JsonArray();
