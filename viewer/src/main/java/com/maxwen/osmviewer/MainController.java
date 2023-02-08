@@ -44,8 +44,11 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static com.maxwen.osmviewer.shared.GISUtils.M_LN2;
+import static com.maxwen.osmviewer.shared.GISUtils.TILESIZE;
+
 public class MainController implements Initializable, NMEAHandler {
-    public static final int ROTATE_X_VALUE = 45;
+    public static final int ROTATE_X_VALUE = 60;
     public static final int PREFETCH_MARGIN_PIXEL = 800;
     @FXML
     Button quitButton;
@@ -170,11 +173,14 @@ public class MainController implements Initializable, NMEAHandler {
     ObservableList<QueryItem> mQueryItems = FXCollections.observableArrayList();
     private ProgressIndicator mQueryListProgress;
     private ProgressIndicator mLoadMapProgress;
+    private MenuButton mFilterHeader;
     //private Circle mCenterDot;
 
     enum FilterType {
         POI,
-        ADDRESS
+        ADDRESS,
+        CITY,
+        LOCAL
     }
 
     private FilterType mFilterType = FilterType.POI;
@@ -219,7 +225,7 @@ public class MainController implements Initializable, NMEAHandler {
                     return;
                 }
 
-                LogUtils.log("admin = " + getAdminAreaStringAtPos(mMouseClickedCoordsPos));
+                LogUtils.log("admin = " + getAdminAreaStringAtPos(mMouseClickedCoordsPos) + " " + getAdminIdAtPos(mMouseClickedCoordsPos));
 
                 if (mMapZoom > 16) {
                     // mouseScreenPos will be transformed pos
@@ -291,6 +297,7 @@ public class MainController implements Initializable, NMEAHandler {
     private TextField mQueryField;
     private QueryTaskPOI mQueryTask;
     private String mQueryText;
+    private long mAdminId;
 
     public class LoadPOITask extends LoadMapTask {
 
@@ -362,12 +369,10 @@ public class MainController implements Initializable, NMEAHandler {
             }
             if (mMapZoom >= 14) {
                 QueryController.getInstance().getLinesInBboxWithGeom(bbox.get(0), bbox.get(1),
-                        bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mAreaPolylines, MainController.this);
+                        bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), getSimplifyToleranceForZoom(), mAreaPolylines, MainController.this);
             }
-            if (mMapZoom <= 13) {
-                QueryController.getInstance().getAdminAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
-                        bbox.get(2), bbox.get(3), getAdminLevelListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mAreaPolylines, MainController.this);
-            }
+            QueryController.getInstance().getAdminAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
+                    bbox.get(2), bbox.get(3), getAdminLevelListForZoom(), getSimplifyToleranceForZoom(), mAreaPolylines, MainController.this);
             return null;
         }
     }
@@ -466,28 +471,16 @@ public class MainController implements Initializable, NMEAHandler {
         }
     }
 
-    @Override
-    public void initialize(URL location, ResourceBundle resources) {
-        LogUtils.log("initialize");
-
-        mMapZoom = GISUtils.getIntValue(Config.getInstance().get("zoom", mMapZoom));
-        mCenterLon = GISUtils.getDoubleValue(Config.getInstance().get("lon", mCenterLon));
-        mCenterLat = GISUtils.getDoubleValue(Config.getInstance().get("lat", mCenterLat));
-        mShow3D = (boolean) Config.getInstance().get("show3D", mShow3D);
-        mLocationHistory = (JsonArray) Config.getInstance().get("locationHistory", new JsonArray());
-        mLocationHistoryIndex = mLocationHistory.size() - 1;
-
-        init();
-    }
-
     public class QueryTaskPOI extends Task<List<QueryItem>> implements QueryTaskCallback {
         private String mQueryString;
         private FilterType mFilterType;
         private List<QueryItem> mQueryItems = new ArrayList<>();
+        private long mAdminId;
 
-        public QueryTaskPOI(String queryString, FilterType filterType) {
+        public QueryTaskPOI(String queryString, FilterType filterType, long adminId) {
             mQueryString = queryString;
             mFilterType = filterType;
+            mAdminId = adminId;
         }
 
         @Override
@@ -496,20 +489,37 @@ public class MainController implements Initializable, NMEAHandler {
                 QueryController.getInstance().queryPOINodesMatchingName(mQueryString, null, this);
             } else if (mFilterType == FilterType.ADDRESS) {
                 QueryController.getInstance().queryAddressMatchingName(mQueryString, this);
+            } else if (mFilterType == FilterType.CITY) {
+                QueryController.getInstance().queryCityMatchingName(mQueryString, this);
+            } else if (mFilterType == FilterType.LOCAL) {
+                JsonArray adminIdList = QueryController.getInstance().getAdminAreaChildren(mAdminId);
+                adminIdList.add(mAdminId);
+                LogUtils.log("" + adminIdList.size());
+                QueryController.getInstance().queryPOINodesMatchingNameAndAdminId(mQueryString, adminIdList, null, this);
+                QueryController.getInstance().queryAddressMatchingNameAndAdminId(mQueryString, adminIdList, this);
             }
             return mQueryItems;
         }
 
         @Override
-        public void addQueryItemPOI(JsonObject node) {
+        public boolean addQueryItemPOI(JsonObject node) {
+            String type = (String) node.get("type");
+            StringBuffer nodeArea = new StringBuffer();
+
             JsonArray coords = (JsonArray) node.get("coords");
             JsonObject adminData = (JsonObject) node.get("adminData");
-            StringBuffer nodeArea = new StringBuffer();
+            if (node.containsKey("adminId")) {
+                long adminId = (long) node.get("adminId");
+                adminData = QueryController.getInstance().getAdminAreasWithId(adminId);
+            }
             if (adminData != null) {
                 JsonObject tags = (JsonObject) adminData.get("tags");
                 if (tags != null && tags.containsKey("name")) {
-                    nodeArea.append(tags.get("name"));
-                    nodeArea.append("/");
+                    if (!type.equals("city")) {
+                        // skip city itsself
+                        nodeArea.append(tags.get("name"));
+                        nodeArea.append("/");
+                    }
 
                     JsonArray parents = (JsonArray) tags.get("parents");
                     if (parents != null) {
@@ -532,7 +542,6 @@ public class MainController implements Initializable, NMEAHandler {
                 nodeArea.append(adminAreaString);
             }
 
-            String type = (String) node.get("type");
             if (type.equals("poi")) {
                 int poiType = (int) node.get("nodeType");
                 QueryItem item = new QueryItem((String) node.get("name"), nodeArea.toString(),
@@ -542,8 +551,90 @@ public class MainController implements Initializable, NMEAHandler {
                 QueryItem item = new QueryItem((String) node.get("name"), nodeArea.toString(),
                         null, coords);
                 mQueryItems.add(item);
+            } else if (type.equals("city")) {
+                QueryItem item = new QueryItem((String) node.get("name"), nodeArea.toString(),
+                        null, coords);
+                mQueryItems.add(item);
             }
+            return !isCancelled();
         }
+    }
+
+    public class QueryMapTilesTask extends Task<Void> {
+
+        public QueryMapTilesTask() {
+        }
+
+        @Override
+        protected Void call() throws Exception {
+            int width = (int) mScene.getWidth();
+            int height = (int) mScene.getHeight();
+            int map_x = (int) mMapZeroX;
+            int map_y = (int) mMapZeroY;
+
+            int offset_x = -map_x % TILESIZE;
+            if (offset_x == 0) {
+                offset_x = -TILESIZE;
+            }
+
+            int offset_y = -map_y % TILESIZE;
+            if (offset_y == 0) {
+                offset_y = -TILESIZE;
+            }
+
+            if (offset_x >= 0) {
+                offset_x -= TILESIZE * 4;
+            }
+            if (offset_y >= 0) {
+                offset_y -= TILESIZE * 4;
+            }
+
+            int tiles_nx = (width - offset_x) / TILESIZE + 1;
+            int tiles_ny = (height - offset_y) / TILESIZE + 1;
+
+            int tile_x0 = (int) (Math.floor((map_x - TILESIZE) / TILESIZE)) - 2;
+            int tile_y0 = (int) (Math.floor((map_y - TILESIZE) / TILESIZE)) - 2;
+
+            int i = tile_x0;
+            int j = tile_y0;
+            int offset_y0 = offset_y;
+
+            while (i < (tile_x0 + tiles_nx)) {
+                while (j < (tile_y0 + tiles_ny)) {
+                    if (j < 0 || i < 0 || i >= Math.exp(mMapZoom * M_LN2) || j >= Math.exp(mMapZoom * M_LN2)) {
+                        //pixbuf = self.getEmptyTile()
+                    } else {
+                        //pixbuf = self.getTile(self.map_zoom, i, j);
+                    }
+                    LogUtils.log("" + mMapZoom + "/" + i + "/" + j + ".png");
+                    //self.drawPixmap(offset_x, offset_y, TILESIZE, TILESIZE, pixbuf)
+                    LogUtils.log("" + offset_x + ":" + offset_y + "x" + TILESIZE + ":" + TILESIZE);
+
+                    offset_y += TILESIZE;
+                    j = j + 1;
+                }
+                offset_x += TILESIZE;
+                offset_y = offset_y0;
+                i = i + 1;
+                j = tile_y0;
+            }
+            return null;
+        }
+    }
+
+    @Override
+    public void initialize(URL location, ResourceBundle resources) {
+        LogUtils.log("initialize");
+
+        mMapZoom = GISUtils.getIntValue(Config.getInstance().get("zoom", mMapZoom));
+        mCenterLon = GISUtils.getDoubleValue(Config.getInstance().get("lon", mCenterLon));
+        mCenterLat = GISUtils.getDoubleValue(Config.getInstance().get("lat", mCenterLat));
+        mShow3D = (boolean) Config.getInstance().get("show3D", mShow3D);
+        mLocationHistory = (JsonArray)
+                Config.getInstance().get("locationHistory", new JsonArray());
+        mLocationHistoryIndex = mLocationHistory.size() - 1;
+
+        init();
     }
 
     private void init() {
@@ -657,23 +748,74 @@ public class MainController implements Initializable, NMEAHandler {
         RadioButton poiFilter = new RadioButton("POI");
         poiFilter.setToggleGroup(filterGroup);
         poiFilter.setOnAction(event -> {
+            mFilterHeader.setVisible(false);
             mFilterType = FilterType.POI;
             updateListContent();
         });
 
         RadioButton addressFilter = new RadioButton("Address");
         addressFilter.setPadding(new Insets(0, 0, 0, 10));
-
         addressFilter.setToggleGroup(filterGroup);
         addressFilter.setOnAction(event -> {
+            mFilterHeader.setVisible(false);
             mFilterType = FilterType.ADDRESS;
             updateListContent();
         });
+
+        RadioButton cityFilter = new RadioButton("City");
+        cityFilter.setPadding(new Insets(0, 0, 0, 10));
+        cityFilter.setToggleGroup(filterGroup);
+        cityFilter.setOnAction(event -> {
+            mFilterHeader.setVisible(false);
+            mFilterType = FilterType.CITY;
+            updateListContent();
+        });
+
+        RadioButton localFilter = new RadioButton("Local");
+        localFilter.setPadding(new Insets(0, 0, 0, 10));
+        localFilter.setToggleGroup(filterGroup);
+        localFilter.setOnAction(event -> {
+            mFilterHeader.getItems().clear();
+            // show area popup
+            Point2D coordPos = new Point2D(mCenterLon, mCenterLat);
+            mFilterHeader.setVisible(true);
+            JsonArray adminDataList = getAdminAreaListAtPos(coordPos);
+            for (int i = 0; i < adminDataList.size(); i++) {
+                JsonObject adminData = (JsonObject) adminDataList.get(i);
+                long osmId = GISUtils.getLongValue(adminData.get("osmId"));
+                int adminLevel = GISUtils.getIntValue(adminData.get("adminLevel"));
+                String name = (String) adminData.get("name");
+                LogUtils.log(name + " " + adminLevel);
+                RadioMenuItem menuItem = new RadioMenuItem(name);
+                menuItem.setUserData(osmId);
+                menuItem.setOnAction(e -> {
+                    mAdminId = (long) menuItem.getUserData();
+                    mFilterHeader.setText(menuItem.getText());
+                    updateListContent();
+                });
+                mFilterHeader.getItems().add(menuItem);
+
+                if (i == 0) {
+                    mAdminId = osmId;
+                    mFilterHeader.setText(menuItem.getText());
+                }
+            }
+            mFilterType = FilterType.LOCAL;
+            updateListContent();
+        });
+
         poiFilter.setSelected(true);
 
         filterSelect.getChildren().add(poiFilter);
         filterSelect.getChildren().add(addressFilter);
+        filterSelect.getChildren().add(cityFilter);
+        filterSelect.getChildren().add(localFilter);
+
         searchContent.getChildren().add(filterSelect);
+
+        mFilterHeader = new MenuButton("Area                            ");
+        mFilterHeader.setVisible(false);
+        searchContent.getChildren().add(mFilterHeader);
 
         mQueryListView = new ListView<>();
 
@@ -949,9 +1091,9 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private List<Integer> getStreetTypeListForZoom() {
-        if (mMapZoom <= 10) {
+        if (mMapZoom <= 8) {
             return null;
-        } else if (mMapZoom <= 12) {
+        } else if (mMapZoom <= 10) {
             List<Integer> typeFilterList = new ArrayList<>();
             Collections.addAll(typeFilterList, OSMUtils.STREET_TYPE_MOTORWAY,
                     OSMUtils.STREET_TYPE_MOTORWAY_LINK,
@@ -960,7 +1102,7 @@ public class MainController implements Initializable, NMEAHandler {
                     OSMUtils.STREET_TYPE_PRIMARY,
                     OSMUtils.STREET_TYPE_PRIMARY_LINK);
             return typeFilterList;
-        } else if (mMapZoom <= 14) {
+        } else if (mMapZoom <= 13) {
             List<Integer> typeFilterList = new ArrayList<>();
             Collections.addAll(typeFilterList, OSMUtils.STREET_TYPE_MOTORWAY,
                     OSMUtils.STREET_TYPE_MOTORWAY_LINK,
@@ -998,10 +1140,10 @@ public class MainController implements Initializable, NMEAHandler {
         // we alwats show level 2 == countries
         if (mMapZoom <= 8) {
             return "(4)";
-        } else if (mMapZoom <= 16) {
-            return "(4, 6)";
         } else if (mMapZoom <= MAX_ZOOM) {
-            return "(4, 6, 8)";
+            return "(4, 6)";
+        /*} else if (mMapZoom <= MAX_ZOOM) {
+            return "(4, 6, 8)";*/
         } else {
             return null;
         }
@@ -1047,6 +1189,24 @@ public class MainController implements Initializable, NMEAHandler {
             return typeFilterList;
         } else {
             return null;
+        }
+    }
+
+    public double getSimplifyToleranceForZoom() {
+        if (mMapZoom <= 6) {
+            return 200.0;
+        } else if (mMapZoom <= 8) {
+            return 120.0;
+        } else if (mMapZoom <= 10) {
+            return 80.0;
+        } else if (mMapZoom <= 12) {
+            return 40.0;
+        } else if (mMapZoom <= 14) {
+            return 30.0;
+        } else if (mMapZoom <= 16) {
+            return 20.0;
+        } else {
+            return 0;
         }
     }
 
@@ -1180,25 +1340,26 @@ public class MainController implements Initializable, NMEAHandler {
         mMapLoading = true;
 
         long t = System.currentTimeMillis();
-        if (mMapZoom <= 13) {
-            // always show countries
-            QueryController.getInstance().getAdminAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
-                    bbox.get(2), bbox.get(3), getAdminLevelListForCountries(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0, mCountryPolylines, MainController.this);
-            LogUtils.log("doLoadMapData getAdminAreasInBboxWithGeom time = " + (System.currentTimeMillis() - t));
-        }
+        // always show countries
+        QueryController.getInstance().getAdminAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
+                bbox.get(2), bbox.get(3), getAdminLevelListForCountries(), getSimplifyToleranceForZoom(),
+                mCountryPolylines, MainController.this);
+        LogUtils.log("doLoadMapData getCountriesInBboxWithGeom time = " + (System.currentTimeMillis() - t));
+
         // cant load areas async cause they are always on lowest level and ways are above
         if (mMapZoom >= 14) {
             t = System.currentTimeMillis();
             QueryController.getInstance().getAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
-                    bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), mMapZoom <= 14, mMapZoom <= 14 ? 20.0 : 0.0,
+                    bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), getSimplifyToleranceForZoom(),
                     getAreaMinSizeForZoom(), mPolylines, MainController.this);
             LogUtils.log("doLoadMapData getAreasInBboxWithGeom time = " + (System.currentTimeMillis() - t));
 
         }
-        if (mMapZoom >= 12) {
+        if (mMapZoom >= 10) {
             t = System.currentTimeMillis();
             QueryController.getInstance().getWaysInBboxWithGeom(bbox.get(0), bbox.get(1),
-                    bbox.get(2), bbox.get(3), getStreetTypeListForZoom(), false, 0.0, mPolylines, MainController.this);
+                    bbox.get(2), bbox.get(3), getStreetTypeListForZoom(), getSimplifyToleranceForZoom(), mPolylines,
+                    MainController.this);
             LogUtils.log("doLoadMapData getWaysInBboxWithGeom time = " + (System.currentTimeMillis() - t));
         }
         if (mMapZoom >= 14) {
@@ -1209,7 +1370,7 @@ public class MainController implements Initializable, NMEAHandler {
     public void loadFirstMapData() {
         startProgress();
         calcMapCenterPos();
-        calcMapZeroPos(false);
+        calcMapZeroPos(true);
         loadMapData(null);
     }
 
@@ -1492,7 +1653,7 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private void calcMapZeroPos(boolean sceneChanged) {
-        if (!sceneChanged) {
+        if (sceneChanged) {
             mRotate.setPivotY(mScene.getHeight() / 2);
             mZRotate.setPivotY(mScene.getHeight() / 2);
             mZRotate.setPivotX(mScene.getWidth() / 2);
@@ -1505,6 +1666,8 @@ public class MainController implements Initializable, NMEAHandler {
         if (mTrackMode || mTrackReplayMode) {
             calcGPSPos();
         }
+        //QueryMapTilesTask tileTask = new QueryMapTilesTask();
+        //mExecutorService.submit(tileTask);
     }
 
     private void calcCenterCoord() {
@@ -2263,7 +2426,7 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private boolean isShow3DActive() {
-        return mMapZoom >= 16 && mShow3D;
+        return mMapZoom >= 14 && mShow3D;
     }
 
     private void addRoutingNode(RoutingNode.TYPE type, Point2D coordsPos, long edgeId, long wayId) {
@@ -2394,7 +2557,8 @@ public class MainController implements Initializable, NMEAHandler {
         menuItem = new MenuItem(" Toggle 3D ");
         menuItem.setOnAction(ev -> {
             mShow3D = !mShow3D;
-            setTransforms();
+            calcMapCenterPos();
+            calcMapZeroPos(true);
             maybeLoadMapData(null);
         });
         menuItem.setStyle("-fx-font-size: 20");
@@ -2567,7 +2731,7 @@ public class MainController implements Initializable, NMEAHandler {
         }
         mQueryItems.clear();
         if (mQueryText != null && mQueryText.length() > 1) {
-            mQueryTask = new QueryTaskPOI(mQueryText, mFilterType);
+            mQueryTask = new QueryTaskPOI(mQueryText, mFilterType, mAdminId);
             mQueryTask.setOnRunning((runningEvent) -> {
                 mQueryListProgress.setVisible(true);
             });
@@ -2660,39 +2824,56 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private String getAdminAreaStringAtPos(Point2D coordPos) {
-        JsonArray adminData = QueryController.getInstance().getAdminAreasAtPointWithGeom(coordPos.getX(), coordPos.getY(),
-                "(8)", this);
-        if (adminData.size() == 0) {
-            adminData = QueryController.getInstance().getAdminAreasAtPointWithGeom(coordPos.getX(), coordPos.getY(),
-                    "(6)", this);
-        }
-
+        JsonArray adminDataList = getAdminAreaListAtPos(coordPos);
         StringBuilder s = new StringBuilder();
-        for (int i = adminData.size() - 1; i >= 0; i--) {
-            JsonObject area = (JsonObject) adminData.get(i);
-            JsonObject tags = (JsonObject) area.get("tags");
-            if (tags != null && tags.containsKey("name")) {
-                s.append(tags.get("name"));
+        for (int i = 0; i < adminDataList.size(); i++) {
+            JsonObject adminData = (JsonObject) adminDataList.get(i);
+            String name = (String) adminData.get("name");
+            s.append(name);
+            if (i < adminDataList.size() - 1) {
                 s.append("/");
+            }
+        }
+        return s.toString();
+    }
+
+    private JsonArray getAdminAreaListAtPos(Point2D coordPos) {
+        JsonArray adminDataList = QueryController.getInstance().getAdminAreasAtPointWithGeom(coordPos.getX(), coordPos.getY(),
+                "(8)", this);
+        JsonArray adminAreaList = new JsonArray();
+        if (adminDataList.size() != 0) {
+            JsonObject adminData = (JsonObject) adminDataList.get(0);
+            JsonObject tags = (JsonObject) adminData.get("tags");
+            if (tags != null) {
+                adminAreaList.add(adminData);
                 JsonArray parents = (JsonArray) tags.get("parents");
                 if (parents != null) {
                     for (int j = 0; j < parents.size(); j++) {
                         JsonObject parentAdminArea = QueryController.getInstance().getAdminAreasWithId(GISUtils.getLongValue(parents.get(j)));
                         if (parentAdminArea != null) {
-                            JsonObject parentTags = (JsonObject) parentAdminArea.get("tags");
-                            if (parentTags != null && parentTags.containsKey("name")) {
-                                s.append(parentTags.get("name"));
-                                if (j < parents.size() - 1) {
-                                    s.append("/");
-                                }
+                            int parentAdminLevel = GISUtils.getIntValue(parentAdminArea.get("adminLevel"));
+                            if (OSMUtils.mAdminLevelSet.contains(parentAdminLevel)) {
+                                adminAreaList.add(parentAdminArea);
                             }
                         }
                     }
                 }
             }
         }
-        return s.toString();
+        return adminAreaList;
     }
+
+    private long getAdminIdAtPos(Point2D coordPos) {
+        JsonArray adminDataList = QueryController.getInstance().getAdminAreasAtPointWithGeom(coordPos.getX(), coordPos.getY(),
+                "(8)", this);
+        if (adminDataList.size() != 0) {
+            JsonObject adminData = (JsonObject) adminDataList.get(0);
+            LogUtils.log("getAdminIdAtPos " + adminData.get("name"));
+            return GISUtils.getLongValue(adminData.get("osmId"));
+        }
+        return 0;
+    }
+
 
     private void saveCurrentMapPos() {
         Config.getInstance().put("zoom", mMapZoom);
