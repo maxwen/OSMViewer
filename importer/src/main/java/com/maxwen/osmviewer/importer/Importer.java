@@ -234,12 +234,7 @@ public class Importer implements PBFParser.ParseJobCallback, GeoJsonParser.Parse
         Importer i = new Importer();
         i.open();
         try {
-            ImportController.getInstance().removeAdminDB();
-            ImportController.getInstance().createAdminDB();
-
             i.parse();
-            ImportController.getInstance().removeEdgeDB();
-            ImportController.getInstance().createEdgeDB();
 
             ImportController.getInstance().createCrossingEntries();
             ImportController.getInstance().createEdgeTableEntries();
@@ -252,6 +247,7 @@ public class Importer implements PBFParser.ParseJobCallback, GeoJsonParser.Parse
             ImportController.getInstance().createAreaPOINodes();
             ImportController.getInstance().createPOINodesAdminData();
             ImportController.getInstance().createAdressAdminData();
+            ImportController.getInstance().removeOrphanedAddress();
 
         } catch (InterruptedException e) {
         }

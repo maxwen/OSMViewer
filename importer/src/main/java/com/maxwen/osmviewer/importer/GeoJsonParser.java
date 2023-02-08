@@ -63,21 +63,28 @@ public class GeoJsonParser {
                             long osmId = Math.abs(GISUtils.getLongValue(props.get("osm_id")));
                             String parentsString = (String) props.get("parents");
                             JsonArray parents = new JsonArray();
+                            long parentId = 0;
                             if (parentsString != null) {
                                 Iterator iter = Arrays.stream(parentsString.split(",")).iterator();
                                 while (iter.hasNext()) {
                                     parents.add(Math.abs(Long.valueOf((String) iter.next())));
                                 }
+                                parentId = (long) parents.get(0);
                             }
                             JsonObject tags = (JsonObject) props.get("all_tags");
+                            String name = (String) tags.get("name");
+                            if (name == null) {
+                                LogUtils.log("parseGeoJsonFile admin area without name osmId = " + osmId);
+                                continue;
+                            }
                             JsonObject tagsStripped = new JsonObject();
-                            tagsStripped.put("name", ImportController.getInstance().escapeSQLString((String) tags.get("name")));
+                            tagsStripped.put("name", ImportController.getInstance().escapeSQLString(name));
                             if (tags.containsKey("name:en")) {
                                 tagsStripped.put("name:en", ImportController.getInstance().escapeSQLString((String) tags.get("name:en")));
                             }
                             tagsStripped.put("parents", parents);
                             tagsStripped.put("id", parseJob.get("id"));
-                            ImportController.getInstance().addToAdminAreaTable(osmId, tagsStripped, adminLevel, polyString.toString());
+                            ImportController.getInstance().addToAdminAreaTable(osmId, tagsStripped, adminLevel, name, polyString.toString(), parentId);
                         }
                     }
                 }
