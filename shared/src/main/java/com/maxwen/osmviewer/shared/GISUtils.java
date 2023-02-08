@@ -4,13 +4,11 @@ import com.github.cliftonlabs.json_simple.JsonArray;
 import com.github.cliftonlabs.json_simple.JsonObject;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 public class GISUtils {
-    private static final int TILESIZE = 256;
-    private static final double M_LN2 = 0.69314718055994530942;
+    public static final int TILESIZE = 512;
+    public static final double M_LN2 = 0.69314718055994530942;
     private static final int RADIUS_EARTH = 6371;
     private static final double PI2 = 2 * Math.PI;
 
@@ -313,6 +311,8 @@ public class GISUtils {
                 return createCoordsFromMultiPolygon(coordsStr.substring("MULTIPOLYGON(((".length(), coordsStr.length() - 3));
             } else if (coordsStr.startsWith("POLYGON((")) {
                 return createCoordsFromMultiPolygon(coordsStr.substring("POLYGON((".length(), coordsStr.length() - 2));
+            } else if (coordsStr.startsWith("MULTILINESTRING((")) {
+                return createCoordsFromMultiPolygon(coordsStr.substring("MULTILINESTRING((".length(), coordsStr.length() - 2));
             } else if (coordsStr.startsWith("LINESTRING(")) {
                 return createCoordsFromLineString(coordsStr);
             }

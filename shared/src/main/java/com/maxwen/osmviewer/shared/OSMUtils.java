@@ -129,6 +129,11 @@ public class OSMUtils {
             POI_TYPE_EATING,
             POI_TYPE_PARKING);
 
+    public static final HashSet<Integer> mAdminLevelSet = new HashSet<>();
+    static {
+        mAdminLevelSet.addAll(Set.of(2,4,6,8));
+    }
+
     public static boolean isValidOnewayEnter(int oneway, long crossingRef, JsonObject edge) {
         long startRef = (long) edge.get("startRef");
         long endRef = (long) edge.get("endRef");
