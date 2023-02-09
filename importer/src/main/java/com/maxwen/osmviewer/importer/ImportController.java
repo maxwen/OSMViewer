@@ -3273,7 +3273,13 @@ public class ImportController {
                     long startRef = refNodeList.get(0);
                     long endRef = refId;
 
-                    List<Long> refList = getRefListSubset(refs, startRef, endRef);
+                    List<Long> refList;
+                    // special case circle way
+                    if (startRef == endRef && i != 0) {
+                        refList = jsonArrayRefsToList(refs);
+                    } else {
+                        refList = getRefListSubset(refs, startRef, endRef);
+                    }
                     JsonArray edgeCoords = createRefsCoords(refList);
                     if (edgeCoords.size() >= 2) {
                         JsonObject costs = getCostsOfWay(wayId, tags, distance, crossingFactor, typeInfo, maxspeed);
