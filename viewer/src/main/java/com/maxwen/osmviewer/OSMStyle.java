@@ -36,13 +36,14 @@ public class OSMStyle {
         mStreetColors.put(OSMUtils.STREET_TYPE_PRIMARY_LINK, Color.rgb(0xfc, 0xd6, 0xa4));
         mStreetColors.put(OSMUtils.STREET_TYPE_SECONDARY, Color.rgb(0xff, 0xfa, 0xbf));
         mStreetColors.put(OSMUtils.STREET_TYPE_SECONDARY_LINK, Color.rgb(0xff, 0xfa, 0xbf));
-        mStreetColors.put(OSMUtils.STREET_TYPE_TERTIARY, Color.rgb(0xff, 0xff, 0xb3));
-        mStreetColors.put(OSMUtils.STREET_TYPE_TERTIARY_LINK, Color.rgb(0xff, 0xff, 0xb3));
+        mStreetColors.put(OSMUtils.STREET_TYPE_TERTIARY, Color.rgb(0xff, 0xff, 0xff));
+        mStreetColors.put(OSMUtils.STREET_TYPE_TERTIARY_LINK, Color.rgb(0xff, 0xff, 0xff));
         mStreetColors.put(OSMUtils.STREET_TYPE_RESIDENTIAL, Color.rgb(0xff, 0xff, 0xff));
         mStreetColors.put(OSMUtils.STREET_TYPE_UNCLASSIFIED, Color.rgb(0xff, 0xff, 0xff));
         mStreetColors.put(OSMUtils.STREET_TYPE_ROAD, Color.rgb(0xff, 0xff, 0xff));
         mStreetColors.put(OSMUtils.STREET_TYPE_SERVICE, Color.rgb(0xff, 0xff, 0xff));
         mStreetColors.put(OSMUtils.STREET_TYPE_LIVING_STREET, Color.rgb(0xff, 0xff, 0xff));
+        mStreetColors.put(OSMUtils.STREET_TYPE_TRACK, Color.rgb(0xf0, 0xf0, 0xf0));
 
         mAreaColors = new HashMap();
         mAreaColors.put("adminAreaColor", Color.rgb(0xac, 0x46, 0xac, 0.8d));
@@ -238,7 +239,7 @@ public class OSMStyle {
         if (landuse.equals("industrial"))
             return mAreaColors.get("industrialColor");
         if (landuse.equals("forest"))
-            if (zoom >= 15) {
+            if (zoom >= 14) {
                 return mAreaColors.get("forestAreaPattern");
             } else {
                 return mAreaColors.get("forestAreaColor");
@@ -355,6 +356,25 @@ public class OSMStyle {
         return 1;
     }
 
+    private static int getWaterPenWidthForZoom(int zoom) {
+        if (zoom == 20) {
+            return 12;
+        }
+        if (zoom == 19) {
+            return 8;
+        }
+        if (zoom == 18) {
+            return 6;
+        }
+        if (zoom == 17) {
+            return 4;
+        }
+        if (zoom == 16) {
+            return 3;
+        }
+        return 1;
+    }
+
     public static int getPoiSizeForZoom(int zoom, int baseSize) {
         if (zoom == 20) {
             return (int) (baseSize * 2.5);
@@ -385,7 +405,7 @@ public class OSMStyle {
         }
 
         wayLine.setStrokeWidth(width);
-        //wayLine.setSmooth(true);
+        wayLine.setSmooth(true);
         if (isBridge == 1 || isTunnel == 1) {
             wayLine.setStrokeLineCap(StrokeLineCap.SQUARE);
         } else {
@@ -415,6 +435,10 @@ public class OSMStyle {
     public static void amendLineArea(JsonObject area, Shape areaLine, int zoom) {
         areaLine.setStroke(getAreaColor(area, zoom));
         //areaLine.setSmooth(true);
+        int areaType = (int) area.get("areaType");
+        if (areaType == OSMUtils.AREA_TYPE_WATER) {
+            areaLine.setStrokeWidth(getWaterPenWidthForZoom(zoom));
+        }
     }
 
     public static void amendRailway(JsonObject area, Shape areaLine, int zoom) {
@@ -428,30 +452,20 @@ public class OSMStyle {
         //areaLine.setSmooth(true);
     }
 
-    public static void amendAdminLine(JsonObject adminLine, Shape areaLine, int zoom) {
-        if (mAreaColors == null) {
-            init();
-        }
-        int adminLevel = (int) adminLine.get("adminLevel");
-        double width = getAdminLinePenWidthForZoom(zoom);
-        areaLine.getStrokeDashArray().addAll(2 * width);
-        areaLine.setStroke(mAreaColors.get("adminAreaColor"));
-        areaLine.setStrokeWidth(width);
-        //areaLine.setSmooth(true);
-    }
-
     public static void amendAdminArea(JsonObject adminArea, Shape areaLine, int zoom) {
         if (mAreaColors == null) {
             init();
         }
         int adminLevel = (int) adminArea.get("adminLevel");
         double width = getAdminLinePenWidthForZoom(zoom);
-        if (adminLevel == 2) {
-            width *= 2;
-        } else if (adminLevel == 4) {
-            width *= 1.5;
+        if (zoom > 6) {
+            if (adminLevel == 2) {
+                width *= 2;
+            } else if (adminLevel == 4) {
+                width *= 1.5;
+            }
         }
-        areaLine.getStrokeDashArray().addAll(2 * width);
+        areaLine.getStrokeDashArray().addAll(width);
         areaLine.setStroke(mAreaColors.get("adminAreaColor"));
         areaLine.setStrokeWidth(width);
         //areaLine.setSmooth(true);

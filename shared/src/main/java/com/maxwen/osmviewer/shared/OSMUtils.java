@@ -27,6 +27,7 @@ public class OSMUtils {
     public static final int STREET_TYPE_PRIMARY = 12;
     public static final int STREET_TYPE_TRUNK = 13;
     public static final int STREET_TYPE_MOTORWAY = 14;
+    public static final int STREET_TYPE_TRACK = 15;
 
     public static final int AREA_TYPE_LANDUSE = 1;
     public static final int AREA_TYPE_NATURAL = 2;

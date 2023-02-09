@@ -148,5 +148,9 @@
         <children>
         </children>
     </VBox>
+    <VBox fx:id="filterContent" alignment="TOP_LEFT" visible="false" style="-fx-background-color: white;">
+        <children>
+        </children>
+    </VBox>
 </BorderPane>
 

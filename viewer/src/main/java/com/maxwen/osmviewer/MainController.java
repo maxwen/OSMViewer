@@ -14,6 +14,7 @@ import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
+import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -36,16 +37,13 @@ import javafx.stage.FileChooser;
 import javafx.stage.Popup;
 import javafx.stage.Stage;
 
-import java.io.File;
-import java.io.IOException;
+import javax.net.ssl.HttpsURLConnection;
+import java.io.*;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import static com.maxwen.osmviewer.shared.GISUtils.M_LN2;
-import static com.maxwen.osmviewer.shared.GISUtils.TILESIZE;
 
 public class MainController implements Initializable, NMEAHandler {
     public static final int ROTATE_X_VALUE = 60;
@@ -109,8 +107,10 @@ public class MainController implements Initializable, NMEAHandler {
     @FXML
     StackPane mainStackPane;
     Pane mainPane;
+    @FXML
+    VBox filterContent;
 
-    private static final int MIN_ZOOM = 6;
+    private static final int MIN_ZOOM = 4;
     private static final int MAX_ZOOM = 20;
     private int mMapZoom = 17;
     private double mMapZeroX;
@@ -154,9 +154,14 @@ public class MainController implements Initializable, NMEAHandler {
     private Pane mNodePane = new Pane();
     private Pane mRoutingPane = new Pane();
     private Pane mTrackingPane = new Pane();
+    private Pane mCountryPane = new Pane();
+    private Pane mAreaPane = new Pane();
+    private Pane mTilePane = new Pane();
+
+    private List<Pane> mTransformPanes = new ArrayList<>();
     private ExecutorService mExecutorService;
     private LoadPOITask mLoadPOITask;
-    private LoadAdminAreaTask mLoadAdminAreaTask;
+    private LoadAreaTask mLoadAreaTask;
     private Map<Integer, List<Node>> mAreaPolylines;
     private Map<Integer, List<Node>> mCountryPolylines;
     private JsonObject mSelectedEdge;
@@ -169,12 +174,14 @@ public class MainController implements Initializable, NMEAHandler {
     private List<Long> mRouteEdgeIdList = new ArrayList<>();
     private boolean mMapLoading;
     private LoadMapDataTask mLoadMapDataTask;
-    private boolean mRigthSideExpanded = false;
+    private boolean mSearchContentExpanded;
+    private boolean mFilterContentExpanded;
+
     ObservableList<QueryItem> mQueryItems = FXCollections.observableArrayList();
     private ProgressIndicator mQueryListProgress;
     private ProgressIndicator mLoadMapProgress;
     private MenuButton mFilterHeader;
-    //private Circle mCenterDot;
+    private Rectangle mOutlineRect;
 
     enum FilterType {
         POI,
@@ -186,6 +193,13 @@ public class MainController implements Initializable, NMEAHandler {
     private FilterType mFilterType = FilterType.POI;
     private JsonArray mLocationHistory = new JsonArray();
     private int mLocationHistoryIndex;
+
+    private QueryMapTilesTask mQueryTilesTask;
+
+    private String mTilesHome;
+
+    private static final int HTTP_READ_TIMEOUT = 30000;
+    private static final int HTTP_CONNECTION_TIMEOUT = 30000;
 
     public static final int TUNNEL_LAYER_LEVEL = -1;
     public static final int ADMIN_AREA_LAYER_LEVEL = 0;
@@ -226,14 +240,10 @@ public class MainController implements Initializable, NMEAHandler {
                 }
 
                 LogUtils.log("admin = " + getAdminAreaStringAtPos(mMouseClickedCoordsPos) + " " + getAdminIdAtPos(mMouseClickedCoordsPos));
-
+                if (!mTrackReplayMode && !mTrackMode) {
+                    posLabel.setText(String.format("%.5f:%.5f", mMouseClickedCoordsPos.getX(), mMouseClickedCoordsPos.getY()));
+                }
                 if (mMapZoom > 16) {
-                    // mouseScreenPos will be transformed pos
-
-                    if (!mTrackReplayMode && !mTrackMode) {
-                        posLabel.setText(String.format("%.5f:%.5f", mMouseClickedCoordsPos.getX(), mMouseClickedCoordsPos.getY()));
-                    }
-
                     // first check for poi nodes with screen pos
                     for (OSMImageView node : mNodes) {
                         if (node.contains(nodePos)) {
@@ -259,9 +269,7 @@ public class MainController implements Initializable, NMEAHandler {
                             mResolvePositionTask.setOnSucceeded((succeededEvent) -> {
                                 mSelectedEdge = mResolvePositionTask.getResolvedEdge();
                                 if (mSelectedEdge != null) {
-                                    mSelectedEdgeShape = displayCoordsPolyline((JsonArray) mSelectedEdge.get("coords"));
-                                    mSelectedEdgeShape.setStrokeWidth(2);
-                                    mSelectedEdgeShape.setStroke(Color.GREEN);
+                                    createSelectedEdgeShape();
                                     drawShapes();
                                 }
                             });
@@ -279,15 +287,16 @@ public class MainController implements Initializable, NMEAHandler {
                 }
                 int diffX = (int) (mMovePoint.getX() - mouseEvent.getSceneX());
                 int diffY = (int) (mMovePoint.getY() - mouseEvent.getSceneY());
-                if (Math.abs(diffX) > 5 || Math.abs(diffY) > 5) {
-                    moveMap(diffX, diffY);
-                    mMovePoint = new Point2D(mouseEvent.getSceneX(), mouseEvent.getSceneY());
-                }
+                //if (Math.abs(diffX) > 5 || Math.abs(diffY) > 5) {
+                moveMap(diffX, diffY);
+                mMovePoint = new Point2D(mouseEvent.getSceneX(), mouseEvent.getSceneY());
+                //}
             }
             if (mouseEvent.getEventType() == MouseEvent.MOUSE_RELEASED) {
                 //LogUtils.log("MOUSE_RELEASED:mouseHandler");
                 mMovePoint = null;
             }
+            mouseEvent.consume();
         }
     };
 
@@ -354,25 +363,27 @@ public class MainController implements Initializable, NMEAHandler {
         }
     }
 
-    public class LoadAdminAreaTask extends LoadMapTask {
-        public LoadAdminAreaTask(List<Double> bbox) {
+    public class LoadAreaTask extends LoadMapTask {
+        public LoadAreaTask(List<Double> bbox) {
             super(bbox);
         }
 
         @Override
         protected Void call() throws Exception {
-            LogUtils.log("LoadAdminAreaTask " + bbox);
+            LogUtils.log("LoadAreaTask " + bbox);
 
             if (isCancelled()) {
-                LogUtils.log("LoadAdminAreaTask cancel");
+                LogUtils.log("LoadAreaTask cancel");
                 return null;
             }
             if (mMapZoom >= 14) {
-                QueryController.getInstance().getLinesInBboxWithGeom(bbox.get(0), bbox.get(1),
-                        bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), getSimplifyToleranceForZoom(), mAreaPolylines, MainController.this);
+                long t = System.currentTimeMillis();
+                QueryController.getInstance().getAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
+                        bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), getSimplifyToleranceForZoom(),
+                        getAreaMinSizeForZoom(), mAreaPolylines, MainController.this);
+                LogUtils.log("doLoadMapData LoadAreaTask time = " + (System.currentTimeMillis() - t));
+
             }
-            QueryController.getInstance().getAdminAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
-                    bbox.get(2), bbox.get(3), getAdminLevelListForZoom(), getSimplifyToleranceForZoom(), mAreaPolylines, MainController.this);
             return null;
         }
     }
@@ -494,7 +505,6 @@ public class MainController implements Initializable, NMEAHandler {
             } else if (mFilterType == FilterType.LOCAL) {
                 JsonArray adminIdList = QueryController.getInstance().getAdminAreaChildren(mAdminId);
                 adminIdList.add(mAdminId);
-                LogUtils.log("" + adminIdList.size());
                 QueryController.getInstance().queryPOINodesMatchingNameAndAdminId(mQueryString, adminIdList, null, this);
                 QueryController.getInstance().queryAddressMatchingNameAndAdminId(mQueryString, adminIdList, this);
             }
@@ -560,65 +570,92 @@ public class MainController implements Initializable, NMEAHandler {
         }
     }
 
-    public class QueryMapTilesTask extends Task<Void> {
+    public class QueryMapTilesTask extends Task<List<ImageView>> {
+        private List<ImageView> mTilesList = new ArrayList<>();
 
         public QueryMapTilesTask() {
         }
 
         @Override
-        protected Void call() throws Exception {
-            int width = (int) mScene.getWidth();
-            int height = (int) mScene.getHeight();
-            int map_x = (int) mMapZeroX;
-            int map_y = (int) mMapZeroY;
+        protected List<ImageView> call() throws Exception {
+            int zoom = mMapZoom;
 
-            int offset_x = -map_x % TILESIZE;
-            if (offset_x == 0) {
-                offset_x = -TILESIZE;
-            }
+            String relTilePath = getTileNumber(mCenterLat, mCenterLon, zoom);
+            int xTile = Integer.valueOf(relTilePath.split("/")[1]);
+            int yTile = Integer.valueOf(relTilePath.split("/")[2]);
+            for (int i = yTile - 3; i < yTile + 3; i++) {
+                for (int j = xTile - 3; j < xTile + 3; j++) {
+                    relTilePath = zoom + "/" + j + "/" + i + ".jpg";
 
-            int offset_y = -map_y % TILESIZE;
-            if (offset_y == 0) {
-                offset_y = -TILESIZE;
-            }
+                    LogUtils.log("" + relTilePath + " " + xTile + " " + yTile);
 
-            if (offset_x >= 0) {
-                offset_x -= TILESIZE * 4;
-            }
-            if (offset_y >= 0) {
-                offset_y -= TILESIZE * 4;
-            }
-
-            int tiles_nx = (width - offset_x) / TILESIZE + 1;
-            int tiles_ny = (height - offset_y) / TILESIZE + 1;
-
-            int tile_x0 = (int) (Math.floor((map_x - TILESIZE) / TILESIZE)) - 2;
-            int tile_y0 = (int) (Math.floor((map_y - TILESIZE) / TILESIZE)) - 2;
-
-            int i = tile_x0;
-            int j = tile_y0;
-            int offset_y0 = offset_y;
-
-            while (i < (tile_x0 + tiles_nx)) {
-                while (j < (tile_y0 + tiles_ny)) {
-                    if (j < 0 || i < 0 || i >= Math.exp(mMapZoom * M_LN2) || j >= Math.exp(mMapZoom * M_LN2)) {
-                        //pixbuf = self.getEmptyTile()
-                    } else {
-                        //pixbuf = self.getTile(self.map_zoom, i, j);
+                    File tileFile = new File(mTilesHome, relTilePath);
+                    if (!tileFile.getParentFile().exists()) {
+                        tileFile.getParentFile().mkdirs();
                     }
-                    LogUtils.log("" + mMapZoom + "/" + i + "/" + j + ".png");
-                    //self.drawPixmap(offset_x, offset_y, TILESIZE, TILESIZE, pixbuf)
-                    LogUtils.log("" + offset_x + ":" + offset_y + "x" + TILESIZE + ":" + TILESIZE);
+                    if (!tileFile.exists()) {
+                        downloadTile(relTilePath, tileFile);
+                    }
+                    if (tileFile.exists()) {
+                        ImageView tileView = new ImageView();
+                        tileView.setImage(new Image(new FileInputStream(tileFile)));
 
-                    offset_y += TILESIZE;
-                    j = j + 1;
+                        double lat = tile2lat(i, zoom);
+                        double lon = tile2lon(j, zoom);
+
+                        tileView.setLayoutX(getPixelXPosForLocationDeg(lon));
+                        tileView.setLayoutY(getPixelYPosForLocationDeg(lat));
+                        tileView.setTranslateX(-mMapZeroX);
+                        tileView.setTranslateY(-mMapZeroY);
+                        mTilesList.add(tileView);
+                    }
                 }
-                offset_x += TILESIZE;
-                offset_y = offset_y0;
-                i = i + 1;
-                j = tile_y0;
             }
-            return null;
+
+            return mTilesList;
+        }
+
+        private String getTileNumber(final double lat, final double lon, final int zoom) {
+            int xtile = (int) Math.floor((lon + 180) / 360 * (1 << zoom));
+            int ytile = (int) Math.floor((1 - Math.log(Math.tan(Math.toRadians(lat)) + 1 / Math.cos(Math.toRadians(lat))) / Math.PI) / 2 * (1 << zoom));
+            if (xtile < 0)
+                xtile = 0;
+            if (xtile >= (1 << zoom))
+                xtile = ((1 << zoom) - 1);
+            if (ytile < 0)
+                ytile = 0;
+            if (ytile >= (1 << zoom))
+                ytile = ((1 << zoom) - 1);
+            return ("" + zoom + "/" + xtile + "/" + ytile);
+        }
+
+        double tile2lon(int x, int z) {
+            return x / Math.pow(2.0, z) * 360.0 - 180;
+        }
+
+        double tile2lat(int y, int z) {
+            double n = Math.PI - (2.0 * Math.PI * y) / Math.pow(2.0, z);
+            return Math.toDegrees(Math.atan(Math.sinh(n)));
+        }
+
+        private void downloadTile(String relTilePath, File tileFile) throws IOException {
+            // https://api.maptiler.com/maps/openstreetmap/17/68931/45055@2x.jpg?key=IvB2ZEjLZPmCZfC56KxL
+            URL url = new URL("https://api.maptiler.com/maps/openstreetmap/" + relTilePath + "?key=IvB2ZEjLZPmCZfC56KxL");
+            LogUtils.log("" + url);
+            HttpsURLConnection con = setupHttpsRequest(url);
+            if (con != null) {
+                // opens input stream from the HTTP connection
+                InputStream inputStream = con.getInputStream();
+                FileOutputStream outputStream = new FileOutputStream(tileFile);
+
+                int bytesRead = -1;
+                byte[] buffer = new byte[4096];
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+                outputStream.close();
+                inputStream.close();
+            }
         }
     }
 
@@ -639,6 +676,10 @@ public class MainController implements Initializable, NMEAHandler {
 
     private void init() {
         LogUtils.log("init");
+        String tilesHome = System.getProperty("osm.tiles.path");
+        mTilesHome = System.getenv().getOrDefault("OSM_TILES_PATH", tilesHome);
+        LogUtils.log("MainController tiles home: " + mTilesHome);
+
         mPolylines = new LinkedHashMap<>();
         mPolylines.put(TUNNEL_LAYER_LEVEL, new ArrayList<>());
         mPolylines.put(ADMIN_AREA_LAYER_LEVEL, new ArrayList<>());
@@ -677,68 +718,74 @@ public class MainController implements Initializable, NMEAHandler {
         searchButton.setGraphic(new ImageView(new Image("/images/ui/map-search.png")));
         //searchButton.setShape(new Circle(40));
         searchButton.setOnAction(e -> {
-            if (!mRigthSideExpanded) {
-                searchContent.setVisible(true);
-                rightPane.getChildren().add(0, searchContent);
-                // TODO move in func
-                Timer animTimer = new Timer();
-                animTimer.scheduleAtFixedRate(new TimerTask() {
-                    int i = 0;
-
-                    @Override
-                    public void run() {
-                        if (i < 10) {
-                            searchContent.setPrefWidth(Math.min(searchContent.getPrefWidth() + 30, 300));
-                        } else {
-                            this.cancel();
-                            Platform.runLater(new Runnable() {
-                                @Override
-                                public void run() {
-                                    mRigthSideExpanded = true;
-                                }
-                            });
-                        }
-                        i++;
-                    }
-
-                }, 0, 25);
+            if (!mSearchContentExpanded) {
+                showSearchContents();
             } else {
-                // TODO move in func
-                Timer animTimer = new Timer();
-                animTimer.scheduleAtFixedRate(new TimerTask() {
-                    int i = 0;
-
-                    @Override
-                    public void run() {
-                        if (i < 10) {
-                            searchContent.setPrefWidth(Math.max(0, searchContent.getPrefWidth() - 30));
-                        } else {
-                            this.cancel();
-                            Platform.runLater(new Runnable() {
-                                @Override
-                                public void run() {
-                                    searchContent.setVisible(false);
-                                    rightPane.getChildren().remove(0);
-                                    mRigthSideExpanded = false;
-                                }
-                            });
-                        }
-                        i++;
-                    }
-
-                }, 0, 25);
+                hideSearchContents();
             }
         });
 
         mQueryField = new TextField();
         mQueryField.setPromptText("Search...");
-        mQueryField.setMinHeight(40);
+        mQueryField.setMinHeight(48);
+        mQueryField.setStyle("-fx-font-size: 16");
 
         mQueryField.setOnKeyReleased(event -> {
             mQueryText = mQueryField.getText();
             updateListContent();
         });
         searchContent.getChildren().add(mQueryField);
+
+        CheckBox tilePaneVisible = new CheckBox("Tiles");
+        tilePaneVisible.setStyle("-fx-font-size: 16");
+        tilePaneVisible.setPadding(new Insets(3, 0, 3, 0));
+        tilePaneVisible.setSelected(true);
+        tilePaneVisible.setOnAction(event -> {
+            if (tilePaneVisible.isSelected()) {
+                mTilePane.setVisible(true);
+            } else {
+                mTilePane.setVisible(false);
+            }
+        });
+        CheckBox countryPaneVisible = new CheckBox("Countries");
+        countryPaneVisible.setStyle("-fx-font-size: 16");
+        countryPaneVisible.setPadding(new Insets(3, 0, 3, 0));
+        countryPaneVisible.setSelected(true);
+        countryPaneVisible.setOnAction(event -> {
+            if (countryPaneVisible.isSelected()) {
+                mCountryPane.setVisible(true);
+            } else {
+                mCountryPane.setVisible(false);
+            }
+        });
+        CheckBox poiPaneVisible = new CheckBox("POIs");
+        poiPaneVisible.setStyle("-fx-font-size: 16");
+        poiPaneVisible.setPadding(new Insets(3, 0, 3, 0));
+        poiPaneVisible.setSelected(true);
+        poiPaneVisible.setOnAction(event -> {
+            if (poiPaneVisible.isSelected()) {
+                mNodePane.setVisible(true);
+            } else {
+                mNodePane.setVisible(false);
+            }
+        });
+
+        CheckBox areaPaneVisible = new CheckBox("Areas");
+        areaPaneVisible.setStyle("-fx-font-size: 16");
+        areaPaneVisible.setPadding(new Insets(3, 0, 3, 0));
+        areaPaneVisible.setSelected(true);
+        areaPaneVisible.setOnAction(event -> {
+            if (areaPaneVisible.isSelected()) {
+                mAreaPane.setVisible(true);
+            } else {
+                mAreaPane.setVisible(false);
+            }
+        });
+        filterContent.setPadding(new Insets(10, 10, 10, 10));
+        filterContent.getChildren().add(tilePaneVisible);
+        filterContent.getChildren().add(countryPaneVisible);
+        filterContent.getChildren().add(poiPaneVisible);
+        filterContent.getChildren().add(areaPaneVisible);
 
         HBox filterSelect = new HBox();
         filterSelect.setPadding(new Insets(10, 10, 10, 10));
@@ -962,12 +1009,12 @@ public class MainController implements Initializable, NMEAHandler {
         mGPSDot.setFill(Color.TRANSPARENT);
         mGPSDot.setStrokeWidth(2);
 
-        //mCenterDot = new Circle();
-        //mCenterDot.setStroke(Color.BLACK);
-        //mCenterDot.setFill(Color.TRANSPARENT);
-        //mCenterDot.setStrokeWidth(3);
-        //mCenterDot.setRadius(50);
-        //mCenterDot.setVisible(true);
+        // WURGS - we always need a shape on the map pane to get mouse handler going
+        mOutlineRect = new Rectangle();
+        mOutlineRect.setStroke(Color.TRANSPARENT);
+        mOutlineRect.setFill(Color.TRANSPARENT);
+        mOutlineRect.setStrokeWidth(1);
+        mOutlineRect.setVisible(true);
 
         mRotate = new Rotate(-ROTATE_X_VALUE, Rotate.X_AXIS);
         mZRotate = new Rotate();
@@ -1015,7 +1062,16 @@ public class MainController implements Initializable, NMEAHandler {
         infoTitle.setTextFill(Color.WHITE);
         infoTitle.setEffect(shadow);
 
+        mainPane.getChildren().add(mTilePane);
+        mainPane.getChildren().add(mAreaPane);
         mainPane.getChildren().add(mMapPane);
+        mainPane.getChildren().add(mCountryPane);
+
+        mTransformPanes.add(mTilePane);
+        mTransformPanes.add(mAreaPane);
+        mTransformPanes.add(mMapPane);
+        mTransformPanes.add(mCountryPane);
+
         mainPane.getChildren().add(mNodePane);
         mainPane.getChildren().add(mRoutingPane);
         mainPane.getChildren().add(mTrackingPane);
@@ -1024,6 +1080,9 @@ public class MainController implements Initializable, NMEAHandler {
         mNodePane.setDisable(true);
         mRoutingPane.setDisable(true);
         mTrackingPane.setDisable(true);
+        mAreaPane.setDisable(true);
+        mTilePane.setDisable(true);
+        mCountryPane.setDisable(true);
 
         borderPane.setOnKeyPressed(new EventHandler<KeyEvent>() {
             @Override
@@ -1039,12 +1098,6 @@ public class MainController implements Initializable, NMEAHandler {
                 }
             }
         });
-
-        // NEVER EVER add eventlistener to anythign else
-        // needed for correct x,y translation in 3d mode
-        mMapPane.addEventFilter(MouseEvent.MOUSE_RELEASED, mouseHandler);
-        mMapPane.addEventFilter(MouseEvent.MOUSE_CLICKED, mouseHandler);
-        mMapPane.addEventFilter(MouseEvent.MOUSE_DRAGGED, mouseHandler);
 
         restoreRoutingNodes();
     }
@@ -1074,6 +1127,12 @@ public class MainController implements Initializable, NMEAHandler {
             calcMapZeroPos(true);
             drawShapes();
         });
+
+        // NEVER EVER add eventlistener to anythign else
+        // needed for correct x,y translation in 3d mode
+        mMapPane.addEventFilter(MouseEvent.MOUSE_RELEASED, mouseHandler);
+        mMapPane.addEventFilter(MouseEvent.MOUSE_CLICKED, mouseHandler);
+        mMapPane.addEventFilter(MouseEvent.MOUSE_DRAGGED, mouseHandler);
     }
 
     public void addToOSMCache(long osmId, JsonObject osmObject) {
@@ -1129,7 +1188,9 @@ public class MainController implements Initializable, NMEAHandler {
                     OSMUtils.STREET_TYPE_TERTIARY_LINK,
                     OSMUtils.STREET_TYPE_RESIDENTIAL,
                     OSMUtils.STREET_TYPE_ROAD,
-                    OSMUtils.STREET_TYPE_UNCLASSIFIED);
+                    OSMUtils.STREET_TYPE_UNCLASSIFIED,
+                    OSMUtils.STREET_TYPE_SERVICE,
+                    OSMUtils.STREET_TYPE_TRACK);
             return typeFilterList;
         } else {
             return null;
@@ -1137,20 +1198,15 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private String getAdminLevelListForZoom() {
-        // we alwats show level 2 == countries
         if (mMapZoom <= 8) {
-            return "(4)";
+            return "(2, 4)";
         } else if (mMapZoom <= MAX_ZOOM) {
-            return "(4, 6)";
+            return "(2, 4, 6)";
         /*} else if (mMapZoom <= MAX_ZOOM) {
             return "(4, 6, 8)";*/
         } else {
             return null;
         }
-    }
-
-    private String getAdminLevelListForCountries() {
-        return "(2)";
     }
 
     private List<Integer> getAreaTypeListForZoom() {
@@ -1203,8 +1259,10 @@ public class MainController implements Initializable, NMEAHandler {
             return 40.0;
         } else if (mMapZoom <= 14) {
             return 30.0;
-        } else if (mMapZoom <= 16) {
+        } else if (mMapZoom <= 15) {
             return 20.0;
+        } else if (mMapZoom <= 16) {
+            return 10.0;
         } else {
             return 0;
         }
@@ -1237,6 +1295,7 @@ public class MainController implements Initializable, NMEAHandler {
         mMapPane.getChildren().clear();
         mRoutingPane.getChildren().clear();
         mTrackingPane.getChildren().clear();
+        mCountryPane.getChildren().clear();
 
         if (mSelectdOSMId != -1) {
             mSelectdShape = findShapeOfOSMId(mSelectdOSMId);
@@ -1256,7 +1315,7 @@ public class MainController implements Initializable, NMEAHandler {
             }
         }
         for (List<Node> polyList : mCountryPolylines.values()) {
-            mMapPane.getChildren().addAll(polyList);
+            mCountryPane.getChildren().addAll(polyList);
         }
         for (List<Node> polyList : mPolylines.values()) {
             mMapPane.getChildren().addAll(polyList);
@@ -1267,9 +1326,7 @@ public class MainController implements Initializable, NMEAHandler {
                 mRoutingPane.getChildren().add(mSelectdShape.getShape());
             }
             if (mSelectedEdge != null) {
-                mSelectedEdgeShape = displayCoordsPolyline((JsonArray) mSelectedEdge.get("coords"));
-                mSelectedEdgeShape.setStrokeWidth(2);
-                mSelectedEdgeShape.setStroke(Color.GREEN);
+                createSelectedEdgeShape();
                 mRoutingPane.getChildren().add(mSelectedEdgeShape);
             }
             if (mTrackingShape != null) {
@@ -1297,9 +1354,6 @@ public class MainController implements Initializable, NMEAHandler {
             mRoutingPane.getChildren().addAll(mRoutePolylineList);
         }
 
-        //updateCenterDot();
-        //mTrackingPane.getChildren().add(mCenterDot);
-
         mCalcPoint = new Circle();
         mCalcPoint.setCenterX(0);
         mCalcPoint.setCenterY(0);
@@ -1307,26 +1361,51 @@ public class MainController implements Initializable, NMEAHandler {
         mCalcPoint.setVisible(false);
         mTrackingPane.getChildren().add(mCalcPoint);
 
-        mLoadAdminAreaTask = new LoadAdminAreaTask(bbox);
+        if (mMapZoom >= 14) {
+            mLoadAreaTask = new LoadAreaTask(bbox);
 
-        mLoadAdminAreaTask.setOnSucceeded((succeededEvent) -> {
-            LogUtils.log("loadMapData: LoadAdminAreaTask succeededEvent");
             for (List<Node> polyList : mAreaPolylines.values()) {
-                mMapPane.getChildren().addAll(polyList);
+                polyList.clear();
             }
-            drawShapes();
-        });
 
-        mExecutorService.submit(mLoadAdminAreaTask);
+            mLoadAreaTask.setOnSucceeded((succeededEvent) -> {
+                LogUtils.log("loadMapData: LoadAreaTask succeededEvent");
+                mAreaPane.getChildren().clear();
 
-        mLoadPOITask = new LoadPOITask(bbox);
+                for (List<Node> polyList : mAreaPolylines.values()) {
+                    mAreaPane.getChildren().addAll(polyList);
+                }
+                drawShapes();
+            });
 
-        mLoadPOITask.setOnSucceeded((succeededEvent) -> {
-            LogUtils.log("loadMapData: LoadPOITask succeededEvent");
-            drawShapes();
-        });
+            mExecutorService.submit(mLoadAreaTask);
+        }
 
-        mExecutorService.submit(mLoadPOITask);
+        if (mMapZoom >= 17) {
+            mLoadPOITask = new LoadPOITask(bbox);
+
+            mLoadPOITask.setOnSucceeded((succeededEvent) -> {
+                LogUtils.log("loadMapData: LoadPOITask succeededEvent");
+                drawShapes();
+            });
+
+            mExecutorService.submit(mLoadPOITask);
+        }
+
+        if (mMapZoom <= 18) {
+            mQueryTilesTask = new QueryMapTilesTask();
+
+            mQueryTilesTask.setOnSucceeded((succeededEvent) -> {
+                LogUtils.log("loadMapData: QueryMapTilesTask succeededEvent");
+                mTilePane.getChildren().clear();
+
+                mTilePane.getChildren().addAll(mQueryTilesTask.getValue());
+                drawShapes();
+            });
+
+            mExecutorService.submit(mQueryTilesTask);
+        }
+
         stopProgress();
 
         if (doAfter != null) {
@@ -1342,29 +1421,26 @@ public class MainController implements Initializable, NMEAHandler {
         long t = System.currentTimeMillis();
         // always show countries
         QueryController.getInstance().getAdminAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
-                bbox.get(2), bbox.get(3), getAdminLevelListForCountries(), getSimplifyToleranceForZoom(),
+                bbox.get(2), bbox.get(3), getAdminLevelListForZoom(), getSimplifyToleranceForZoom(),
                 mCountryPolylines, MainController.this);
         LogUtils.log("doLoadMapData getCountriesInBboxWithGeom time = " + (System.currentTimeMillis() - t));
 
-        // cant load areas async cause they are always on lowest level and ways are above
         if (mMapZoom >= 14) {
-            t = System.currentTimeMillis();
-            QueryController.getInstance().getAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
-                    bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), getSimplifyToleranceForZoom(),
-                    getAreaMinSizeForZoom(), mPolylines, MainController.this);
-            LogUtils.log("doLoadMapData getAreasInBboxWithGeom time = " + (System.currentTimeMillis() - t));
-
+            QueryController.getInstance().getLinesInBboxWithGeom(bbox.get(0), bbox.get(1),
+                    bbox.get(2), bbox.get(3), getAreaTypeListForZoom(), getSimplifyToleranceForZoom(), mPolylines, MainController.this);
         }
         if (mMapZoom >= 10) {
             t = System.currentTimeMillis();
             QueryController.getInstance().getWaysInBboxWithGeom(bbox.get(0), bbox.get(1),
-                    bbox.get(2), bbox.get(3), getStreetTypeListForZoom(), getSimplifyToleranceForZoom(), mPolylines,
+                    bbox.get(2), bbox.get(3), getStreetTypeListForZoom(), 0 /*,getSimplifyToleranceForZoom()*/, mPolylines,
                     MainController.this);
             LogUtils.log("doLoadMapData getWaysInBboxWithGeom time = " + (System.currentTimeMillis() - t));
         }
         if (mMapZoom >= 14) {
             createRoutePolylineList(bbox);
         }
+        mPolylines.get(MainController.STREET_LAYER_LEVEL).add(mOutlineRect);
+        updateFakeShapes();
     }
 
     public void loadFirstMapData() {
@@ -1403,10 +1479,10 @@ public class MainController implements Initializable, NMEAHandler {
             mLoadPOITask = null;
         }
 
-        if (mLoadAdminAreaTask != null) {
+        if (mLoadAreaTask != null) {
             LogUtils.log("loadMapData: LoadAreaTask cancel");
-            mLoadAdminAreaTask.cancel(true);
-            mLoadAdminAreaTask = null;
+            mLoadAreaTask.cancel(true);
+            mLoadAreaTask = null;
         }
 
         mOSMObjects.clear();
@@ -1416,6 +1492,7 @@ public class MainController implements Initializable, NMEAHandler {
         for (List<Node> polyList : mCountryPolylines.values()) {
             polyList.clear();
         }
+
         mRoutePolylineList.clear();
 
         List<Double> bbox = getBBoxInDeg(mFetchBBox);
@@ -1429,62 +1506,20 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private synchronized void drawShapes() {
-        //mMapPane.getChildren().clear();
         mNodePane.getChildren().clear();
         mRoutingPane.getChildren().clear();
         mTrackingPane.getChildren().clear();
 
-        /*for (List<Node> polyList : mPolylines.values()) {
-            for (Node s : polyList) {
-                s.setTranslateX(-mMapZeroX);
-                s.setTranslateY(-mMapZeroY);
-            }
-        }
-
-        for (List<Node> polyList : mAreaPolylines.values()) {
-            for (Node s : polyList) {
-                s.setTranslateX(-mMapZeroX);
-                s.setTranslateY(-mMapZeroY);
-            }
-        }
-
-        for (List<Node> polyList : mCountryPolylines.values()) {
-            for (Node s : polyList) {
-                s.setTranslateX(-mMapZeroX);
-                s.setTranslateY(-mMapZeroY);
-            }
-        }*/
-
-        /*if (mSelectdShape != null) {
-            mSelectdShape.getShape().setTranslateX(-mMapZeroX);
-            mSelectdShape.getShape().setTranslateY(-mMapZeroY);
-        }
-        if (mSelectedEdgeShape != null) {
-            mSelectedEdgeShape.setTranslateX(-mMapZeroX);
-            mSelectedEdgeShape.setTranslateY(-mMapZeroY);
-        }*/
         if (mTrackingShape != null) {
             mTrackingShape.getShape().setTranslateX(-mMapZeroX);
             mTrackingShape.getShape().setTranslateY(-mMapZeroY);
         }
-        /*for (List<Node> polyList : mCountryPolylines.values()) {
-            mMapPane.getChildren().addAll(polyList);
-        }
-        for (List<Node> polyList : mPolylines.values()) {
-            mMapPane.getChildren().addAll(polyList);
-        }
-        for (List<Node> polyList : mAreaPolylines.values()) {
-            mMapPane.getChildren().addAll(polyList);
-        }*/
         if (mSelectdShape != null) {
             mRoutingPane.getChildren().add(mSelectdShape.getShape());
         }
         if (mSelectedEdgeShape != null) {
             mRoutingPane.getChildren().add(mSelectedEdgeShape);
         }
-
-        //updateCenterDot();
-        //mTrackingPane.getChildren().add(mCenterDot);
 
         if (mTrackingShape != null) {
             mTrackingPane.getChildren().add(mTrackingShape.getShape());
@@ -1528,10 +1563,14 @@ public class MainController implements Initializable, NMEAHandler {
             s.setTranslateX(-mMapZeroX);
             s.setTranslateY(-mMapZeroY);
         }
-        for (Node s : mMapPane.getChildren()) {
-            s.setTranslateX(-mMapZeroX);
-            s.setTranslateY(-mMapZeroY);
+        for (Iterator<Pane> it = mTransformPanes.stream().iterator(); it.hasNext(); ) {
+            Pane p = it.next();
+            for (Node s : p.getChildren()) {
+                s.setTranslateX(-mMapZeroX);
+                s.setTranslateY(-mMapZeroY);
+            }
         }
+        updateFakeShapes();
     }
 
     private Point2D calcNodePanePos(Point2D nodePos, Point2D paneZeroPos) {
@@ -1666,8 +1705,6 @@ public class MainController implements Initializable, NMEAHandler {
         if (mTrackMode || mTrackReplayMode) {
             calcGPSPos();
         }
-        //QueryMapTilesTask tileTask = new QueryMapTilesTask();
-        //mExecutorService.submit(tileTask);
     }
 
     private void calcCenterCoord() {
@@ -1923,11 +1960,8 @@ public class MainController implements Initializable, NMEAHandler {
                     // #1 if we know nothing just pick the closest edge we can find in an area
                     // closest point of the edge with max 30m away
                     LogUtils.log(LogUtils.TAG_TRACKING, "search nearest edge");
-                    JsonArray edgeList = QueryController.getInstance().getEdgeOnPos(mGPSPos.getX(), mGPSPos.getY(), 0.0005, 30, 20);
-                    if (edgeList.size() != 0) {
-                        LogUtils.log(LogUtils.TAG_TRACKING, "possible edges " + edgeList);
-
-                        JsonObject edge = (JsonObject) edgeList.get(0);
+                    JsonObject edge = getClosestEdgeOnPos(mGPSPos);
+                    if (edge != null) {
                         LogUtils.log(LogUtils.TAG_TRACKING, "use minimal distance edge " + edge);
                         mCurrentEdge = edge;
                         mLastUsedEdge = mCurrentEdge;
@@ -2223,13 +2257,6 @@ public class MainController implements Initializable, NMEAHandler {
         Platform.runLater(() -> updateGPSPos(gpsData, force));
     }
 
-    /*private void updateCenterDot() {
-        Point2D centerPos = new Point2D(getPixelXPosForLocationDeg(mCenterLon),
-                getPixelYPosForLocationDeg(mCenterLat));
-        mCenterDot.setCenterX(centerPos.getX() - mMapZeroX);
-        mCenterDot.setCenterY(centerPos.getY() - mMapZeroY);
-    }*/
-
     private void updateTrackMode() {
         if (mTrackMode) {
             mGPSData = null;
@@ -2290,9 +2317,12 @@ public class MainController implements Initializable, NMEAHandler {
 
     private void setTransforms() {
         if (isShow3DActive()) {
-            mMapPane.getTransforms().clear();
-            mMapPane.getTransforms().add(mRotate);
-            mMapPane.getTransforms().add(mZRotate);
+            for (Iterator<Pane> it = mTransformPanes.stream().iterator(); it.hasNext(); ) {
+                Pane p = it.next();
+                p.getTransforms().clear();
+                p.getTransforms().add(mRotate);
+                p.getTransforms().add(mZRotate);
+            }
 
             mRoutingPane.getTransforms().clear();
             mRoutingPane.getTransforms().add(mRotate);
@@ -2302,8 +2332,11 @@ public class MainController implements Initializable, NMEAHandler {
             mTrackingPane.getTransforms().add(mRotate);
             mTrackingPane.getTransforms().add(mZRotate);
         } else {
-            mMapPane.getTransforms().clear();
-            mMapPane.getTransforms().add(mZRotate);
+            for (Iterator<Pane> it = mTransformPanes.stream().iterator(); it.hasNext(); ) {
+                Pane p = it.next();
+                p.getTransforms().clear();
+                p.getTransforms().add(mZRotate);
+            }
 
             mRoutingPane.getTransforms().clear();
             mRoutingPane.getTransforms().add(mZRotate);
@@ -2426,7 +2459,7 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private boolean isShow3DActive() {
-        return mMapZoom >= 14 && mShow3D;
+        return /*mMapZoom >= 14 &&*/ mShow3D;
     }
 
     private void addRoutingNode(RoutingNode.TYPE type, Point2D coordsPos, long edgeId, long wayId) {
@@ -2490,7 +2523,12 @@ public class MainController implements Initializable, NMEAHandler {
             if (!hasRoutingStart() || !hasRoutingEnd()) {
                 menuItem = new MenuItem(hasRoutingStart() ? " Add finish" : " Add start");
                 menuItem.setOnAction(ev -> {
-                    if (mSelectedEdge != null) {
+                    // find closest edge
+                    JsonObject edge = getClosestEdgeOnPos(mMouseClickedCoordsPos);
+                    if (edge != null) {
+                        LogUtils.log("addRoutingNode: use minimal distance edge " + edge);
+                        mSelectedEdge = edge;
+                        createSelectedEdgeShape();
                         addRoutingNode(hasRoutingStart() ? RoutingNode.TYPE.END : RoutingNode.TYPE.START, mMouseClickedCoordsPos,
                                 (long) mSelectedEdge.get("id"),
                                 (long) mSelectedEdge.get("wayId"));
@@ -2637,6 +2675,18 @@ public class MainController implements Initializable, NMEAHandler {
         });
         menuItem.setStyle("-fx-font-size: 20");
         mMenuButtonMenu.getItems().add(menuItem);
+
+        menuItem = new MenuItem(" Filter ");
+        menuItem.setOnAction(ev -> {
+            if (!mFilterContentExpanded) {
+                showFilterContents();
+            } else {
+                hideFilterContents();
+            }
+        });
+        menuItem.setStyle("-fx-font-size: 20");
+        mMenuButtonMenu.getItems().add(menuItem);
+
     }
 
     RoutingNode getSelectedRoutingNode(Point2D nodePos) {
@@ -2840,6 +2890,10 @@ public class MainController implements Initializable, NMEAHandler {
     private JsonArray getAdminAreaListAtPos(Point2D coordPos) {
         JsonArray adminDataList = QueryController.getInstance().getAdminAreasAtPointWithGeom(coordPos.getX(), coordPos.getY(),
                 "(8)", this);
+        if (adminDataList.size() == 0) {
+            adminDataList = QueryController.getInstance().getAdminAreasAtPointWithGeom(coordPos.getX(), coordPos.getY(),
+                    "(6)", this);
+        }
         JsonArray adminAreaList = new JsonArray();
         if (adminDataList.size() != 0) {
             JsonObject adminData = (JsonObject) adminDataList.get(0);
@@ -2866,6 +2920,10 @@ public class MainController implements Initializable, NMEAHandler {
     private long getAdminIdAtPos(Point2D coordPos) {
         JsonArray adminDataList = QueryController.getInstance().getAdminAreasAtPointWithGeom(coordPos.getX(), coordPos.getY(),
                 "(8)", this);
+        if (adminDataList.size() == 0) {
+            adminDataList = QueryController.getInstance().getAdminAreasAtPointWithGeom(coordPos.getX(), coordPos.getY(),
+                    "(6)", this);
+        }
         if (adminDataList.size() != 0) {
             JsonObject adminData = (JsonObject) adminDataList.get(0);
             LogUtils.log("getAdminIdAtPos " + adminData.get("name"));
@@ -2880,6 +2938,178 @@ public class MainController implements Initializable, NMEAHandler {
         Config.getInstance().put("lon", mCenterLon);
         Config.getInstance().put("lat", mCenterLat);
         Config.getInstance().save();
+    }
+
+    private void updateFakeShapes() {
+        mOutlineRect.setLayoutX(mMapZeroX - mScene.getWidth() / 2);
+        mOutlineRect.setLayoutY(mMapZeroY - mScene.getHeight());
+
+        mOutlineRect.setWidth(mScene.getWidth() * 3);
+        mOutlineRect.setHeight(mScene.getHeight() * 3);
+
+        mOutlineRect.setTranslateX(-mMapZeroX);
+        mOutlineRect.setTranslateY(-mMapZeroY);
+    }
+
+    private HttpsURLConnection setupHttpsRequest(URL url) {
+        HttpsURLConnection urlConnection = null;
+        try {
+            urlConnection = (HttpsURLConnection) url.openConnection();
+            urlConnection.setConnectTimeout(HTTP_CONNECTION_TIMEOUT);
+            urlConnection.setReadTimeout(HTTP_READ_TIMEOUT);
+            urlConnection.setRequestMethod("GET");
+            urlConnection.setDoInput(true);
+            urlConnection.connect();
+            int code = urlConnection.getResponseCode();
+            if (code != HttpsURLConnection.HTTP_OK) {
+                LogUtils.log("response:" + code);
+                return null;
+            }
+            return urlConnection;
+        } catch (Exception e) {
+            LogUtils.error("Failed to connect to server " + url, e);
+            return null;
+        }
+    }
+
+    private void showSearchContents() {
+        if (mFilterContentExpanded) {
+            rightPane.getChildren().remove(filterContent);
+            mFilterContentExpanded = false;
+            searchContent.setVisible(true);
+            searchContent.setPrefWidth(300);
+            rightPane.getChildren().add(0, searchContent);
+            mSearchContentExpanded = true;
+        } else {
+            searchContent.setVisible(true);
+            rightPane.getChildren().add(0, searchContent);
+            // TODO move in func
+            Timer animTimer = new Timer();
+            animTimer.scheduleAtFixedRate(new TimerTask() {
+                int i = 0;
+
+                @Override
+                public void run() {
+                    if (i < 10) {
+                        searchContent.setPrefWidth(Math.min(searchContent.getPrefWidth() + 30, 300));
+                    } else {
+                        this.cancel();
+                        Platform.runLater(new Runnable() {
+                            @Override
+                            public void run() {
+                                mSearchContentExpanded = true;
+                            }
+                        });
+                    }
+                    i++;
+                }
+
+            }, 0, 25);
+        }
+    }
+
+    private void hideSearchContents() {
+        Timer animTimer = new Timer();
+        animTimer.scheduleAtFixedRate(new TimerTask() {
+            int i = 0;
+
+            @Override
+            public void run() {
+                if (i < 10) {
+                    searchContent.setPrefWidth(Math.max(0, searchContent.getPrefWidth() - 30));
+                } else {
+                    this.cancel();
+                    Platform.runLater(new Runnable() {
+                        @Override
+                        public void run() {
+                            searchContent.setVisible(false);
+                            rightPane.getChildren().remove(0);
+                            mSearchContentExpanded = false;
+                        }
+                    });
+                }
+                i++;
+            }
+
+        }, 0, 25);
+    }
+
+    private void showFilterContents() {
+        if (mSearchContentExpanded) {
+            rightPane.getChildren().remove(searchContent);
+            mSearchContentExpanded = false;
+            filterContent.setVisible(true);
+            filterContent.setPrefWidth(300);
+            rightPane.getChildren().add(0, filterContent);
+            mFilterContentExpanded = true;
+        } else {
+            filterContent.setVisible(true);
+            rightPane.getChildren().add(0, filterContent);
+            // TODO move in func
+            Timer animTimer = new Timer();
+            animTimer.scheduleAtFixedRate(new TimerTask() {
+                int i = 0;
+
+                @Override
+                public void run() {
+                    if (i < 10) {
+                        filterContent.setPrefWidth(Math.min(filterContent.getPrefWidth() + 30, 300));
+                    } else {
+                        this.cancel();
+                        Platform.runLater(new Runnable() {
+                            @Override
+                            public void run() {
+                                mFilterContentExpanded = true;
+                            }
+                        });
+                    }
+                    i++;
+                }
+
+            }, 0, 25);
+        }
+    }
+
+    private void hideFilterContents() {
+        Timer animTimer = new Timer();
+        animTimer.scheduleAtFixedRate(new TimerTask() {
+            int i = 0;
+
+            @Override
+            public void run() {
+                if (i < 10) {
+                    filterContent.setPrefWidth(Math.max(0, filterContent.getPrefWidth() - 30));
+                } else {
+                    this.cancel();
+                    Platform.runLater(new Runnable() {
+                        @Override
+                        public void run() {
+                            filterContent.setVisible(false);
+                            rightPane.getChildren().remove(0);
+                            mFilterContentExpanded = false;
+                        }
+                    });
+                }
+                i++;
+            }
+
+        }, 0, 25);
+    }
+
+    private JsonObject getClosestEdgeOnPos(Point2D coordsPos) {
+        JsonArray edgeList = QueryController.getInstance().getEdgeOnPos(coordsPos.getX(), coordsPos.getY(), 0.0005, 30, 20);
+        if (edgeList.size() != 0) {
+            return (JsonObject) edgeList.get(0);
+        }
+        return null;
+    }
+
+    private void createSelectedEdgeShape() {
+        if (mSelectedEdge != null) {
+            mSelectedEdgeShape = displayCoordsPolyline((JsonArray) mSelectedEdge.get("coords"));
+            mSelectedEdgeShape.setStrokeWidth(2);
+            mSelectedEdgeShape.setStroke(Color.GREEN);
+        }
     }
 }
 

@@ -200,6 +200,7 @@ public class ImportMapping {
         STREET_TYPE_DICT.put("residential", STREET_TYPE_RESIDENTIAL);
         STREET_TYPE_DICT.put("service", STREET_TYPE_SERVICE);
         STREET_TYPE_DICT.put("living_street", STREET_TYPE_LIVING_STREET);
+        STREET_TYPE_DICT.put("track", STREET_TYPE_TRACK);
 
         mProp.put("SHOP_POI_TYPE_DICT", SHOP_POI_TYPE_DICT);
         mProp.put("HIGHWAY_POI_TYPE_DICT", HIGHWAY_POI_TYPE_DICT);
