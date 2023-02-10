@@ -420,16 +420,27 @@ public class OSMStyle {
         }
     }
 
+    public static void amendTransparentWay(JsonObject way, Shape wayLine, int zoom) {
+        int streetTypeId = (int) way.get("streetTypeId");
+        int width = getStreetWidth(streetTypeId, zoom);
+        wayLine.setStroke(TRANSPARENT);
+        wayLine.setStrokeWidth(width);
+    }
+
     public static void amendArea(JsonObject area, Shape areaLine, int zoom) {
         areaLine.setFill(getAreaColor(area, zoom));
         areaLine.setStroke(Color.LIGHTGRAY);
-        //areaLine.setSmooth(true);
+        areaLine.setSmooth(true);
     }
 
     public static void amendBuilding(JsonObject area, Shape areaLine, int zoom) {
         areaLine.setFill(getAreaColor(area, zoom));
         areaLine.setStroke(Color.LIGHTGRAY);
-        //areaLine.setSmooth(true);
+        areaLine.setSmooth(true);
+    }
+
+    public static void amendTransparentBuilding(JsonObject area, Shape areaLine, int zoom) {
+        areaLine.setFill(TRANSPARENT);
     }
 
     public static void amendLineArea(JsonObject area, Shape areaLine, int zoom) {
@@ -449,7 +460,7 @@ public class OSMStyle {
         double width = getRailwayPenWidthForZoom(zoom);
         areaLine.getStrokeDashArray().addAll(2 * width);
         areaLine.setStrokeWidth(width);
-        //areaLine.setSmooth(true);
+        areaLine.setSmooth(true);
     }
 
     public static void amendAdminArea(JsonObject adminArea, Shape areaLine, int zoom) {
@@ -468,7 +479,7 @@ public class OSMStyle {
         areaLine.getStrokeDashArray().addAll(width);
         areaLine.setStroke(mAreaColors.get("adminAreaColor"));
         areaLine.setStrokeWidth(width);
-        //areaLine.setSmooth(true);
+        areaLine.setSmooth(true);
         /*if (adminLevel == 2) {
             if (adminArea.containsKey("id")) {
                 areaLine.setFill(mCountryColors.get((int) adminArea.get("id")));

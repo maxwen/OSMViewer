@@ -5,13 +5,14 @@ import javafx.geometry.Point2D;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.shape.Shape;
+import javafx.scene.text.Text;
 
-public class OSMImageView extends ImageView implements OSMShape {
+public class OSMTextLabel extends Text implements OSMShape {
     Point2D mPos;
     private long mOSMId;
 
-    public OSMImageView(Point2D pos, Image image, long osmId) {
-        super(image);
+    public OSMTextLabel(Point2D pos, String label, long osmId) {
+        super(label);
         mPos = pos;
         mOSMId = osmId;
     }
@@ -41,18 +42,6 @@ public class OSMImageView extends ImageView implements OSMShape {
 
     @Override
     public String getInfoLabel(JsonObject tags) {
-        StringBuffer s = new StringBuffer();
-        if (tags != null) {
-            if (tags.containsKey("name")) {
-                s.append((String) tags.get("name"));
-            }
-            if (tags.containsKey("addr:street")) {
-                s.append("  " + (String) tags.get("addr:street"));
-            }
-            if (tags.containsKey("addr:housenumber")) {
-                s.append("  " + (String) tags.get("addr:housenumber"));
-            }
-        }
-        return s.toString();
+        return getText();
     }
 }

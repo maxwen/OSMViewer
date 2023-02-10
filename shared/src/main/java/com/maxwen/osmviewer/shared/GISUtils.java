@@ -8,45 +8,7 @@ import java.util.*;
 
 public class GISUtils {
     public static final int TILESIZE = 512;
-    public static final double M_LN2 = 0.69314718055994530942;
     private static final int RADIUS_EARTH = 6371;
-    private static final double PI2 = 2 * Math.PI;
-
-    // see http://williams.best.vwh.net/avform.htm
-
-    public static double deg2rad(double deg) {
-        return Math.toRadians(deg);
-    }
-
-    public static double rad2deg(double rad) {
-        return Math.toDegrees(rad);
-    }
-
-    private static double atanh(double x) {
-        return 0.5 * Math.log(Math.abs((x + 1.0) / (x - 1.0)));
-    }
-
-    public static double lat2pixel(int zoom, double lat) {
-        double lat_m = atanh(Math.sin(lat));
-        int z = (1 << zoom);
-        return -(lat_m * TILESIZE * z) / PI2 + (z * TILESIZE) / 2;
-    }
-
-    public static double lon2pixel(int zoom, double lon) {
-        int z = (1 << zoom);
-        return (lon * TILESIZE * z) / PI2 + (z * TILESIZE) / 2;
-    }
-
-    public static double pixel2lon(int zoom, double pixel_x) {
-        double z = Math.exp(zoom * M_LN2);
-        return (((pixel_x - (z * (TILESIZE / 2))) * PI2) / (TILESIZE * z));
-    }
-
-    public static double pixel2lat(int zoom, double pixel_y) {
-        double z = Math.exp(zoom * M_LN2);
-        double lat_m = ((-(pixel_y - (z * (TILESIZE / 2))) * PI2) / (TILESIZE * z));
-        return Math.asin(Math.tanh(lat_m));
-    }
 
     public static double degToMeter(double meter) {
         double deg_to_meter = (40000 * 1000) / 360;
@@ -54,14 +16,14 @@ public class GISUtils {
     }
 
     public static double distance(double lon1, double lat1, double lon2, double lat2) {
-        lat1 = deg2rad(lat1);
-        lon1 = deg2rad(lon1);
-        lat2 = deg2rad(lat2);
-        lon2 = deg2rad(lon2);
+        lat1 = Math.toRadians(lat1);
+        lon1 = Math.toRadians(lon1);
+        lat2 = Math.toRadians(lat2);
+        lon2 = Math.toRadians(lon2);
         return distanceRad(lon1, lat1, lon2, lat2);
     }
 
-    public static double distanceRad(double lon1, double lat1, double lon2, double lat2) {
+    private static double distanceRad(double lon1, double lat1, double lon2, double lat2) {
         return distanceRadRad(lon1, lat1, lon2, lat2) * RADIUS_EARTH * 1000;
     }
 
@@ -80,17 +42,17 @@ public class GISUtils {
         double lat = Math.atan2(z, Math.sqrt(x * x + y * y));
         double lon = Math.atan2(y, x);
         JsonArray point = new JsonArray();
-        point.add(rad2deg(lon));
-        point.add(rad2deg(lat));
+        point.add(Math.toDegrees(lon));
+        point.add(Math.toDegrees(lat));
         return point;
     }
 
     public static JsonArray createTemporaryPoints(double lon1, double lat1, double lon2, double lat2, double frac,
                                                   double offsetStart, double offsetEnd, boolean addStart, boolean addEnd) {
-        double rlat1 = deg2rad(lat1);
-        double rlon1 = deg2rad(lon1);
-        double rlat2 = deg2rad(lat2);
-        double rlon2 = deg2rad(lon2);
+        double rlat1 = Math.toRadians(lat1);
+        double rlon1 = Math.toRadians(lon1);
+        double rlat2 = Math.toRadians(lat2);
+        double rlon2 = Math.toRadians(lon2);
 
         double rDistance = distanceRadRad(rlon1, rlat1, rlon2, rlat2);
         double sinD = Math.sin(rDistance);
@@ -168,10 +130,10 @@ public class GISUtils {
     }
 
     public static double heading(double lon1, double lat1, double lon2, double lat2) {
-        lat1 = deg2rad(lat1);
-        lon1 = deg2rad(lon1);
-        lat2 = deg2rad(lat2);
-        lon2 = deg2rad(lon2);
+        lat1 = Math.toRadians(lat1);
+        lon1 = Math.toRadians(lon1);
+        lat2 = Math.toRadians(lat2);
+        lon2 = Math.toRadians(lon2);
         return headingRad(lon1, lat1, lon2, lat2);
     }
 
@@ -188,7 +150,7 @@ public class GISUtils {
     }
 
     public static int headingDegrees(double lon1, double lat1, double lon2, double lat2) {
-        double h = 360.0 - rad2deg(heading(lon1, lat1, lon2, lat2));
+        double h = 360.0 - Math.toDegrees(heading(lon1, lat1, lon2, lat2));
         if (h >= 360.0) {
             h -= 360.0;
         }
@@ -196,7 +158,7 @@ public class GISUtils {
     }
 
     public static int headingDegreesRad(double lon1, double lat1, double lon2, double lat2) {
-        double h = 360.0 - rad2deg(headingRad(lon1, lat1, lon2, lat2));
+        double h = 360.0 - Math.toDegrees(headingRad(lon1, lat1, lon2, lat2));
         if (h >= 360.0) {
             h -= 360.0;
         }

@@ -126,7 +126,7 @@ public class QueryController {
             tolerance = GISUtils.degToMeter(tolerance);
 
             ResultSet rs;
-            String geom = "AsText(geom)";
+            String geom = String.format("AsText(ST_SimplifyPreserveTopology(geom, %f))", GISUtils.degToMeter(1));
             if (withSimplify) {
                 geom = String.format("AsText(ST_SimplifyPreserveTopology(geom, %f))", tolerance);
             }
@@ -177,12 +177,17 @@ public class QueryController {
                 boolean showCasing = controller.getZoom() >= 17;
                 Polyline polylineCasing = null;
                 Polyline polyline = controller.displayCoordsPolyline(wayId, createCoordsFromLineString(rs.getString(10)));
-                if (showCasing) {
-                    polylineCasing = controller.clonePolyline(wayId, polyline);
-                    OSMStyle.amendWay(way, polylineCasing, controller.getZoom(), true);
-                    OSMStyle.amendWay(way, polyline, controller.getZoom(), false);
+                if (controller.isTransparentWays()) {
+                    showCasing = false;
+                    OSMStyle.amendTransparentWay(way, polyline, controller.getZoom());
                 } else {
-                    OSMStyle.amendWay(way, polyline, controller.getZoom(), false);
+                    if (showCasing) {
+                        polylineCasing = controller.clonePolyline(wayId, polyline);
+                        OSMStyle.amendWay(way, polylineCasing, controller.getZoom(), true);
+                        OSMStyle.amendWay(way, polyline, controller.getZoom(), false);
+                    } else {
+                        OSMStyle.amendWay(way, polyline, controller.getZoom(), false);
+                    }
                 }
                 // ways that are tunnels are drawn specific but must still be on same level as any other way
                 // cause we want to seem them
@@ -259,13 +264,17 @@ public class QueryController {
                 area.put("type", "area");
 
                 boolean isBuilding = areaType == OSMUtils.AREA_TYPE_BUILDING;
-
-                JsonArray coords = createCoordsFromPolygonString(rs.getString(6));
+                String coordsString = rs.getString(6);
+                JsonArray coords = createCoordsFromPolygonString(coordsString);
                 for (int j = 0; j < coords.size(); j++) {
                     JsonArray innerCoords = (JsonArray) coords.get(j);
                     Polygon polygon = controller.displayCoordsPolygon(osmId, areaType, innerCoords);
                     if (isBuilding) {
-                        OSMStyle.amendBuilding(area, polygon, controller.getZoom());
+                        if (controller.isTransparentWays()) {
+                            OSMStyle.amendTransparentBuilding(area, polygon, controller.getZoom());
+                        } else {
+                            OSMStyle.amendBuilding(area, polygon, controller.getZoom());
+                        }
                     } else {
                         OSMStyle.amendArea(area, polygon, controller.getZoom());
                     }
@@ -307,7 +316,7 @@ public class QueryController {
             boolean withSimplify = tolerance != 0;
             tolerance = GISUtils.degToMeter(tolerance);
 
-            String geom = "AsText(geom)";
+            String geom = String.format("AsText(ST_SimplifyPreserveTopology(geom, %f))", GISUtils.degToMeter(1));
             if (withSimplify) {
                 geom = String.format("AsText(ST_SimplifyPreserveTopology(geom, %f))", tolerance);
             }
@@ -462,7 +471,7 @@ public class QueryController {
             if (withSimplify) {
                 geomPart = String.format("ST_Simplify(%s, %f)", geomPart, tolerance);
             }
-            rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags, AsText(%s) FROM adminAreaTable WHERE adminLevel IN %s", geomPart, adminLevelFilter));
+            rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags, AsText(%s), AsText(ST_Centroid(geom)) FROM adminAreaTable WHERE adminLevel IN %s", geomPart, adminLevelFilter));
 
             while (rs.next()) {
                 JsonObject adminArea = new JsonObject();
@@ -481,6 +490,11 @@ public class QueryController {
                     }
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());
+                }
+                JsonArray adminCenter = new JsonArray();
+                String coordsString = rs.getString(5);
+                if (coordsString != null && coordsString.length() != 0) {
+                    adminCenter = createPointFromPointString(coordsString);
                 }
                 if (polylines != null) {
                     String geomString = rs.getString(4);
@@ -518,6 +532,54 @@ public class QueryController {
             } catch (SQLException e) {
             }
         }
+    }
+
+    public JsonArray getAdminAreasWithCenter(String adminLevelFilter, MainController controller) {
+        Statement stmt = null;
+        JsonArray adminAreas = new JsonArray();
+        try {
+            stmt = mAdminConnection.createStatement();
+            ResultSet rs;
+
+            rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags, AsText(ST_Centroid(geom)) FROM adminAreaTable WHERE adminLevel IN %s", adminLevelFilter));
+
+            while (rs.next()) {
+                JsonObject adminArea = new JsonObject();
+                long osmId = rs.getLong(1);
+                adminArea.put("osmId", osmId);
+                adminArea.put("adminLevel", rs.getInt(2));
+                String tagsString = rs.getString(3);
+                String name = "";
+                try {
+                    if (tagsString != null && tagsString.length() != 0) {
+                        JsonObject tags = (JsonObject) Jsoner.deserialize(tagsString);
+                        name = (String) tags.get("name");
+                        adminArea.put("tags", tags);
+                        adminArea.put("name", name);
+                        adminArea.put("id", GISUtils.getIntValue(tags.get("id")));
+                    }
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+                JsonArray adminCenter = new JsonArray();
+                String coordsString = rs.getString(4);
+                if (coordsString != null && coordsString.length() != 0) {
+                    adminCenter = createPointFromPointString(coordsString);
+                }
+                adminArea.put("center", adminCenter);
+                adminAreas.add(adminArea);
+            }
+        } catch (SQLException e) {
+            LogUtils.log(e.getMessage());
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return adminAreas;
     }
 
     public JsonObject getAdminAreasWithId(long id) {
@@ -564,7 +626,8 @@ public class QueryController {
         Map<Long, JsonObject> edgeMap = new HashMap<>();
         try {
             stmt = mEdgeConnection.createStatement();
-            ResultSet rs = stmt.executeQuery(String.format("SELECT id, startRef, endRef, length, wayId, source, target, cost, reverseCost, streetInfo, AsText(geom) FROM edgeTable WHERE ROWID IN (SELECT rowid FROM cache_edgeTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
+            String geom = String.format("AsText(ST_SimplifyPreserveTopology(geom, %f))", GISUtils.degToMeter(1));
+            ResultSet rs = stmt.executeQuery(String.format("SELECT id, startRef, endRef, length, wayId, source, target, cost, reverseCost, streetInfo, %s FROM edgeTable WHERE ROWID IN (SELECT rowid FROM cache_edgeTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", geom, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax));
 
             while (rs.next()) {
                 JsonObject edge = new JsonObject();
