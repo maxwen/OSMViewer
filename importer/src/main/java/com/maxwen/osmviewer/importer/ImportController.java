@@ -294,6 +294,8 @@ public class ImportController {
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS adminId_idx ON addressTable (adminId)";
             stmt.execute(sql);
+            sql = "CREATE INDEX IF NOT EXISTS osmId_idx ON addressTable (osmId)";
+            stmt.execute(sql);
             sql = "SELECT AddGeometryColumn('addressTable', 'geom', 4326, 'POINT', 2)";
             stmt.execute(sql);
             sql = "SELECT CreateMbrCache('addressTable', 'geom')";
