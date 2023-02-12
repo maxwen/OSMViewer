@@ -33,7 +33,7 @@ public class QueryListViewCell extends ListCell<QueryItem> {
             setGraphic(null);
         } else {
             if (mLLoader == null) {
-                mLLoader = new FXMLLoader(getClass().getResource("ListCell.fxml"));
+                mLLoader = new FXMLLoader(getClass().getResource("queryitem.fxml"));
                 mLLoader.setController(this);
 
                 try {
@@ -44,7 +44,7 @@ public class QueryListViewCell extends ListCell<QueryItem> {
             }
 
             mainText.setText(item.getName());
-            if (item.getTags().length() != 0) {
+            if (item.getTags() != null && item.getTags().length() != 0) {
                 subText.setText(item.getTags());
             } else {
                 text.getChildren().remove(subText);

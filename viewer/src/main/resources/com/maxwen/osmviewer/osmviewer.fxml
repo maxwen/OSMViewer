@@ -5,152 +5,151 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.*?>
 
-<BorderPane fx:id="borderPane" xmlns="http://javafx.com/javafx/10.0.2-internal" xmlns:fx="http://javafx.com/fxml/1"
-            fx:controller="com.maxwen.osmviewer.MainController">
-    <top>
-        <HBox fx:id="topPane" alignment="CENTER" maxHeight="80.0">
-            <children>
-                <VBox HBox.hgrow="ALWAYS">
-                    <HBox.margin>
-                        <Insets left="15.0" right="15.0"/>
-                    </HBox.margin>
-                    <children>
-                        <HBox>
-                            <children>
-                                <Label fx:id="speedLabel" alignment="CENTER_LEFT" minHeight="40.0"
-                                       minWidth="120.0">
+<StackPane fx:id="rootPane" xmlns="http://javafx.com/javafx/10.0.2-internal" xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="com.maxwen.osmviewer.MainController">
+    <BorderPane fx:id="borderPane">
+        <center>
+            <StackPane fx:id="mainStackPane"/>
+        </center>
+        <top>
+            <HBox fx:id="topPane" alignment="CENTER" maxHeight="80.0">
+                <children>
+                    <VBox HBox.hgrow="ALWAYS">
+                        <HBox.margin>
+                            <Insets left="15.0" right="15.0"/>
+                        </HBox.margin>
+                        <children>
+                            <HBox>
+                                <children>
+                                    <Label fx:id="speedLabel" alignment="CENTER_LEFT" minHeight="40.0"
+                                           minWidth="120.0">
+                                        <font>
+                                            <Font name="System Bold" size="28.0"/>
+                                        </font>
+                                    </Label>
+                                    <Label fx:id="altLabel" alignment="CENTER_LEFT" minHeight="40.0"
+                                           minWidth="120.0">
+                                        <font>
+                                            <Font name="System Bold" size="28.0"/>
+                                        </font>
+                                    </Label>
+                                </children>
+                            </HBox>
+                            <HBox>
+                                <Label fx:id="wayLabel" alignment="CENTER_LEFT" HBox.hgrow="ALWAYS"
+                                       maxWidth="Infinity">
                                     <font>
                                         <Font name="System Bold" size="28.0"/>
                                     </font>
                                 </Label>
-                                <Label fx:id="altLabel" alignment="CENTER_LEFT" minHeight="40.0"
-                                       minWidth="120.0">
+                            </HBox>
+                        </children>
+                    </VBox>
+                </children>
+            </HBox>
+        </top>
+        <bottom>
+            <HBox fx:id="bottomPane" alignment="CENTER" minHeight="100.0">
+                <children>
+                    <Pane HBox.hgrow="ALWAYS"/>
+                    <HBox fx:id="trackButtons" alignment="CENTER" minHeight="100.0">
+                        <children>
+                            <Button fx:id="startReplayButton" mnemonicParsing="false">
+                                <HBox.margin>
+                                    <Insets left="10.0" right="5.0"/>
+                                </HBox.margin>
+                            </Button>
+                            <Button fx:id="pauseReplayButton" mnemonicParsing="false">
+                                <HBox.margin>
+                                    <Insets left="5.0" right="5.0"/>
+                                </HBox.margin>
+                            </Button>
+                            <Button fx:id="stepReplayButton" mnemonicParsing="false">
+                                <HBox.margin>
+                                    <Insets left="5.0" right="5.0"/>
+                                </HBox.margin>
+                            </Button>
+                            <Button fx:id="stopReplayButton" mnemonicParsing="false">
+                                <HBox.margin>
+                                    <Insets left="5.0" right="10.0"/>
+                                </HBox.margin>
+                            </Button>
+                        </children>
+                    </HBox>
+                    <Pane HBox.hgrow="ALWAYS"/>
+                </children>
+            </HBox>
+            <HBox fx:id="infoPane" alignment="CENTER" minHeight="80.0">
+                <children>
+                    <VBox HBox.hgrow="ALWAYS">
+                        <HBox.margin>
+                            <Insets left="15.0" right="15.0"/>
+                        </HBox.margin>
+                        <HBox fx:id="infoBox" alignment="CENTER_LEFT" minHeight="40.0">
+                            <children>
+                                <Label fx:id="infoTitle" alignment="CENTER_LEFT" text="Info: ">
+                                    <font>
+                                        <Font name="System Bold" size="28.0"/>
+                                    </font>
+                                </Label>
+                                <Label fx:id="infoLabel" alignment="CENTER_LEFT" HBox.hgrow="ALWAYS"
+                                       maxWidth="Infinity">
+                                    <font>
+                                        <Font name="System Bold" size="28.0"/>
+                                    </font>
+                                </Label>
+                                <Label fx:id="zoomTitle" alignment="CENTER_RIGHT" text="Zoom: ">
+                                    <font>
+                                        <Font name="System Bold" size="28.0"/>
+                                    </font>
+                                </Label>
+                                <Label fx:id="zoomLabel" alignment="CENTER_RIGHT" text="">
                                     <font>
                                         <Font name="System Bold" size="28.0"/>
                                     </font>
                                 </Label>
                             </children>
                         </HBox>
-                        <HBox>
-                            <Label fx:id="wayLabel" alignment="CENTER_LEFT" HBox.hgrow="ALWAYS" maxWidth="Infinity">
+                        <HBox fx:id="posBox" alignment="CENTER_LEFT" minHeight="40.0">
+                            <Label fx:id="posTitle" alignment="CENTER_LEFT" text="Location: ">
+                                <font>
+                                    <Font name="System Bold" size="28.0"/>
+                                </font>
+                            </Label>
+                            <Label fx:id="posLabel" alignment="CENTER_LEFT" HBox.hgrow="ALWAYS"
+                                   maxWidth="Infinity">
                                 <font>
                                     <Font name="System Bold" size="28.0"/>
                                 </font>
                             </Label>
                         </HBox>
-                    </children>
-                </VBox>
-            </children>
-        </HBox>
-        <HBox fx:id="bottomPane" alignment="CENTER" minHeight="100.0">
-            <children>
-                <Pane HBox.hgrow="ALWAYS"/>
-                <HBox fx:id="trackButtons" alignment="CENTER" minHeight="100.0">
-                    <children>
-                        <Button fx:id="startReplayButton" mnemonicParsing="false">
-                            <HBox.margin>
-                                <Insets left="10.0" right="5.0"/>
-                            </HBox.margin>
-                        </Button>
-                        <Button fx:id="pauseReplayButton" mnemonicParsing="false">
-                            <HBox.margin>
-                                <Insets left="5.0" right="5.0"/>
-                            </HBox.margin>
-                        </Button>
-                        <Button fx:id="stepReplayButton" mnemonicParsing="false">
-                            <HBox.margin>
-                                <Insets left="5.0" right="5.0"/>
-                            </HBox.margin>
-                        </Button>
-                        <Button fx:id="stopReplayButton" mnemonicParsing="false">
-                            <HBox.margin>
-                                <Insets left="5.0" right="10.0"/>
-                            </HBox.margin>
-                        </Button>
-                    </children>
-                </HBox>
-                <Pane HBox.hgrow="ALWAYS"/>
-            </children>
-        </HBox>
-        <HBox fx:id="infoPane" alignment="CENTER" minHeight="80.0">
-            <children>
-                <VBox HBox.hgrow="ALWAYS">
-                    <HBox.margin>
-                        <Insets left="15.0" right="15.0"/>
-                    </HBox.margin>
-                    <HBox fx:id="infoBox" alignment="CENTER_LEFT" minHeight="40.0">
+                    </VBox>
+                </children>
+            </HBox>
+        </bottom>
+        <right>
+            <HBox fx:id="rightPane" alignment="CENTER">
+                <children>
+                    <Pane HBox.hgrow="NEVER"/>
+                    <VBox fx:id="rightButtons" alignment="CENTER_RIGHT" HBox.hgrow="NEVER">
                         <children>
-                            <Label fx:id="infoTitle" alignment="CENTER_LEFT" text="Info: ">
-                                <font>
-                                    <Font name="System Bold" size="28.0"/>
-                                </font>
-                            </Label>
-                            <Label fx:id="infoLabel" alignment="CENTER_LEFT" HBox.hgrow="ALWAYS" maxWidth="Infinity">
-                                <font>
-                                    <Font name="System Bold" size="28.0"/>
-                                </font>
-                            </Label>
-                            <Label fx:id="zoomTitle" alignment="CENTER_RIGHT" text="Zoom: ">
-                                <font>
-                                    <Font name="System Bold" size="28.0"/>
-                                </font>
-                            </Label>
-                            <Label fx:id="zoomLabel" alignment="CENTER_RIGHT" text="">
-                                <font>
-                                    <Font name="System Bold" size="28.0"/>
-                                </font>
-                            </Label>
+                            <ToggleButton fx:id="trackModeButton" mnemonicParsing="false">
+                            </ToggleButton>
+                            <Button fx:id="menuButton" mnemonicParsing="false">
+                            </Button>
+                            <Button fx:id="searchButton" mnemonicParsing="false">
+                            </Button>
+                            <Button fx:id="zoomInButton" mnemonicParsing="false">
+                            </Button>
+                            <Button fx:id="zoomOutButton" mnemonicParsing="false">
+                            </Button>
+                            <Button fx:id="quitButton" mnemonicParsing="false">
+                            </Button>
                         </children>
-                    </HBox>
-                    <HBox fx:id="posBox" alignment="CENTER_LEFT" minHeight="40.0">
-                        <Label fx:id="posTitle" alignment="CENTER_LEFT" text="Location: ">
-                            <font>
-                                <Font name="System Bold" size="28.0"/>
-                            </font>
-                        </Label>
-                        <Label fx:id="posLabel" alignment="CENTER_LEFT" HBox.hgrow="ALWAYS" maxWidth="Infinity">
-                            <font>
-                                <Font name="System Bold" size="28.0"/>
-                            </font>
-                        </Label>
-                    </HBox>
-                </VBox>
-            </children>
-        </HBox>
-        <HBox fx:id="rightPane" alignment="CENTER">
-            <children>
-                <Pane HBox.hgrow="NEVER"/>
-                <VBox fx:id="rightButtons" alignment="CENTER_RIGHT" HBox.hgrow="NEVER">
-                    <children>
-                        <ToggleButton fx:id="trackModeButton" mnemonicParsing="false">
-                        </ToggleButton>
-                        <Button fx:id="menuButton" mnemonicParsing="false">
-                        </Button>
-                        <Button fx:id="searchButton" mnemonicParsing="false">
-                        </Button>
-                        <Button fx:id="zoomInButton" mnemonicParsing="false">
-                        </Button>
-                        <Button fx:id="zoomOutButton" mnemonicParsing="false">
-                        </Button>
-                        <Button fx:id="quitButton" mnemonicParsing="false">
-                        </Button>
-                    </children>
-                </VBox>
-                <Pane HBox.hgrow="NEVER"/>
-            </children>
-        </HBox>
-    </top>
-    <center>
-        <StackPane fx:id="mainStackPane" BorderPane.alignment="CENTER"/>
-    </center>
-
-    <VBox fx:id="searchContent" alignment="TOP_LEFT" visible="false" style="-fx-background-color: white;">
-        <children>
-        </children>
-    </VBox>
-    <VBox fx:id="filterContent" alignment="TOP_LEFT" visible="false" style="-fx-background-color: white;">
-        <children>
-        </children>
-    </VBox>
-</BorderPane>
-
+                    </VBox>
+                    <Pane HBox.hgrow="NEVER"/>
+                </children>
+            </HBox>
+        </right>
+    </BorderPane>
+</StackPane>

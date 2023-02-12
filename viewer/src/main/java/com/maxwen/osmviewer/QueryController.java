@@ -1274,4 +1274,118 @@ public class QueryController {
         }
         return s.toString();
     }
+
+    private JsonObject getWayFromQuery(ResultSet rs) throws SQLException, JsonException {
+        // (wayId INTEGER PRIMARY KEY, tags JSON, refs JSON, streetInfo INTEGER, name TEXT, ref TEXT, maxspeed INTEGER, poiList JSON, streetTypeId INTEGER, layer INTEGER)
+        JsonObject way = new JsonObject();
+        try {
+            way.put("wayId", rs.getLong("wayId"));
+        } catch (SQLException e) {
+        }
+        try {
+            String tags = rs.getString("tags");
+            if (tags != null && tags.length() != 0) {
+                way.put("tags", Jsoner.deserialize(tags));
+            }
+        } catch (SQLException e) {
+        }
+        try {
+            way.put("streetInfo", rs.getInt("streetInfo"));
+        } catch (SQLException e) {
+        }
+        try {
+            way.put("name", rs.getString("name"));
+        } catch (SQLException e) {
+        }
+        try {
+            way.put("ref", rs.getString("ref"));
+        } catch (SQLException e) {
+        }
+        try {
+            way.put("maxspeed", rs.getInt("maxspeed"));
+        } catch (SQLException e) {
+        }
+        try {
+            way.put("streetTypeId", rs.getInt("streetTypeId"));
+        } catch (SQLException e) {
+        }
+        try {
+            way.put("layer", rs.getInt("layer"));
+        } catch (SQLException e) {
+        }
+
+        return way;
+    }
+
+    public JsonObject getWayEntryForId(long wayId) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        try {
+            stmt = mWaysConnection.createStatement();
+            String sql = String.format("SELECT * FROM wayTable WHERE wayId=%d", wayId);
+            rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                try {
+                    JsonObject way = getWayFromQuery(rs);
+                    return way;
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getWayEntryForId", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return null;
+    }
+
+    public JsonObject getAddressEntryForId(long osmId) {
+        Statement stmt = null;
+        ResultSet rs = null;
+        try {
+            stmt = mAddressConnection.createStatement();
+            rs = stmt.executeQuery(String.format("SELECT streetName, houseNumber, adminData, adminId, AsText(geom) FROM addressTable WHERE osmId=%d", osmId));
+
+            while (rs.next()) {
+                JsonObject node = new JsonObject();
+                String coordsString = rs.getString(5);
+                JsonArray point = createPointFromPointString(coordsString);
+                node.put("coords", point);
+                String name = rs.getString(1);
+                String number = rs.getString(2);
+                node.put("name", name + " " + number);
+                long adminId = rs.getLong(4);
+                if (adminId != 0) {
+                    node.put("adminId", adminId);
+                }
+                String adminDataString = rs.getString(3);
+                try {
+                    if (adminDataString != null && adminDataString.length() != 0) {
+                        node.put("adminData", Jsoner.deserialize(adminDataString));
+                    }
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+
+                node.put("type", "address");
+                return node;
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getAddressEntryForId", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return null;
+    }
 }

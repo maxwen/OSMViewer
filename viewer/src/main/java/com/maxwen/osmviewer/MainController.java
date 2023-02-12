@@ -2,6 +2,7 @@ package com.maxwen.osmviewer;
 
 import com.github.cliftonlabs.json_simple.JsonArray;
 import com.github.cliftonlabs.json_simple.JsonObject;
+import com.github.cliftonlabs.json_simple.Jsoner;
 import com.maxwen.osmviewer.nmea.NMEAHandler;
 import com.maxwen.osmviewer.routing.RoutingWrapper;
 import com.maxwen.osmviewer.shared.Config;
@@ -36,6 +37,7 @@ import javafx.scene.transform.Rotate;
 import javafx.stage.FileChooser;
 import javafx.stage.Popup;
 import javafx.stage.Stage;
+import javafx.util.Pair;
 
 import javax.net.ssl.HttpsURLConnection;
 import java.io.*;
@@ -44,6 +46,7 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class MainController implements Initializable, NMEAHandler {
     public static final int ROTATE_X_VALUE = 60;
@@ -102,13 +105,16 @@ public class MainController implements Initializable, NMEAHandler {
     Label infoTitle;
     @FXML
     Pane infoPane;
-    @FXML
     VBox searchContent;
     @FXML
     StackPane mainStackPane;
-    Pane mainPane;
     @FXML
+    StackPane rootPane;
+
+    Pane mainPane;
     VBox filterContent;
+    VBox sidePane;
+    VBox nodeListContent;
 
     private static final int MIN_ZOOM = 4;
     private static final int MAX_ZOOM = 20;
@@ -173,13 +179,16 @@ public class MainController implements Initializable, NMEAHandler {
     private List<Long> mRouteEdgeIdList = new ArrayList<>();
     private boolean mMapLoading;
     private LoadMapDataTask mLoadMapDataTask;
-    private boolean mSearchContentExpanded;
-    private boolean mFilterContentExpanded;
+    private boolean mSidePaneExpanded;
     private ObservableList<QueryItem> mQueryItems = FXCollections.observableArrayList();
+
+    private ObservableList<QueryItem> mNodeListItems = FXCollections.observableArrayList();
+
     private ProgressIndicator mQueryListProgress;
     private ProgressIndicator mLoadMapProgress;
     private MenuButton mFilterHeader;
     private Rectangle mOutlineRect;
+    private JsonObject mTileStyle;
 
     public boolean isTransparentWays() {
         return mTransparentWays;
@@ -199,6 +208,14 @@ public class MainController implements Initializable, NMEAHandler {
     private QueryMapTilesTask mQueryTilesTask;
     private String mTilesHome;
     private boolean mTransparentWays;
+    private JsonObject mFilterConfig;
+    private Circle mCalcPoint;
+    private ListView<QueryItem> mQueryListView;
+    private TextField mQueryField;
+    private QueryTaskPOI mQueryTask;
+    private String mQueryText;
+    private long mAdminId;
+    private ListView<QueryItem> mNodesListView;
 
     private static final int HTTP_READ_TIMEOUT = 30000;
     private static final int HTTP_CONNECTION_TIMEOUT = 30000;
@@ -267,7 +284,7 @@ public class MainController implements Initializable, NMEAHandler {
                             if (mResolvePositionTask != null) {
                                 mResolvePositionTask.cancel();
                             }
-                            mResolvePositionTask = new ResolvePositionTask(mMouseClickedCoordsPos, mSelectdOSMId);
+                            mResolvePositionTask = new ResolvePositionTask(mMouseClickedCoordsPos, mSelectdOSMId, -1);
                             mResolvePositionTask.setOnSucceeded((succeededEvent) -> {
                                 mSelectedEdge = mResolvePositionTask.getResolvedEdge();
                                 if (mSelectedEdge != null) {
@@ -301,14 +318,6 @@ public class MainController implements Initializable, NMEAHandler {
             mouseEvent.consume();
         }
     };
-
-
-    private Circle mCalcPoint;
-    private ListView<QueryItem> mQueryListView;
-    private TextField mQueryField;
-    private QueryTaskPOI mQueryTask;
-    private String mQueryText;
-    private long mAdminId;
 
     public class LoadPOITask extends LoadMapTask<Void> {
 
@@ -510,14 +519,7 @@ public class MainController implements Initializable, NMEAHandler {
 
         @Override
         public EventHandler<WorkerStateEvent> getRunningEvent() {
-            return new EventHandler<WorkerStateEvent>() {
-                @Override
-                public void handle(WorkerStateEvent event) {
-                    for (List<Node> polyList : mAreaPolylines.values()) {
-                        polyList.clear();
-                    }
-                }
-            };
+            return null;
         }
     }
 
@@ -525,14 +527,26 @@ public class MainController implements Initializable, NMEAHandler {
         private Point2D mCoordsPos;
         private JsonObject mEdge;
         private long mWayId;
+        private JsonObject mWay;
+        private JsonObject mArea;
+        private long mOsmId = -1;
 
-        public ResolvePositionTask(Point2D coordsPos, long wayId) {
+        public ResolvePositionTask(Point2D coordsPos, long wayId, long osmId) {
             mCoordsPos = coordsPos;
             mWayId = wayId;
+            mOsmId = osmId;
         }
 
         public JsonObject getResolvedEdge() {
             return mEdge;
+        }
+
+        public JsonObject getResolvedWay() {
+            return mWay;
+        }
+
+        public JsonObject getResolvedArea() {
+            return mArea;
         }
 
         @Override
@@ -553,10 +567,15 @@ public class MainController implements Initializable, NMEAHandler {
                 if (mEdge != null) {
                     if ((long) mEdge.get("wayId") == mWayId) {
                         LogUtils.log("mEdge = " + mEdge);
+                        mWay = QueryController.getInstance().getWayEntryForId(mWayId);
                     } else {
                         LogUtils.error("ResolvePositionTask: failed to resolve edge for position");
                         mEdge = null;
+                        mWay = null;
                     }
+                }
+                if (mOsmId != -1) {
+                    mArea = QueryController.getInstance().getAddressEntryForId(mOsmId);
                 }
             }
             return null;
@@ -675,6 +694,7 @@ public class MainController implements Initializable, NMEAHandler {
             StringBuffer nodeArea = new StringBuffer();
 
             JsonArray coords = (JsonArray) node.get("coords");
+            Point2D coordsPos = new Point2D((double) coords.get(0), (double) coords.get(1));
             JsonObject adminData = (JsonObject) node.get("adminData");
             if (node.containsKey("adminId")) {
                 long adminId = (long) node.get("adminId");
@@ -713,15 +733,15 @@ public class MainController implements Initializable, NMEAHandler {
             if (type.equals("poi")) {
                 int poiType = (int) node.get("nodeType");
                 QueryItem item = new QueryItem((String) node.get("name"), nodeArea.toString(),
-                        OSMStyle.getNodeTypeImage(poiType), coords);
+                        OSMStyle.getNodeTypeImage(poiType), coordsPos);
                 mQueryItems.add(item);
             } else if (type.equals("address")) {
                 QueryItem item = new QueryItem((String) node.get("name"), nodeArea.toString(),
-                        null, coords);
+                        null, coordsPos);
                 mQueryItems.add(item);
             } else if (type.equals("city")) {
                 QueryItem item = new QueryItem((String) node.get("name"), nodeArea.toString(),
-                        null, coords);
+                        null, coordsPos);
                 mQueryItems.add(item);
             }
             return !isCancelled();
@@ -729,32 +749,76 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     public class QueryMapTilesTask extends LoadMapTask<List<ImageView>> {
+        private final int mXTileNum;
+        private final int mYTileNum;
         private List<ImageView> mTilesList = new ArrayList<>();
+        // basic or osm
+        private String TILE_STYLE = "streets";
+        private String mFormat;
+        private String mUrl;
+        private ExecutorService mDownloadExecutorService;
 
         public QueryMapTilesTask() {
             super(null, 0);
+            try {
+                mFormat = (String) ((JsonObject) mTileStyle.get(TILE_STYLE)).get("format");
+                mUrl = (String) ((JsonObject) mTileStyle.get(TILE_STYLE)).get("url");
+            } catch (Exception e) {
+                mFormat = "jpg";
+                mUrl = "https://api.maptiler.com/maps/openstreetmap/";
+            }
+            mDownloadExecutorService = Executors.newFixedThreadPool(8);
+            mXTileNum = (int) (mOutlineRect.getWidth() / GISUtils.TILESIZE) + 1;
+            mYTileNum = (int) (mOutlineRect.getHeight() / GISUtils.TILESIZE) + (mShow3D ? 3 : 1);
         }
 
         @Override
         protected List<ImageView> call() throws Exception {
             int zoom = mMapZoom;
 
-            String relTilePath = getTileNumber(mCenter.getY(), mCenter.getX(), zoom);
-            int xTile = Integer.valueOf(relTilePath.split("/")[1]);
-            int yTile = Integer.valueOf(relTilePath.split("/")[2]);
-            for (int i = yTile - 3; i < yTile + 3; i++) {
-                for (int j = xTile - 3; j < xTile + 3; j++) {
-                    relTilePath = zoom + "/" + j + "/" + i + ".png";
+            Map<String, File> mDownloadTileQueue = new HashMap<>();
+            Pair tileCoords = getTileNumber(mCenter.getY(), mCenter.getX(), zoom);
+            int xTile = (int) tileCoords.getKey();
+            int yTile = (int) tileCoords.getValue();
 
-                    LogUtils.log("" + relTilePath + " " + xTile + " " + yTile);
 
-                    File tileFile = new File(mTilesHome, relTilePath);
+            for (int i = yTile - mYTileNum / 2; i <= yTile + mYTileNum / 2; i++) {
+                for (int j = xTile - mXTileNum / 2; j <= xTile + mXTileNum / 2; j++) {
+                    String relTilePath = zoom + "/" + j + "/" + i + "." + mFormat;
+
+                    File tileFile = new File(mTilesHome, TILE_STYLE + "/" + relTilePath);
                     if (!tileFile.getParentFile().exists()) {
                         tileFile.getParentFile().mkdirs();
                     }
                     if (!tileFile.exists()) {
-                        downloadTile(relTilePath, tileFile);
+                        mDownloadTileQueue.put(relTilePath, tileFile);
                     }
+                }
+            }
+            if (mDownloadTileQueue.size() != 0) {
+                for (Map.Entry<String, File> dl : mDownloadTileQueue.entrySet()) {
+                    mDownloadExecutorService.submit(() -> {
+                        try {
+                            downloadTile(dl.getKey(), dl.getValue());
+                        } catch (IOException e) {
+                            LogUtils.error("QueryMapTilesTask:downloadTile ", e);
+                        }
+                    });
+                }
+                mDownloadExecutorService.shutdown();
+                try {
+                    if (!mDownloadExecutorService.awaitTermination(60, TimeUnit.SECONDS)) {
+                        mDownloadExecutorService.shutdownNow();
+                    }
+                } catch (InterruptedException e) {
+                    mDownloadExecutorService.shutdownNow();
+                }
+            }
+
+            for (int i = yTile - mYTileNum / 2; i <= yTile + mYTileNum / 2; i++) {
+                for (int j = xTile - mXTileNum / 2; j <= xTile + mXTileNum / 2; j++) {
+                    String relTilePath = zoom + "/" + j + "/" + i + "." + mFormat;
+                    File tileFile = new File(mTilesHome, TILE_STYLE + "/" + relTilePath);
                     if (tileFile.exists()) {
                         ImageView tileView = new ImageView();
                         tileView.setImage(new Image(new FileInputStream(tileFile)));
@@ -768,6 +832,8 @@ public class MainController implements Initializable, NMEAHandler {
                         tileView.setTranslateX(-mMapZero.getX());
                         tileView.setTranslateY(-mMapZero.getY());
                         mTilesList.add(tileView);
+                    } else {
+                        // TODO add emopy tile?
                     }
                     if (isCancelled()) {
                         break;
@@ -783,7 +849,7 @@ public class MainController implements Initializable, NMEAHandler {
             return mTilesList;
         }
 
-        private String getTileNumber(final double lat, final double lon, final int zoom) {
+        private Pair<Integer, Integer> getTileNumber(final double lat, final double lon, final int zoom) {
             int xtile = (int) Math.floor((lon + 180) / 360 * (1 << zoom));
             int ytile = (int) Math.floor((1 - Math.log(Math.tan(Math.toRadians(lat)) + 1 / Math.cos(Math.toRadians(lat))) / Math.PI) / 2 * (1 << zoom));
             if (xtile < 0)
@@ -794,7 +860,7 @@ public class MainController implements Initializable, NMEAHandler {
                 ytile = 0;
             if (ytile >= (1 << zoom))
                 ytile = ((1 << zoom) - 1);
-            return ("" + zoom + "/" + xtile + "/" + ytile);
+            return new Pair<>(xtile, ytile);
         }
 
         double tile2lon(int x, int z) {
@@ -808,8 +874,8 @@ public class MainController implements Initializable, NMEAHandler {
 
         private void downloadTile(String relTilePath, File tileFile) throws IOException {
             // https://api.maptiler.com/maps/openstreetmap/17/68931/45055@2x.jpg?key=IvB2ZEjLZPmCZfC56KxL
-            URL url = new URL("https://api.maptiler.com/maps/basic-v2/" + relTilePath + "?key=IvB2ZEjLZPmCZfC56KxL");
-            LogUtils.log("" + url);
+            URL url = new URL(mUrl + relTilePath + "?key=IvB2ZEjLZPmCZfC56KxL");
+            //LogUtils.log("downloadTile thread = " + Thread.currentThread() + " url = " + url);
             HttpsURLConnection con = setupHttpsRequest(url);
             if (con != null) {
                 // opens input stream from the HTTP connection
@@ -828,26 +894,28 @@ public class MainController implements Initializable, NMEAHandler {
 
         @Override
         public EventHandler<WorkerStateEvent> getSucceedEvent() {
-            return new EventHandler<WorkerStateEvent>() {
-                @Override
-                public void handle(WorkerStateEvent event) {
-                    LogUtils.log("loadMapData: QueryMapTilesTask succeededEvent");
-                    mTilePane.getChildren().clear();
+            return event -> {
+                LogUtils.log("loadMapData: QueryMapTilesTask succeededEvent");
+                stopProgress();
+                mTilePane.getChildren().clear();
 
-                    mTilePane.getChildren().addAll(mQueryTilesTask.getValue());
-                    drawShapes();
-                }
+                mTilePane.getChildren().addAll(mQueryTilesTask.getValue());
+                drawShapes();
             };
         }
 
         @Override
         public EventHandler<WorkerStateEvent> getCancelEvent() {
-            return null;
+            return event -> {
+                stopProgress();
+            };
         }
 
         @Override
         public EventHandler<WorkerStateEvent> getRunningEvent() {
-            return null;
+            return event -> {
+                startProgress();
+            };
         }
 
     }
@@ -856,16 +924,17 @@ public class MainController implements Initializable, NMEAHandler {
     public void initialize(URL location, ResourceBundle resources) {
         LogUtils.log("initialize");
 
+        loadTileStyleConfig();
         mMapZoom = GISUtils.getIntValue(Config.getInstance().get("zoom", mMapZoom));
         double centerLon = GISUtils.getDoubleValue(Config.getInstance().get("lon", mCenter.getX()));
         double centerLat = GISUtils.getDoubleValue(Config.getInstance().get("lat", mCenter.getY()));
         mCenter = new Point2D(centerLon, centerLat);
 
         mShow3D = (boolean) Config.getInstance().get("show3D", mShow3D);
-        mLocationHistory = (JsonArray)
-                Config.getInstance().get("locationHistory", new JsonArray());
+        mLocationHistory = (JsonArray) Config.getInstance().get("locationHistory", new JsonArray());
         mLocationHistoryIndex = mLocationHistory.size() - 1;
-
+        mFilterConfig = (JsonObject) Config.getInstance().get("filter", mFilterConfig);
+        applyFilterConfig();
         init();
     }
 
@@ -900,10 +969,152 @@ public class MainController implements Initializable, NMEAHandler {
 
         mNodes = new ArrayList<>();
 
-        mExecutorService = Executors.newFixedThreadPool(4);
+        mExecutorService = Executors.newFixedThreadPool(8);
 
         mOSMObjects = new HashMap<>();
 
+        sidePane = new VBox();
+        sidePane.setVisible(false);
+        sidePane.setStyle("-fx-background-color: white;");
+
+        filterContent = new VBox();
+        VBox.setVgrow(filterContent, Priority.ALWAYS);
+        createFilterContent();
+
+        searchContent = new VBox();
+        VBox.setVgrow(searchContent, Priority.ALWAYS);
+        createSearchContent();
+
+        nodeListContent = new VBox();
+        VBox.setVgrow(nodeListContent, Priority.ALWAYS);
+        createNodeListContent();
+
+        TabPane tabPane = new TabPane();
+        VBox.setVgrow(tabPane, Priority.ALWAYS);
+        Tab searchTab = new Tab("Search", searchContent);
+        searchTab.setStyle("-fx-font-size: 16");
+        searchTab.setClosable(false);
+
+        Tab filterTab = new Tab("Filter", filterContent);
+        filterTab.setStyle("-fx-font-size: 16");
+        filterTab.setClosable(false);
+
+        Tab nodeListTab = new Tab("Nodes", nodeListContent);
+        nodeListTab.setStyle("-fx-font-size: 16");
+        nodeListTab.setClosable(false);
+
+        tabPane.getTabs().add(searchTab);
+        tabPane.getTabs().add(filterTab);
+        tabPane.getTabs().add(nodeListTab);
+
+        sidePane.getChildren().add(tabPane);
+
+        createButtons();
+        createLabels();
+
+        zoomLabel.setText(String.valueOf(mMapZoom));
+
+        mContextMenu = new ContextMenu();
+        mMenuButtonMenu = new ContextMenu();
+
+        mGPSDot = new Circle();
+        mGPSDot.setRadius(30);
+        mGPSDot.setFill(Color.TRANSPARENT);
+        mGPSDot.setStrokeWidth(2);
+
+        // WURGS - we always need a shape on the map pane to get mouse handler going
+        mOutlineRect = new Rectangle();
+        mOutlineRect.setStroke(Color.TRANSPARENT);
+        mOutlineRect.setFill(Color.TRANSPARENT);
+        mOutlineRect.setStrokeWidth(1);
+        mOutlineRect.setVisible(true);
+
+        mRotate = new Rotate(-ROTATE_X_VALUE, Rotate.X_AXIS);
+        mZRotate = new Rotate();
+
+        mainPane = new Pane();
+        mainStackPane.getChildren().add(mainPane);
+
+        mLoadMapProgress = new ProgressIndicator();
+        rootPane.getChildren().add(mLoadMapProgress);
+        mLoadMapProgress.setVisible(false);
+
+        topPane.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
+        infoPane.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
+        bottomPane.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
+
+        mainPane.getChildren().add(mTilePane);
+        mainPane.getChildren().add(mAreaPane);
+        mainPane.getChildren().add(mMapPane);
+        mainPane.getChildren().add(mCountryPane);
+        mainPane.getChildren().add(mLabelPane);
+
+        mTransformPanes.add(mTilePane);
+        mTransformPanes.add(mAreaPane);
+        mTransformPanes.add(mMapPane);
+        mTransformPanes.add(mCountryPane);
+
+        mainPane.getChildren().add(mNodePane);
+        mainPane.getChildren().add(mRoutingPane);
+        mainPane.getChildren().add(mTrackingPane);
+
+        // pass events through
+        mNodePane.setDisable(true);
+        mRoutingPane.setDisable(true);
+        mTrackingPane.setDisable(true);
+        mAreaPane.setDisable(true);
+        mTilePane.setDisable(true);
+        mCountryPane.setDisable(true);
+        mLabelPane.setDisable(true);
+
+        borderPane.setOnKeyPressed(new EventHandler<KeyEvent>() {
+            @Override
+            public void handle(KeyEvent event) {
+                switch (event.getCode()) {
+                    case ESCAPE:
+                        mSelectdShape = null;
+                        mSelectdOSMId = -1;
+                        mSelectedEdge = null;
+                        mSelectedEdgeShape = null;
+                        drawShapes();
+                        break;
+                }
+            }
+        });
+
+        restoreRoutingNodes();
+    }
+
+    private void createLabels() {
+        DropShadow shadow = new DropShadow(
+                BlurType.ONE_PASS_BOX, Color.BLACK, 2, 2, 0, 0);
+
+        zoomLabel.setTextFill(Color.WHITE);
+        zoomLabel.setEffect(shadow);
+        zoomTitle.setTextFill(Color.WHITE);
+        zoomTitle.setEffect(shadow);
+
+        speedLabel.setTextFill(Color.WHITE);
+        speedLabel.setEffect(shadow);
+
+        altLabel.setTextFill(Color.WHITE);
+        altLabel.setEffect(shadow);
+
+        posLabel.setTextFill(Color.WHITE);
+        posLabel.setEffect(shadow);
+        posTitle.setTextFill(Color.WHITE);
+        posTitle.setEffect(shadow);
+
+        wayLabel.setTextFill(Color.WHITE);
+        wayLabel.setEffect(shadow);
+
+        infoLabel.setTextFill(Color.WHITE);
+        infoLabel.setEffect(shadow);
+        infoTitle.setTextFill(Color.WHITE);
+        infoTitle.setEffect(shadow);
+    }
+
+    private void createButtons() {
         quitButton.setGraphic(new ImageView(new Image("/images/ui/quit.png")));
         //quitButton.setShape(new Circle(40));
         quitButton.setOnAction(e -> {
@@ -913,215 +1124,12 @@ public class MainController implements Initializable, NMEAHandler {
         searchButton.setGraphic(new ImageView(new Image("/images/ui/map-search.png")));
         //searchButton.setShape(new Circle(40));
         searchButton.setOnAction(e -> {
-            if (!mSearchContentExpanded) {
-                showSearchContents();
+            if (!mSidePaneExpanded) {
+                showSidePane();
             } else {
-                hideSearchContents();
+                hideSidePane();
             }
         });
-
-        mQueryField = new TextField();
-        mQueryField.setPromptText("Search...");
-        mQueryField.setMinHeight(48);
-        mQueryField.setStyle("-fx-font-size: 16");
-
-        mQueryField.setOnKeyReleased(event -> {
-            mQueryText = mQueryField.getText();
-            updateListContent();
-        });
-        searchContent.getChildren().add(mQueryField);
-
-        CheckBox tilePaneVisible = new CheckBox("Tiles");
-        tilePaneVisible.setStyle("-fx-font-size: 16");
-        tilePaneVisible.setPadding(new Insets(3, 0, 3, 0));
-        tilePaneVisible.setSelected(true);
-        tilePaneVisible.setOnAction(event -> {
-            if (tilePaneVisible.isSelected()) {
-                mTilePane.setVisible(true);
-            } else {
-                mTilePane.setVisible(false);
-            }
-            loadMapData(null);
-        });
-        CheckBox countryPaneVisible = new CheckBox("Countries");
-        countryPaneVisible.setStyle("-fx-font-size: 16");
-        countryPaneVisible.setPadding(new Insets(3, 0, 3, 0));
-        countryPaneVisible.setSelected(true);
-        countryPaneVisible.setOnAction(event -> {
-            if (countryPaneVisible.isSelected()) {
-                mCountryPane.setVisible(true);
-                loadMapData(null);
-            } else {
-                mCountryPane.setVisible(false);
-            }
-        });
-        CheckBox poiPaneVisible = new CheckBox("POIs");
-        poiPaneVisible.setStyle("-fx-font-size: 16");
-        poiPaneVisible.setPadding(new Insets(3, 0, 3, 0));
-        poiPaneVisible.setSelected(true);
-        poiPaneVisible.setOnAction(event -> {
-            if (poiPaneVisible.isSelected()) {
-                mNodePane.setVisible(true);
-                loadMapData(null);
-            } else {
-                mNodePane.setVisible(false);
-            }
-        });
-
-        CheckBox areaPaneVisible = new CheckBox("Areas");
-        areaPaneVisible.setStyle("-fx-font-size: 16");
-        areaPaneVisible.setPadding(new Insets(3, 0, 3, 0));
-        areaPaneVisible.setSelected(true);
-        areaPaneVisible.setOnAction(event -> {
-            if (areaPaneVisible.isSelected()) {
-                mAreaPane.setVisible(true);
-                loadMapData(null);
-            } else {
-                mAreaPane.setVisible(false);
-            }
-        });
-
-        CheckBox labelPaneVisible = new CheckBox("Labels");
-        labelPaneVisible.setStyle("-fx-font-size: 16");
-        labelPaneVisible.setPadding(new Insets(3, 0, 3, 0));
-        labelPaneVisible.setSelected(true);
-        labelPaneVisible.setOnAction(event -> {
-            if (labelPaneVisible.isSelected()) {
-                mLabelPane.setVisible(true);
-                loadMapData(null);
-            } else {
-                mLabelPane.setVisible(false);
-            }
-        });
-
-        CheckBox waysVisible = new CheckBox("Ways");
-        waysVisible.setStyle("-fx-font-size: 16");
-        waysVisible.setPadding(new Insets(3, 0, 3, 0));
-        waysVisible.setSelected(true);
-        waysVisible.setOnAction(event -> {
-            if (waysVisible.isSelected()) {
-                mTransparentWays = false;
-            } else {
-                mTransparentWays = true;
-            }
-            loadMapData(null);
-        });
-
-        filterContent.setPadding(new Insets(10, 10, 10, 10));
-        filterContent.getChildren().add(tilePaneVisible);
-        filterContent.getChildren().add(countryPaneVisible);
-        filterContent.getChildren().add(poiPaneVisible);
-        filterContent.getChildren().add(areaPaneVisible);
-        filterContent.getChildren().add(labelPaneVisible);
-        filterContent.getChildren().add(waysVisible);
-
-        HBox filterSelect = new HBox();
-        filterSelect.setPadding(new Insets(10, 10, 10, 10));
-
-        ToggleGroup filterGroup = new ToggleGroup();
-
-        RadioButton poiFilter = new RadioButton("POI");
-        poiFilter.setToggleGroup(filterGroup);
-        poiFilter.setOnAction(event -> {
-            mFilterHeader.setVisible(false);
-            mFilterType = FilterType.POI;
-            updateListContent();
-        });
-
-        RadioButton addressFilter = new RadioButton("Address");
-        addressFilter.setPadding(new Insets(0, 0, 0, 10));
-        addressFilter.setToggleGroup(filterGroup);
-        addressFilter.setOnAction(event -> {
-            mFilterHeader.setVisible(false);
-            mFilterType = FilterType.ADDRESS;
-            updateListContent();
-        });
-
-        RadioButton cityFilter = new RadioButton("City");
-        cityFilter.setPadding(new Insets(0, 0, 0, 10));
-        cityFilter.setToggleGroup(filterGroup);
-        cityFilter.setOnAction(event -> {
-            mFilterHeader.setVisible(false);
-            mFilterType = FilterType.CITY;
-            updateListContent();
-        });
-
-        RadioButton localFilter = new RadioButton("Local");
-        localFilter.setPadding(new Insets(0, 0, 0, 10));
-        localFilter.setToggleGroup(filterGroup);
-        localFilter.setOnAction(event -> {
-            mFilterHeader.getItems().clear();
-            // show area popup
-            mFilterHeader.setVisible(true);
-            JsonArray adminDataList = getAdminAreaListAtPos(mCenter);
-            for (int i = 0; i < adminDataList.size(); i++) {
-                JsonObject adminData = (JsonObject) adminDataList.get(i);
-                long osmId = GISUtils.getLongValue(adminData.get("osmId"));
-                int adminLevel = GISUtils.getIntValue(adminData.get("adminLevel"));
-                String name = (String) adminData.get("name");
-                LogUtils.log(name + " " + adminLevel);
-                RadioMenuItem menuItem = new RadioMenuItem(name);
-                menuItem.setStyle("-fx-font-size: 16");
-                menuItem.setUserData(osmId);
-                menuItem.setOnAction(e -> {
-                    mAdminId = (long) menuItem.getUserData();
-                    mFilterHeader.setText(menuItem.getText());
-                    updateListContent();
-                });
-                mFilterHeader.getItems().add(menuItem);
-
-                if (i == 0) {
-                    mAdminId = osmId;
-                    mFilterHeader.setText(menuItem.getText());
-                }
-            }
-            mFilterType = FilterType.LOCAL;
-            updateListContent();
-        });
-
-        poiFilter.setSelected(true);
-
-        filterSelect.getChildren().add(poiFilter);
-        filterSelect.getChildren().add(addressFilter);
-        filterSelect.getChildren().add(cityFilter);
-        filterSelect.getChildren().add(localFilter);
-
-        searchContent.getChildren().add(filterSelect);
-
-        mFilterHeader = new MenuButton("Area                            ");
-        mFilterHeader.setStyle("-fx-font-size: 16");
-        mFilterHeader.setVisible(false);
-        searchContent.getChildren().add(mFilterHeader);
-
-        mQueryListView = new ListView<>();
-
-        VBox listViewLayout = new VBox(0);
-        VBox.setVgrow(listViewLayout, Priority.ALWAYS);
-        listViewLayout.getChildren().add(mQueryListView);
-        VBox.setVgrow(mQueryListView, Priority.ALWAYS);
-
-        mQueryListView.setItems(mQueryItems);
-        mQueryListView.setCellFactory(queryListView -> new QueryListViewCell());
-        mQueryListView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<QueryItem>() {
-            @Override
-            public void changed(ObservableValue<? extends QueryItem> observable, QueryItem oldValue, QueryItem newValue) {
-                if (newValue != null) {
-                    JsonArray coords = newValue.getCoords();
-                    //infoLabel.setText(newValue.getName());
-                    centerMapOnLocation((double) coords.get(0), (double) coords.get(1));
-                    addToLocationHistory(coords);
-                }
-            }
-        });
-
-        StackPane listViewPane = new StackPane();
-        searchContent.getChildren().add(listViewPane);
-        VBox.setVgrow(listViewPane, Priority.ALWAYS);
-
-        mQueryListProgress = new ProgressIndicator();
-        listViewPane.getChildren().add(listViewLayout);
-        listViewPane.getChildren().add(mQueryListProgress);
-        mQueryListProgress.setVisible(false);
 
         menuButton.setGraphic(new ImageView(new Image("/images/ui/menu.png")));
         //menuButton.setShape(new Circle(30));
@@ -1131,7 +1139,6 @@ public class MainController implements Initializable, NMEAHandler {
                 mMenuButtonMenu.show(menuButton, e.getScreenX(), e.getScreenY());
             }
         });
-
 
         zoomInButton.setGraphic(new ImageView(new Image("/images/ui/plus.png")));
         //zoomInButton.setShape(new Circle(40));
@@ -1227,110 +1234,251 @@ public class MainController implements Initializable, NMEAHandler {
                 mTrackReplayThread.stepThread();
             }
         });
+    }
 
-        zoomLabel.setText(String.valueOf(mMapZoom));
+    private void createSearchContent() {
+        mQueryField = new TextField();
+        mQueryField.setPromptText("Search...");
+        mQueryField.setMinHeight(48);
+        mQueryField.setStyle("-fx-font-size: 16");
 
-        mContextMenu = new ContextMenu();
-        mMenuButtonMenu = new ContextMenu();
+        mQueryField.setOnKeyReleased(event -> {
+            mQueryText = mQueryField.getText();
+            updateListContent();
+        });
+        searchContent.getChildren().add(mQueryField);
 
-        mGPSDot = new Circle();
-        mGPSDot.setRadius(30);
-        mGPSDot.setFill(Color.TRANSPARENT);
-        mGPSDot.setStrokeWidth(2);
+        HBox filterSelect = new HBox();
+        filterSelect.setPadding(new Insets(10, 10, 10, 10));
 
-        // WURGS - we always need a shape on the map pane to get mouse handler going
-        mOutlineRect = new Rectangle();
-        mOutlineRect.setStroke(Color.TRANSPARENT);
-        mOutlineRect.setFill(Color.TRANSPARENT);
-        mOutlineRect.setStrokeWidth(1);
-        mOutlineRect.setVisible(true);
+        ToggleGroup filterGroup = new ToggleGroup();
 
-        mRotate = new Rotate(-ROTATE_X_VALUE, Rotate.X_AXIS);
-        mZRotate = new Rotate();
+        RadioButton poiFilter = new RadioButton("POI");
+        poiFilter.setToggleGroup(filterGroup);
+        poiFilter.setOnAction(event -> {
+            mFilterHeader.setVisible(false);
+            mFilterType = FilterType.POI;
+            updateListContent();
+        });
 
-        borderPane.setTop(topPane);
-        borderPane.setRight(rightPane);
-        borderPane.setBottom(infoPane);
-        mainPane = new Pane();
-        mainStackPane.getChildren().add(mainPane);
-        mLoadMapProgress = new ProgressIndicator();
-        mainStackPane.getChildren().add(mLoadMapProgress);
-        mLoadMapProgress.setVisible(false);
+        RadioButton addressFilter = new RadioButton("Address");
+        addressFilter.setPadding(new Insets(0, 0, 0, 10));
+        addressFilter.setToggleGroup(filterGroup);
+        addressFilter.setOnAction(event -> {
+            mFilterHeader.setVisible(false);
+            mFilterType = FilterType.ADDRESS;
+            updateListContent();
+        });
 
-        borderPane.setCenter(mainStackPane);
+        RadioButton cityFilter = new RadioButton("City");
+        cityFilter.setPadding(new Insets(0, 0, 0, 10));
+        cityFilter.setToggleGroup(filterGroup);
+        cityFilter.setOnAction(event -> {
+            mFilterHeader.setVisible(false);
+            mFilterType = FilterType.CITY;
+            updateListContent();
+        });
 
-        topPane.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
-        //rightPane.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
-        infoPane.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
-        bottomPane.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
+        RadioButton localFilter = new RadioButton("Local");
+        localFilter.setPadding(new Insets(0, 0, 0, 10));
+        localFilter.setToggleGroup(filterGroup);
+        localFilter.setOnAction(event -> {
+            mFilterHeader.getItems().clear();
+            // show area popup
+            mFilterHeader.setVisible(true);
+            JsonArray adminDataList = getAdminAreaListAtPos(mCenter);
+            for (int i = 0; i < adminDataList.size(); i++) {
+                JsonObject adminData = (JsonObject) adminDataList.get(i);
+                long osmId = GISUtils.getLongValue(adminData.get("osmId"));
+                int adminLevel = GISUtils.getIntValue(adminData.get("adminLevel"));
+                String name = (String) adminData.get("name");
+                LogUtils.log(name + " " + adminLevel);
+                RadioMenuItem menuItem = new RadioMenuItem(name);
+                menuItem.setStyle("-fx-font-size: 16");
+                menuItem.setUserData(osmId);
+                menuItem.setOnAction(e -> {
+                    mAdminId = (long) menuItem.getUserData();
+                    mFilterHeader.setText(menuItem.getText());
+                    updateListContent();
+                });
+                mFilterHeader.getItems().add(menuItem);
 
-        DropShadow shadow = new DropShadow(
-                BlurType.ONE_PASS_BOX, Color.BLACK, 2, 2, 0, 0);
+                if (i == 0) {
+                    mAdminId = osmId;
+                    mFilterHeader.setText(menuItem.getText());
+                }
+            }
+            mFilterType = FilterType.LOCAL;
+            updateListContent();
+        });
 
-        zoomLabel.setTextFill(Color.WHITE);
-        zoomLabel.setEffect(shadow);
-        zoomTitle.setTextFill(Color.WHITE);
-        zoomTitle.setEffect(shadow);
+        poiFilter.setSelected(true);
 
-        speedLabel.setTextFill(Color.WHITE);
-        speedLabel.setEffect(shadow);
+        filterSelect.getChildren().add(poiFilter);
+        filterSelect.getChildren().add(addressFilter);
+        filterSelect.getChildren().add(cityFilter);
+        filterSelect.getChildren().add(localFilter);
 
-        altLabel.setTextFill(Color.WHITE);
-        altLabel.setEffect(shadow);
+        searchContent.getChildren().add(filterSelect);
 
-        posLabel.setTextFill(Color.WHITE);
-        posLabel.setEffect(shadow);
-        posTitle.setTextFill(Color.WHITE);
-        posTitle.setEffect(shadow);
+        mFilterHeader = new MenuButton("Area                            ");
+        mFilterHeader.setStyle("-fx-font-size: 16");
+        mFilterHeader.setVisible(false);
+        searchContent.getChildren().add(mFilterHeader);
 
-        wayLabel.setTextFill(Color.WHITE);
-        wayLabel.setEffect(shadow);
+        mQueryListView = new ListView<>();
 
-        infoLabel.setTextFill(Color.WHITE);
-        infoLabel.setEffect(shadow);
-        infoTitle.setTextFill(Color.WHITE);
-        infoTitle.setEffect(shadow);
+        VBox listViewLayout = new VBox(0);
+        VBox.setVgrow(listViewLayout, Priority.ALWAYS);
+        listViewLayout.getChildren().add(mQueryListView);
+        VBox.setVgrow(mQueryListView, Priority.ALWAYS);
 
-        mainPane.getChildren().add(mTilePane);
-        mainPane.getChildren().add(mAreaPane);
-        mainPane.getChildren().add(mMapPane);
-        mainPane.getChildren().add(mCountryPane);
-        mainPane.getChildren().add(mLabelPane);
-
-        mTransformPanes.add(mTilePane);
-        mTransformPanes.add(mAreaPane);
-        mTransformPanes.add(mMapPane);
-        mTransformPanes.add(mCountryPane);
-
-        mainPane.getChildren().add(mNodePane);
-        mainPane.getChildren().add(mRoutingPane);
-        mainPane.getChildren().add(mTrackingPane);
-
-        // pass events through
-        mNodePane.setDisable(true);
-        mRoutingPane.setDisable(true);
-        mTrackingPane.setDisable(true);
-        mAreaPane.setDisable(true);
-        mTilePane.setDisable(true);
-        mCountryPane.setDisable(true);
-        mLabelPane.setDisable(true);
-
-        borderPane.setOnKeyPressed(new EventHandler<KeyEvent>() {
+        mQueryListView.setItems(mQueryItems);
+        mQueryListView.setCellFactory(queryListView -> new QueryListViewCell());
+        mQueryListView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<QueryItem>() {
             @Override
-            public void handle(KeyEvent event) {
-                switch (event.getCode()) {
-                    case ESCAPE:
-                        mSelectdShape = null;
-                        mSelectdOSMId = -1;
-                        mSelectedEdge = null;
-                        mSelectedEdgeShape = null;
-                        drawShapes();
-                        break;
+            public void changed(ObservableValue<? extends QueryItem> observable, QueryItem oldValue, QueryItem newValue) {
+                if (newValue != null) {
+                    JsonArray coords = newValue.getCoords();
+                    //infoLabel.setText(newValue.getName());
+                    centerMapOnLocationWithZoom((double) coords.get(0), (double) coords.get(1), 17);
+                    addToLocationHistory(coords);
                 }
             }
         });
 
-        restoreRoutingNodes();
+        StackPane listViewPane = new StackPane();
+        searchContent.getChildren().add(listViewPane);
+        VBox.setVgrow(listViewPane, Priority.ALWAYS);
+
+        mQueryListProgress = new ProgressIndicator();
+        listViewPane.getChildren().add(listViewLayout);
+        listViewPane.getChildren().add(mQueryListProgress);
+        mQueryListProgress.setVisible(false);
+    }
+
+    private void createNodeListContent() {
+        mNodesListView = new ListView<>();
+
+        VBox listViewLayout = new VBox(0);
+        VBox.setVgrow(listViewLayout, Priority.ALWAYS);
+        listViewLayout.getChildren().add(mNodesListView);
+        VBox.setVgrow(mNodesListView, Priority.ALWAYS);
+
+        mNodesListView.setItems(mNodeListItems);
+        mNodesListView.setCellFactory(queryListView -> new QueryListViewCell());
+        mNodesListView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<QueryItem>() {
+            @Override
+            public void changed(ObservableValue<? extends QueryItem> observable, QueryItem oldValue, QueryItem newValue) {
+                if (newValue != null) {
+                    JsonArray coords = newValue.getCoords();
+                    centerMapOnLocationWithZoom((double) coords.get(0), (double) coords.get(1), 17);
+                }
+            }
+        });
+
+        StackPane listViewPane = new StackPane();
+        nodeListContent.getChildren().add(listViewPane);
+        VBox.setVgrow(listViewPane, Priority.ALWAYS);
+        listViewPane.getChildren().add(listViewLayout);
+    }
+
+    private void createFilterContent() {
+        CheckBox tilePaneVisible = new CheckBox("Tiles");
+        tilePaneVisible.setStyle("-fx-font-size: 16");
+        tilePaneVisible.setPadding(new Insets(3, 0, 3, 0));
+        tilePaneVisible.setSelected((boolean) mFilterConfig.get("tile"));
+        tilePaneVisible.setOnAction(event -> {
+            if (tilePaneVisible.isSelected()) {
+                mTilePane.setVisible(true);
+            } else {
+                mTilePane.setVisible(false);
+            }
+            loadMapData(null);
+            mFilterConfig.put("tile", tilePaneVisible.isSelected());
+            saveCurrentFilter();
+        });
+        CheckBox countryPaneVisible = new CheckBox("Countries");
+        countryPaneVisible.setStyle("-fx-font-size: 16");
+        countryPaneVisible.setPadding(new Insets(3, 0, 3, 0));
+        countryPaneVisible.setSelected((Boolean) mFilterConfig.get("country"));
+        countryPaneVisible.setOnAction(event -> {
+            if (countryPaneVisible.isSelected()) {
+                mCountryPane.setVisible(true);
+                loadMapData(null);
+            } else {
+                mCountryPane.setVisible(false);
+            }
+            mFilterConfig.put("country", countryPaneVisible.isSelected());
+            saveCurrentFilter();
+        });
+        CheckBox poiPaneVisible = new CheckBox("POIs");
+        poiPaneVisible.setStyle("-fx-font-size: 16");
+        poiPaneVisible.setPadding(new Insets(3, 0, 3, 0));
+        poiPaneVisible.setSelected((Boolean) mFilterConfig.get("poi"));
+        poiPaneVisible.setOnAction(event -> {
+            if (poiPaneVisible.isSelected()) {
+                mNodePane.setVisible(true);
+                loadMapData(null);
+            } else {
+                mNodePane.setVisible(false);
+            }
+            mFilterConfig.put("poi", poiPaneVisible.isSelected());
+            saveCurrentFilter();
+        });
+
+        CheckBox areaPaneVisible = new CheckBox("Areas");
+        areaPaneVisible.setStyle("-fx-font-size: 16");
+        areaPaneVisible.setPadding(new Insets(3, 0, 3, 0));
+        areaPaneVisible.setSelected((Boolean) mFilterConfig.get("area"));
+        areaPaneVisible.setOnAction(event -> {
+            if (areaPaneVisible.isSelected()) {
+                mAreaPane.setVisible(true);
+                loadMapData(null);
+            } else {
+                mAreaPane.setVisible(false);
+            }
+            mFilterConfig.put("area", areaPaneVisible.isSelected());
+            saveCurrentFilter();
+        });
+
+        CheckBox labelPaneVisible = new CheckBox("Labels");
+        labelPaneVisible.setStyle("-fx-font-size: 16");
+        labelPaneVisible.setPadding(new Insets(3, 0, 3, 0));
+        labelPaneVisible.setSelected((Boolean) mFilterConfig.get("label"));
+        labelPaneVisible.setOnAction(event -> {
+            if (labelPaneVisible.isSelected()) {
+                mLabelPane.setVisible(true);
+                loadMapData(null);
+            } else {
+                mLabelPane.setVisible(false);
+            }
+            mFilterConfig.put("label", labelPaneVisible.isSelected());
+            saveCurrentFilter();
+        });
+
+        CheckBox waysVisible = new CheckBox("Ways");
+        waysVisible.setStyle("-fx-font-size: 16");
+        waysVisible.setPadding(new Insets(3, 0, 3, 0));
+        waysVisible.setSelected((Boolean) mFilterConfig.get("way"));
+        waysVisible.setOnAction(event -> {
+            if (waysVisible.isSelected()) {
+                mTransparentWays = false;
+            } else {
+                mTransparentWays = true;
+            }
+            loadMapData(null);
+            mFilterConfig.put("way", waysVisible.isSelected());
+            saveCurrentFilter();
+        });
+
+        filterContent.setPadding(new Insets(10, 10, 10, 10));
+        filterContent.getChildren().add(tilePaneVisible);
+        filterContent.getChildren().add(countryPaneVisible);
+        filterContent.getChildren().add(poiPaneVisible);
+        filterContent.getChildren().add(areaPaneVisible);
+        filterContent.getChildren().add(labelPaneVisible);
+        filterContent.getChildren().add(waysVisible);
     }
 
     public void stop() {
@@ -1351,12 +1499,12 @@ public class MainController implements Initializable, NMEAHandler {
         mScene.widthProperty().addListener((observableValue, oldSceneWidth, newSceneWidth) -> {
             calcMapCenterPos();
             calcMapZeroPos(true);
-            drawShapes();
+            maybeLoadMapData(null);
         });
         mScene.heightProperty().addListener((observableValue, oldSceneHeight, newSceneHeight) -> {
             calcMapCenterPos();
             calcMapZeroPos(true);
-            drawShapes();
+            maybeLoadMapData(null);
         });
 
         // NEVER EVER add eventlistener to anythign else
@@ -1540,6 +1688,7 @@ public class MainController implements Initializable, NMEAHandler {
             return 16;
         }
     }
+
     private int getCountryLabelFontSizeForZoom() {
         // on 11  countries start
         if (mMapZoom <= 10) {
@@ -1628,11 +1777,12 @@ public class MainController implements Initializable, NMEAHandler {
         mCalcPoint.setVisible(false);
         mTrackingPane.getChildren().add(mCalcPoint);
 
-        // TODO we want transparent buildings to select
-        //if (mAreaPane.isVisible()) {
+        // we want transparent buildings to select
         mLoadAreaTask = new LoadAreaTask(bbox);
+        for (List<Node> polyList : mAreaPolylines.values()) {
+            polyList.clear();
+        }
         mLoadAreaTask.submit(mExecutorService, mMapZoom);
-        //}
 
         if (mNodePane.isVisible()) {
             mLoadPOITask = new LoadPOITask(bbox);
@@ -1863,6 +2013,10 @@ public class MainController implements Initializable, NMEAHandler {
         return coordinateToDisplay(coord.getDouble(0), coord.getDouble(1), mMapZoom);
     }
 
+    private Point2D coordinateToDisplay(Point2D coord, int zoom) {
+        return coordinateToDisplay(coord.getX(), coord.getY(), mMapZoom);
+    }
+
     Point2D displayToCoordinate(double x, double y, int zoom) {
         // longitude
         double longitude = (x * (360 / (Math.pow(2, zoom) * GISUtils.TILESIZE))) - 180;
@@ -1940,6 +2094,14 @@ public class MainController implements Initializable, NMEAHandler {
         calcMapCenterPos();
         calcMapZeroPos(false);
         maybeLoadMapData(() -> showShapeAtCenter());
+    }
+
+    private void centerMapOnLocationWithZoom(double lon, double lat, int minZoom) {
+        if (mMapZoom < minZoom) {
+            mMapZoom = minZoom;
+            zoomLabel.setText(String.valueOf(mMapZoom));
+        }
+        centerMapOnLocation(lon, lat);
     }
 
     private void calcMapCenterPos() {
@@ -2682,11 +2844,27 @@ public class MainController implements Initializable, NMEAHandler {
         return /*mMapZoom >= 14 &&*/ mShow3D;
     }
 
-    private void addRoutingNode(RoutingNode.TYPE type, Point2D coordsPos, long edgeId, long wayId) {
-        RoutingNode routingNode = new RoutingNode(type, coordsPos, edgeId, wayId);
+    private void addRoutingNode(RoutingNode.TYPE type, Point2D coordsPos, long edgeId, long wayId, long osmId) {
+        RoutingNode routingNode = new RoutingNode(type, coordsPos, edgeId, wayId, osmId);
         updateRoutingNode(routingNode, true);
         mRoutingNodes.add(routingNode);
         saveRoutingNodes();
+
+        ResolvePositionTask task = new ResolvePositionTask(routingNode.getCoordsPos(), routingNode.getWayId(), routingNode.getOsmId());
+        task.setOnSucceeded((succeededEvent) -> {
+            String name = null;
+            JsonObject way = task.getResolvedWay();
+            JsonObject area = task.getResolvedArea();
+            if (area != null) {
+                name = (String) area.get("name");
+            }
+            if (name == null && way != null) {
+                name = (String) way.get("name");
+            }
+            routingNode.setName(name);
+            updateNodeListContent();
+        });
+        mExecutorService.submit(task);
     }
 
     private void updateRoutingNode(RoutingNode routingNode, boolean updateSize) {
@@ -2736,6 +2914,7 @@ public class MainController implements Initializable, NMEAHandler {
             menuItem.setOnAction(ev -> {
                 mRoutingNodes.remove(node);
                 saveRoutingNodes();
+                updateNodeListContent();
                 drawShapes();
             });
             menuItem.setStyle("-fx-font-size: 20");
@@ -2747,12 +2926,20 @@ public class MainController implements Initializable, NMEAHandler {
                     // find closest edge
                     JsonObject edge = getClosestEdgeOnPos(mMouseClickedCoordsPos);
                     if (edge != null) {
-                        LogUtils.log("addRoutingNode: use minimal distance edge " + edge);
                         mSelectedEdge = edge;
                         createSelectedEdgeShape();
+
+                        Point2D pos = coordinateToDisplay(mMouseClickedCoordsPos, mMapZoom);
+                        OSMShape shape = findShapeAtPoint(pos, OSMUtils.SELECT_AREA_TYPE);
+                        long osmId = -1;
+                        if (shape != null) {
+                            osmId = shape.getOSMId();
+                        }
+                        LogUtils.log("addRoutingNode: use minimal distance edge = " + edge + " osmId = " + osmId);
+
                         addRoutingNode(hasRoutingStart() ? RoutingNode.TYPE.END : RoutingNode.TYPE.START, mMouseClickedCoordsPos,
                                 (long) mSelectedEdge.get("id"),
-                                (long) mSelectedEdge.get("wayId"));
+                                (long) mSelectedEdge.get("wayId"), osmId);
                         drawShapes();
                     } else {
                         LogUtils.log("addRoutingNode: failed to resolve edge for position");
@@ -2799,7 +2986,7 @@ public class MainController implements Initializable, NMEAHandler {
             menuItem = new MenuItem(" Go to start ");
             menuItem.setOnAction(ev -> {
                 Point2D pos = getRoutingStart().getCoordsPos();
-                centerMapOnLocation(pos.getX(), pos.getY());
+                centerMapOnLocationWithZoom(pos.getX(), pos.getY(), 17);
             });
             menuItem.setStyle("-fx-font-size: 20");
             mContextMenu.getItems().add(menuItem);
@@ -2808,7 +2995,7 @@ public class MainController implements Initializable, NMEAHandler {
             menuItem = new MenuItem(" Go to finish ");
             menuItem.setOnAction(ev -> {
                 Point2D pos = getRoutingEnd().getCoordsPos();
-                centerMapOnLocation(pos.getX(), pos.getY());
+                centerMapOnLocationWithZoom(pos.getX(), pos.getY(), 17);
             });
             menuItem.setStyle("-fx-font-size: 20");
             mContextMenu.getItems().add(menuItem);
@@ -2898,18 +3085,6 @@ public class MainController implements Initializable, NMEAHandler {
         });
         menuItem.setStyle("-fx-font-size: 20");
         mMenuButtonMenu.getItems().add(menuItem);
-
-        menuItem = new MenuItem(" Filter ");
-        menuItem.setOnAction(ev -> {
-            if (!mFilterContentExpanded) {
-                showFilterContents();
-            } else {
-                hideFilterContents();
-            }
-        });
-        menuItem.setStyle("-fx-font-size: 20");
-        mMenuButtonMenu.getItems().add(menuItem);
-
     }
 
     RoutingNode getSelectedRoutingNode(Point2D nodePos) {
@@ -2946,7 +3121,7 @@ public class MainController implements Initializable, NMEAHandler {
             RoutingNode node = new RoutingNode((JsonObject) nodes.get(i));
             mRoutingNodes.add(node);
 
-            ResolvePositionTask task = new ResolvePositionTask(node.getCoordsPos(), node.getWayId());
+            ResolvePositionTask task = new ResolvePositionTask(node.getCoordsPos(), node.getWayId(), node.getOsmId());
             task.setOnSucceeded((succeededEvent) -> {
                 LogUtils.log("restoreRoutingNodes: ResolvePositionTask succeededEvent");
                 JsonObject edge = task.getResolvedEdge();
@@ -2954,6 +3129,17 @@ public class MainController implements Initializable, NMEAHandler {
                     node.setEdgeId((long) edge.get("id"));
                     LogUtils.log("resolved node = " + node.toJson() + " edgeId = " + node.getEdgeId());
                 }
+                String name = null;
+                JsonObject way = task.getResolvedWay();
+                JsonObject area = task.getResolvedArea();
+                if (area != null) {
+                    name = (String) area.get("name");
+                }
+                if (name == null && way != null) {
+                    name = (String) way.get("name");
+                }
+                node.setName(name);
+                updateNodeListContent();
             });
             mExecutorService.submit(task);
         }
@@ -3156,11 +3342,28 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
 
-    private void saveCurrentMapPos() {
-        Config.getInstance().put("zoom", mMapZoom);
-        Config.getInstance().put("lon", mCenter.getX());
-        Config.getInstance().put("lat", mCenter.getY());
+    private void saveCurrentFilter() {
+        Config.getInstance().put("filter", mFilterConfig);
         Config.getInstance().save();
+    }
+
+    private void applyFilterConfig() {
+        if (mFilterConfig != null) {
+            mNodePane.setVisible((boolean) mFilterConfig.get("poi"));
+            mTilePane.setVisible((boolean) mFilterConfig.get("tile"));
+            mLabelPane.setVisible((boolean) mFilterConfig.get("label"));
+            mCountryPane.setVisible((boolean) mFilterConfig.get("country"));
+            mAreaPane.setVisible((boolean) mFilterConfig.get("area"));
+            mTransparentWays = !(boolean) mFilterConfig.get("way");
+        } else {
+            mFilterConfig = new JsonObject();
+            mFilterConfig.put("poi", true);
+            mFilterConfig.put("tile", true);
+            mFilterConfig.put("label", true);
+            mFilterConfig.put("country", true);
+            mFilterConfig.put("area", true);
+            mFilterConfig.put("way", true);
+        }
     }
 
     private void updateFakeShapes() {
@@ -3195,43 +3398,10 @@ public class MainController implements Initializable, NMEAHandler {
         }
     }
 
-    private void showSearchContents() {
-        if (mFilterContentExpanded) {
-            rightPane.getChildren().remove(filterContent);
-            mFilterContentExpanded = false;
-            searchContent.setVisible(true);
-            searchContent.setPrefWidth(300);
-            rightPane.getChildren().add(0, searchContent);
-            mSearchContentExpanded = true;
-        } else {
-            searchContent.setVisible(true);
-            rightPane.getChildren().add(0, searchContent);
-            // TODO move in func
-            Timer animTimer = new Timer();
-            animTimer.scheduleAtFixedRate(new TimerTask() {
-                int i = 0;
-
-                @Override
-                public void run() {
-                    if (i < 10) {
-                        searchContent.setPrefWidth(Math.min(searchContent.getPrefWidth() + 30, 300));
-                    } else {
-                        this.cancel();
-                        Platform.runLater(new Runnable() {
-                            @Override
-                            public void run() {
-                                mSearchContentExpanded = true;
-                            }
-                        });
-                    }
-                    i++;
-                }
-
-            }, 0, 25);
-        }
-    }
-
-    private void hideSearchContents() {
+    private void showSidePane() {
+        sidePane.setVisible(true);
+        rightPane.getChildren().add(0, sidePane);
+        // TODO move in func
         Timer animTimer = new Timer();
         animTimer.scheduleAtFixedRate(new TimerTask() {
             int i = 0;
@@ -3239,15 +3409,13 @@ public class MainController implements Initializable, NMEAHandler {
             @Override
             public void run() {
                 if (i < 10) {
-                    searchContent.setPrefWidth(Math.max(0, searchContent.getPrefWidth() - 30));
+                    sidePane.setPrefWidth(Math.min(sidePane.getPrefWidth() + 30, 300));
                 } else {
                     this.cancel();
                     Platform.runLater(new Runnable() {
                         @Override
                         public void run() {
-                            searchContent.setVisible(false);
-                            rightPane.getChildren().remove(0);
-                            mSearchContentExpanded = false;
+                            mSidePaneExpanded = true;
                         }
                     });
                 }
@@ -3257,43 +3425,7 @@ public class MainController implements Initializable, NMEAHandler {
         }, 0, 25);
     }
 
-    private void showFilterContents() {
-        if (mSearchContentExpanded) {
-            rightPane.getChildren().remove(searchContent);
-            mSearchContentExpanded = false;
-            filterContent.setVisible(true);
-            filterContent.setPrefWidth(300);
-            rightPane.getChildren().add(0, filterContent);
-            mFilterContentExpanded = true;
-        } else {
-            filterContent.setVisible(true);
-            rightPane.getChildren().add(0, filterContent);
-            // TODO move in func
-            Timer animTimer = new Timer();
-            animTimer.scheduleAtFixedRate(new TimerTask() {
-                int i = 0;
-
-                @Override
-                public void run() {
-                    if (i < 10) {
-                        filterContent.setPrefWidth(Math.min(filterContent.getPrefWidth() + 30, 300));
-                    } else {
-                        this.cancel();
-                        Platform.runLater(new Runnable() {
-                            @Override
-                            public void run() {
-                                mFilterContentExpanded = true;
-                            }
-                        });
-                    }
-                    i++;
-                }
-
-            }, 0, 25);
-        }
-    }
-
-    private void hideFilterContents() {
+    private void hideSidePane() {
         Timer animTimer = new Timer();
         animTimer.scheduleAtFixedRate(new TimerTask() {
             int i = 0;
@@ -3301,15 +3433,15 @@ public class MainController implements Initializable, NMEAHandler {
             @Override
             public void run() {
                 if (i < 10) {
-                    filterContent.setPrefWidth(Math.max(0, filterContent.getPrefWidth() - 30));
+                    sidePane.setPrefWidth(Math.max(0, sidePane.getPrefWidth() - 30));
                 } else {
                     this.cancel();
                     Platform.runLater(new Runnable() {
                         @Override
                         public void run() {
-                            filterContent.setVisible(false);
+                            sidePane.setVisible(false);
                             rightPane.getChildren().remove(0);
-                            mFilterContentExpanded = false;
+                            mSidePaneExpanded = false;
                         }
                     });
                 }
@@ -3332,6 +3464,28 @@ public class MainController implements Initializable, NMEAHandler {
             mSelectedEdgeShape = displayCoordsPolyline((JsonArray) mSelectedEdge.get("coords"));
             mSelectedEdgeShape.setStrokeWidth(2);
             mSelectedEdgeShape.setStroke(Color.GREEN);
+        }
+    }
+
+    private void updateNodeListContent() {
+        mNodeListItems.clear();
+        for (RoutingNode node : mRoutingNodes) {
+            // TODO we can only resolve way names but not addresses
+            QueryItem item = new QueryItem(node.getType() == RoutingNode.TYPE.START ? "Start" : "Finsh", node.getName(),
+                    node.getImage(), node.getCoordsPos());
+            mNodeListItems.add(item);
+        }
+    }
+
+    private void loadTileStyleConfig() {
+        InputStream configFile = getClass().getResourceAsStream("tilestyle.json");
+        if (configFile != null) {
+            try {
+                InputStreamReader reader = new InputStreamReader(configFile);
+                mTileStyle = (JsonObject) Jsoner.deserialize(reader);
+            } catch (Exception e) {
+                LogUtils.error("loadTileStyleConfig", e);
+            }
         }
     }
 }

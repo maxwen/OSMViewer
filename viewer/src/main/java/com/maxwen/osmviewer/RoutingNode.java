@@ -14,18 +14,23 @@ public class RoutingNode extends ImageView {
     private long mEdgeId;
     private TYPE mType;
     private long mWayId;
+    private String mName = "";
+    // if building
+    private long mOsmId = -1;
 
     enum TYPE {
         START,
         END
     }
 
-    public RoutingNode(TYPE type, Point2D coordsPos, long edgeId, long wayId) {
+    // TODO store osmId of building if any
+    public RoutingNode(TYPE type, Point2D coordsPos, long edgeId, long wayId, long osmId) {
         super(type == TYPE.START ? OSMStyle.getNodeTypeImage(OSMUtils.POI_TYPE_ROUTING_START) : OSMStyle.getNodeTypeImage(OSMUtils.POI_TYPE_ROUTING_FINISH));
         mType = type;
         mCoordsPos = coordsPos;
         mEdgeId = edgeId;
         mWayId = wayId;
+        mOsmId = osmId;
     }
 
     public RoutingNode(JsonObject node) {
@@ -39,6 +44,9 @@ public class RoutingNode extends ImageView {
         mCoordsPos = new Point2D(lon, lat);
         mEdgeId = -1;
         mWayId = ((BigDecimal) node.get("wayId")).longValue();
+        if (node.containsKey("osmId")) {
+            mOsmId = ((BigDecimal) node.get("osmId")).longValue();
+        }
     }
 
     public TYPE getType() {
@@ -57,9 +65,22 @@ public class RoutingNode extends ImageView {
         return mWayId;
     }
 
+    public long getOsmId() {
+        return mOsmId;
+    }
+
     public Point2D getCoordsPos() {
         return mCoordsPos;
     }
+
+    public String getName() {
+        return mName;
+    }
+
+    public void setName(String name) {
+        mName = name;
+    }
+
 
     public JsonObject toJson() {
         JsonObject node = new JsonObject();
@@ -67,6 +88,7 @@ public class RoutingNode extends ImageView {
         node.put("lat", mCoordsPos.getY());
         node.put("type", getType() == TYPE.START ? 0 : 1);
         node.put("wayId", mWayId);
+        node.put("osmId", mOsmId);
 
         // edgeid must be calculated on every restore in case db changes
         return node;

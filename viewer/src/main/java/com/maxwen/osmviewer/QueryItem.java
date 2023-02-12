@@ -2,14 +2,15 @@ package com.maxwen.osmviewer;
 
 import com.github.cliftonlabs.json_simple.JsonArray;
 import javafx.scene.image.Image;
+import javafx.geometry.Point2D;
 
 public class QueryItem {
     private String mName;
     private String mTags;
     private Image mImage;
-    JsonArray mCoords = new JsonArray();
+    Point2D mCoords;
 
-    public QueryItem(String name, String tags, Image image, JsonArray coords) {
+    public QueryItem(String name, String tags, Image image, Point2D coords) {
         mName = name;
         mTags = tags;
         mImage = image;
@@ -28,7 +29,14 @@ public class QueryItem {
         return mImage;
     }
 
-    public JsonArray getCoords() {
+    public Point2D getCoordsPos() {
         return mCoords;
+    }
+
+    public JsonArray getCoords() {
+        JsonArray coords = new JsonArray();
+        coords.add(mCoords.getX());
+        coords.add(mCoords.getY());
+        return coords;
     }
 }
