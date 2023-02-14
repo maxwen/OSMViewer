@@ -209,7 +209,6 @@ public class ImportMapping {
     }
 
     private void saveMappingFallback() {
-        // TODO must be copied when content changes
         File configDir = new File(System.getProperty("user.dir"), "config");
         if (!configDir.exists()) {
             configDir.mkdirs();

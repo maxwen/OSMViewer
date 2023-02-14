@@ -3681,12 +3681,12 @@ public class ImportController {
         }
     }
 
-    private JsonObject getAdminAreaAtPointWithGeom(double lon, double lat, int adminLevelFilter) {
+    private JsonObject getAdminAreaAtPointWithGeom(double lon, double lat, String adminLevelFilter) {
         Statement stmt = null;
         try {
             stmt = mAdminConnection.createStatement();
             ResultSet rs;
-            rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags FROM adminAreaTable WHERE adminLevel=%s AND ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND ST_Contains(geom, MakePoint(%f, %f, 4236))", adminLevelFilter, lon, lat, lon, lat, lon, lat));
+            rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel, tags FROM adminAreaTable WHERE adminLevel IN %s AND ROWID IN (SELECT rowid FROM cache_adminAreaTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND ST_Contains(geom, MakePoint(%f, %f, 4236))", adminLevelFilter, lon, lat, lon, lat, lon, lat));
 
             while (rs.next()) {
                 JsonObject adminArea = new JsonObject();
@@ -3746,14 +3746,18 @@ public class ImportController {
                 long osmId = 0;
                 String adminAreasString = "NULL";
 
-                JsonObject adminArea = getAdminAreaAtPointWithGeom((double) point.get(0), (double) point.get(1), 8);
+                JsonObject adminArea = getAdminAreaAtPointWithGeom((double) point.get(0), (double) point.get(1), "(8)");
+                if (adminArea == null) {
+                    adminArea = getAdminAreaAtPointWithGeom((double) point.get(0), (double) point.get(1), "(6)");
+                }
                 if (adminArea != null) {
                     osmId = getLongValue(adminArea.get("osmId"));
                     adminAreasString = "'" + escapeSQLString(Jsoner.serialize(adminArea)) + "'";
+
+                    stmtUpdate = mNodeConnection.createStatement();
+                    String sql = String.format("UPDATE poiRefTable SET adminData=%s, adminId=%d WHERE id=%d", adminAreasString, osmId, id);
+                    stmtUpdate.execute(sql);
                 }
-                stmtUpdate = mNodeConnection.createStatement();
-                String sql = String.format("UPDATE poiRefTable SET adminData=%s, adminId=%d WHERE id=%d", adminAreasString, osmId, id);
-                stmtUpdate.execute(sql);
             }
         } catch (Exception e) {
             LogUtils.error("createPOINodesAdminData", e);
@@ -3799,14 +3803,18 @@ public class ImportController {
                 long osmId = 0;
                 String adminAreasString = "NULL";
 
-                JsonObject adminArea = getAdminAreaAtPointWithGeom((double) point.get(0), (double) point.get(1), 8);
+                JsonObject adminArea = getAdminAreaAtPointWithGeom((double) point.get(0), (double) point.get(1), "(8)");
+                if (adminArea == null) {
+                    adminArea = getAdminAreaAtPointWithGeom((double) point.get(0), (double) point.get(1), "(6)");
+                }
                 if (adminArea != null) {
                     osmId = getLongValue(adminArea.get("osmId"));
                     adminAreasString = "'" + escapeSQLString(Jsoner.serialize(adminArea)) + "'";
+
+                    stmtUpdate = mAddressConnection.createStatement();
+                    String sql = String.format("UPDATE addressTable SET adminData=%s, adminId=%d WHERE id=%d", adminAreasString, osmId, id);
+                    stmtUpdate.execute(sql);
                 }
-                stmtUpdate = mAddressConnection.createStatement();
-                String sql = String.format("UPDATE addressTable SET adminData=%s, adminId=%d WHERE id=%d", adminAreasString, osmId, id);
-                stmtUpdate.execute(sql);
             }
         } catch (Exception e) {
             LogUtils.error("createAdressAdminData", e);
@@ -3847,11 +3855,11 @@ public class ImportController {
                     progress.addValue();
                     progress.printBar();
                 }
-                long id = rs.getLong(1);
+                //long id = rs.getLong(1);
 
-                stmtUpdate = mAddressConnection.createStatement();
-                String sql = String.format("DELETE FROM addressTable WHERE id=%d", id);
-                stmtUpdate.execute(sql);
+                //stmtUpdate = mAddressConnection.createStatement();
+                //String sql = String.format("DELETE FROM addressTable WHERE id=%d", id);
+                //stmtUpdate.execute(sql);
                 removeCount++;
             }
         } catch (Exception e) {
@@ -3868,6 +3876,57 @@ public class ImportController {
             }
         }
         LogUtils.log("removed orphaned address = " + removeCount);
+        if (mImportProgress) {
+            progress.setValue(progressMax);
+            progress.printBar();
+        }
+    }
+
+    public void removeOrphanedPOI() {
+        Statement stmt = null;
+        Statement stmtUpdate = null;
+        ResultSet rs = null;
+        int removeCount = 0;
+
+        int progressMax = getTableSize(mNodeConnection, "poiRefTable");
+        ProgressBar progress = new ProgressBar(progressMax);
+        if (mImportProgress) {
+            progress.setMessage("removeOrphanedPOI");
+            progress.printBar();
+        } else {
+            LogUtils.log("removeOrphanedPOI");
+        }
+
+        try {
+            stmt = mNodeConnection.createStatement();
+            rs = stmt.executeQuery("SELECT id FROM poiRefTable WHERE adminId=0");
+
+            while (rs.next()) {
+                if (mImportProgress) {
+                    progress.addValue();
+                    progress.printBar();
+                }
+                //long id = rs.getLong(1);
+
+                //stmtUpdate = mAddressConnection.createStatement();
+                //String sql = String.format("DELETE FROM addressTable WHERE id=%d", id);
+                //stmtUpdate.execute(sql);
+                removeCount++;
+            }
+        } catch (Exception e) {
+            LogUtils.error("removeOrphanedPOI", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+                if (stmtUpdate != null) {
+                    stmtUpdate.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        LogUtils.log("removed orphaned POI = " + removeCount);
         if (mImportProgress) {
             progress.setValue(progressMax);
             progress.printBar();
