@@ -20,7 +20,7 @@ version '1.0-SNAPSHOT'
 
 application {
     mainClass = 'com.maxwen.osmviewer.Main'
-    applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db",
+    applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db2",
                                  "-Dosm.tiles.path=${System.properties['user.home']}/Maps/osm/tiles",
                                  "-Djava.library.path=" + file("${buildDir}/libs/routing/shared").absolutePath,
                                  "-Xmx8192m", "-Dprism.verbose=true", "-Dprism.forceGPU=true" ]

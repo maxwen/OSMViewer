@@ -1116,17 +1116,14 @@ public class QueryController {
             stmt = mAdminConnection.createStatement();
             ResultSet rs;
 
-            rs = stmt.executeQuery(String.format("SELECT osmId, adminLevel FROM adminAreaTable WHERE parentId=%d", adminId));
+            rs = stmt.executeQuery(String.format("SELECT osmId FROM adminAreaTable WHERE parentId=%d", adminId));
 
             while (rs.next()) {
                 long osmId = rs.getLong(1);
-                int adminLevel = rs.getInt(2);
-                if (adminLevel != 8) {
-                    JsonArray subChildList = getAdminAreaChildren(osmId);
-                    childList.addAll(subChildList);
-                } else {
-                    childList.add(osmId);
-                }
+                childList.add(osmId);
+
+                JsonArray subChildList = getAdminAreaChildren(osmId);
+                childList.addAll(subChildList);
             }
         } catch (Exception e) {
             LogUtils.log(e.getMessage());
@@ -1203,13 +1200,14 @@ public class QueryController {
         JsonArray edgeList = new JsonArray();
         try {
             stmt = mEdgeConnection.createStatement();
-            String sql = String.format("SELECT id, wayId, AsText(geom) FROM edgeTable WHERE id=%d", edgeId);
+            String sql = String.format("SELECT id, wayId, AsText(geom), length FROM edgeTable WHERE id=%d", edgeId);
             rs = stmt.executeQuery(sql);
             while (rs.next()) {
                 JsonObject edge = new JsonObject();
                 edge.put("id", rs.getLong(1));
                 edge.put("wayId", rs.getLong(2));
                 edge.put("coords", createCoordsFromLineString(rs.getString(3)));
+                edge.put("length", rs.getLong(4));
                 edgeList.add(edge);
             }
             if (edgeList.size() == 1) {
@@ -1235,7 +1233,7 @@ public class QueryController {
         JsonArray edgeList = new JsonArray();
         try {
             stmt = mEdgeConnection.createStatement();
-            String sql = String.format("SELECT id, wayId, AsText(geom) FROM edgeTable WHERE id=%d AND ROWID IN (SELECT rowid FROM cache_edgeTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", edgeId, lonRangeMin, latRangeMin, lonRangeMax, latRangeMax);
+            String sql = String.format("SELECT id, wayId, AsText(geom) FROM edgeTable WHERE ROWID IN (SELECT rowid FROM cache_edgeTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND id=%d ",lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, edgeId);
             rs = stmt.executeQuery(sql);
             while (rs.next()) {
                 JsonObject edge = new JsonObject();

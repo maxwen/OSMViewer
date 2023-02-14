@@ -175,7 +175,7 @@ public class MainController implements Initializable, NMEAHandler {
     private List<RoutingNode> mRoutingNodes = new ArrayList<>();
     private Point2D mMouseClickedNodePos;
     private Point2D mMouseClickedCoordsPos;
-    private List<Polyline> mRoutePolylineList = new ArrayList<>();
+    private Polyline mRoutePolyline;
     private List<Long> mRouteEdgeIdList = new ArrayList<>();
     private boolean mMapLoading;
     private LoadMapDataTask mLoadMapDataTask;
@@ -189,6 +189,7 @@ public class MainController implements Initializable, NMEAHandler {
     private MenuButton mFilterHeader;
     private Rectangle mOutlineRect;
     private JsonObject mTileStyle;
+    private JsonArray mAdminIdList;
 
     public boolean isTransparentWays() {
         return mTransparentWays;
@@ -214,7 +215,6 @@ public class MainController implements Initializable, NMEAHandler {
     private TextField mQueryField;
     private QueryTaskPOI mQueryTask;
     private String mQueryText;
-    private long mAdminId;
     private ListView<QueryItem> mNodesListView;
 
     private static final int HTTP_READ_TIMEOUT = 30000;
@@ -585,7 +585,7 @@ public class MainController implements Initializable, NMEAHandler {
     public class CalcRouteTask extends Task<Void> {
         private long mStartEdgeId;
         private long mEndEdgeId;
-        private List<Long> mRouteEdgeIdList = new ArrayList<>();
+        private List<Long> mEdgeIdList = new ArrayList<>();
 
         public CalcRouteTask(long startEdgeId, long endEdgeId) {
             mStartEdgeId = startEdgeId;
@@ -593,27 +593,34 @@ public class MainController implements Initializable, NMEAHandler {
         }
 
         public List<Long> getRouteEdgeIdList() {
-            return mRouteEdgeIdList;
+            return mEdgeIdList;
         }
 
         @Override
         protected Void call() throws Exception {
+            long t = System.currentTimeMillis();
             RoutingWrapper routing = new RoutingWrapper();
             LogUtils.log("mStartEdgeId = " + mStartEdgeId + " mEndEdgeId = " + mEndEdgeId);
             JsonArray route = routing.computeRoute(mStartEdgeId, 0.f, mEndEdgeId, 0.f);
             if (route != null) {
                 route.forEach(edgeId -> {
-                    mRouteEdgeIdList.add(((BigDecimal) edgeId).longValue());
+                    mEdgeIdList.add(((BigDecimal) edgeId).longValue());
                 });
-                if (mRouteEdgeIdList.get(0) != mStartEdgeId) {
-                    mRouteEdgeIdList.add(0, mStartEdgeId);
+                if (mEdgeIdList.get(0) != mStartEdgeId) {
+                    mEdgeIdList.add(0, mStartEdgeId);
                 }
-                if (mRouteEdgeIdList.get(mRouteEdgeIdList.size() - 1) != mEndEdgeId) {
-                    mRouteEdgeIdList.add(mEndEdgeId);
+                if (mEdgeIdList.get(mEdgeIdList.size() - 1) != mEndEdgeId) {
+                    mEdgeIdList.add(mEndEdgeId);
                 }
-                LogUtils.log("route = " + mRouteEdgeIdList);
+                LogUtils.log("route edges = " + mEdgeIdList.size());
             }
-            routing.resetData();
+            //routing.resetData();
+            LogUtils.log("CalcRouteTask time = " + (System.currentTimeMillis() - t));
+
+            // TODO save route in db?
+
+            createRoutePolylineList(mEdgeIdList);
+
             return null;
         }
     }
@@ -663,12 +670,12 @@ public class MainController implements Initializable, NMEAHandler {
         private String mQueryString;
         private FilterType mFilterType;
         private List<QueryItem> mQueryItems = new ArrayList<>();
-        private long mAdminId;
+        private JsonArray mAdminIdList;
 
-        public QueryTaskPOI(String queryString, FilterType filterType, long adminId) {
+        public QueryTaskPOI(String queryString, FilterType filterType, JsonArray adminIdList) {
             mQueryString = queryString;
             mFilterType = filterType;
-            mAdminId = adminId;
+            mAdminIdList = adminIdList;
         }
 
         @Override
@@ -680,10 +687,8 @@ public class MainController implements Initializable, NMEAHandler {
             } else if (mFilterType == FilterType.CITY) {
                 QueryController.getInstance().queryCityMatchingName(mQueryString, this);
             } else if (mFilterType == FilterType.LOCAL) {
-                JsonArray adminIdList = QueryController.getInstance().getAdminAreaChildren(mAdminId);
-                adminIdList.add(mAdminId);
-                QueryController.getInstance().queryPOINodesMatchingNameAndAdminId(mQueryString, adminIdList, null, this);
-                QueryController.getInstance().queryAddressMatchingNameAndAdminId(mQueryString, adminIdList, this);
+                QueryController.getInstance().queryPOINodesMatchingNameAndAdminId(mQueryString, mAdminIdList, null, this);
+                QueryController.getInstance().queryAddressMatchingNameAndAdminId(mQueryString, mAdminIdList, this);
             }
             return mQueryItems;
         }
@@ -833,7 +838,7 @@ public class MainController implements Initializable, NMEAHandler {
                         tileView.setTranslateY(-mMapZero.getY());
                         mTilesList.add(tileView);
                     } else {
-                        // TODO add emopy tile?
+                        // TODO add empty tile?
                     }
                     if (isCancelled()) {
                         break;
@@ -1292,19 +1297,23 @@ public class MainController implements Initializable, NMEAHandler {
                 long osmId = GISUtils.getLongValue(adminData.get("osmId"));
                 int adminLevel = GISUtils.getIntValue(adminData.get("adminLevel"));
                 String name = (String) adminData.get("name");
-                LogUtils.log(name + " " + adminLevel);
-                RadioMenuItem menuItem = new RadioMenuItem(name);
+                //LogUtils.log(name + " " + adminLevel);
+                MenuItem menuItem = new MenuItem(name);
                 menuItem.setStyle("-fx-font-size: 16");
                 menuItem.setUserData(osmId);
                 menuItem.setOnAction(e -> {
-                    mAdminId = (long) menuItem.getUserData();
+                    long adminId = (long) menuItem.getUserData();
                     mFilterHeader.setText(menuItem.getText());
+                    // TODO this is blocking ui
+                    mAdminIdList = QueryController.getInstance().getAdminAreaChildren(adminId);
+                    mAdminIdList.add(adminId);
                     updateListContent();
                 });
                 mFilterHeader.getItems().add(menuItem);
 
                 if (i == 0) {
-                    mAdminId = osmId;
+                    mAdminIdList = new JsonArray();
+                    mAdminIdList.add(osmId);
                     mFilterHeader.setText(menuItem.getText());
                 }
             }
@@ -1749,6 +1758,9 @@ public class MainController implements Initializable, NMEAHandler {
                 mTrackingPane.getChildren().add(mTrackingShape.getShape());
             }
         }
+        if (mRoutePolyline != null) {
+            mRoutingPane.getChildren().add(mRoutePolyline);
+        }
         if (mTrackMode || mTrackReplayMode) {
             if (isPositionVisible(mMapGPSPos)) {
                 addGPSDot();
@@ -1765,9 +1777,6 @@ public class MainController implements Initializable, NMEAHandler {
                     }
                 }
             }
-        }
-        if (mMapZoom >= 14) {
-            mRoutingPane.getChildren().addAll(mRoutePolylineList);
         }
 
         mCalcPoint = new Circle();
@@ -1827,8 +1836,8 @@ public class MainController implements Initializable, NMEAHandler {
                     MainController.this);
             LogUtils.log("doLoadMapData getWaysInBboxWithGeom time = " + (System.currentTimeMillis() - t));
         }
-        if (mMapZoom >= 14) {
-            createRoutePolylineList(bbox);
+        if (mRouteEdgeIdList.size() != 0) {
+            createRoutePolylineList(mRouteEdgeIdList);
         }
         mWayPolylines.get(MainController.STREET_LAYER_LEVEL).add(mOutlineRect);
         updateFakeShapes();
@@ -1897,8 +1906,6 @@ public class MainController implements Initializable, NMEAHandler {
             polyList.clear();
         }
 
-        mRoutePolylineList.clear();
-
         List<Double> bbox = getBBoxInDeg(mFetchBBox);
         mLoadMapDataTask = new LoadMapDataTask(bbox, doAfter);
         mLoadMapDataTask.submit(mExecutorService, mMapZoom);
@@ -1919,6 +1926,9 @@ public class MainController implements Initializable, NMEAHandler {
         }
         if (mSelectedEdgeShape != null) {
             mRoutingPane.getChildren().add(mSelectedEdgeShape);
+        }
+        if (mRoutePolyline != null) {
+            mRoutingPane.getChildren().add(mRoutePolyline);
         }
 
         if (mTrackingShape != null) {
@@ -1953,7 +1963,6 @@ public class MainController implements Initializable, NMEAHandler {
                 updateRoutingNode(node, false);
             }
             mNodePane.getChildren().addAll(mRoutingNodes);
-            mRoutingPane.getChildren().addAll(mRoutePolylineList);
         }
         for (OSMTextLabel label : mLabelShapeList) {
             updateLabelShape(label);
@@ -2952,13 +2961,34 @@ public class MainController implements Initializable, NMEAHandler {
         if (hasRoutingStart() && hasRoutingEnd()) {
             menuItem = new MenuItem(" Calc route ");
             menuItem.setOnAction(ev -> {
+                mRoutingPane.getChildren().remove(mRoutePolyline);
                 CalcRouteTask task = new CalcRouteTask(getRoutingStart().getEdgeId(), getRoutingEnd().getEdgeId());
                 task.setOnSucceeded((event) -> {
                     LogUtils.log("CalcRouteTask succeededEvent");
                     stopProgress();
                     mRouteEdgeIdList = task.getRouteEdgeIdList();
-                    List<Double> bbox = getBBoxInDeg(mFetchBBox);
-                    createRoutePolylineList(bbox);
+                    drawShapes();
+                });
+                task.setOnRunning((event) -> {
+                    startProgress();
+                });
+                task.setOnCancelled((event) -> {
+                    stopProgress();
+                });
+                mExecutorService.submit(task);
+            });
+            menuItem.setStyle("-fx-font-size: 20");
+            mContextMenu.getItems().add(menuItem);
+        }
+        if (hasRoutingStart() && hasRoutingEnd()) {
+            menuItem = new MenuItem(" Revert route ");
+            menuItem.setOnAction(ev -> {
+                mRoutingPane.getChildren().remove(mRoutePolyline);
+                CalcRouteTask task = new CalcRouteTask(getRoutingEnd().getEdgeId(), getRoutingStart().getEdgeId());
+                task.setOnSucceeded((event) -> {
+                    LogUtils.log("CalcRouteTask succeededEvent");
+                    stopProgress();
+                    mRouteEdgeIdList = task.getRouteEdgeIdList();
                     drawShapes();
                 });
                 task.setOnRunning((event) -> {
@@ -2975,6 +3005,8 @@ public class MainController implements Initializable, NMEAHandler {
         if (hasRoutingStart() || hasRoutingEnd()) {
             menuItem = new MenuItem(" Clear route ");
             menuItem.setOnAction(ev -> {
+                mRoutingPane.getChildren().remove(mRoutePolyline);
+                mRoutePolyline = null;
                 mRoutingNodes.clear();
                 saveRoutingNodes();
                 drawShapes();
@@ -3161,18 +3193,50 @@ public class MainController implements Initializable, NMEAHandler {
         return mRoutingNodes.stream().filter(routingNode -> routingNode.getType() == RoutingNode.TYPE.END).findFirst().get();
     }
 
-    private void createRoutePolylineList(List<Double> bbox) {
-        mRoutePolylineList.clear();
-        for (Long edgeId : mRouteEdgeIdList) {
-            JsonObject edge = QueryController.getInstance().getEdgeEntryForIdInBBox(edgeId, bbox.get(0), bbox.get(1),
-                    bbox.get(2), bbox.get(3));
+    private void createRoutePolylineList(List<Long> edgeList) {
+        long t = System.currentTimeMillis();
+        mRoutePolyline = new Polyline();
+        int i = 0;
+        long length = 0;
+        JsonArray lastCoords = null;
+        for (Long edgeId : edgeList) {
+            JsonObject edge = QueryController.getInstance().getEdgeEntryForId(edgeId);
             if (edge != null) {
-                Polyline edgeShape = displayCoordsPolyline((JsonArray) edge.get("coords"));
-                edgeShape.setStrokeWidth(2);
-                edgeShape.setStroke(Color.RED);
-                mRoutePolylineList.add(edgeShape);
+                JsonArray coords = (JsonArray) edge.get("coords");
+                length += GISUtils.getLongValue(edge.get("length"));
+                JsonArray coord = new JsonArray();
+
+                if (lastCoords != null && !coords.get(0).equals(lastCoords)) {
+                    // reverse
+                    // first point is the same as last one of prev edge
+                    int start = i == 0 ? coords.size() - 1 : coords.size() - 2;
+                    for (int j = start; j >= 0; j--) {
+                        coord = (JsonArray) coords.get(j);
+                        Point2D pos = coordinateToDisplay(coord, mMapZoom);
+                        mRoutePolyline.getPoints().add(pos.getX());
+                        mRoutePolyline.getPoints().add(pos.getY());
+                    }
+                } else {
+                    // first point is the same as last one of prev edge
+                    int start = i == 0 ? 0 : 1;
+                    for (int j = start; j < coords.size(); j++) {
+                        coord = (JsonArray) coords.get(j);
+                        Point2D pos = coordinateToDisplay(coord, mMapZoom);
+                        mRoutePolyline.getPoints().add(pos.getX());
+                        mRoutePolyline.getPoints().add(pos.getY());
+                    }
+                }
+                lastCoords = coord;
+            } else {
+                LogUtils.error("Failed to resolve edge from route edgeId = " + edgeId);
             }
+            i++;
         }
+        mRoutePolyline.setStrokeWidth(2);
+        mRoutePolyline.setStroke(Color.RED);
+        mRoutePolyline.setTranslateX(-mMapZero.getX());
+        mRoutePolyline.setTranslateY(-mMapZero.getY());
+        LogUtils.log("createRoutePolylineList time = " + (System.currentTimeMillis() - t) + " distance(m) = " + length);
     }
 
     private void startProgress() {
@@ -3190,7 +3254,7 @@ public class MainController implements Initializable, NMEAHandler {
         }
         mQueryItems.clear();
         if (mQueryText != null && mQueryText.length() > 1) {
-            mQueryTask = new QueryTaskPOI(mQueryText, mFilterType, mAdminId);
+            mQueryTask = new QueryTaskPOI(mQueryText, mFilterType, mAdminIdList);
             mQueryTask.setOnRunning((runningEvent) -> {
                 mQueryListProgress.setVisible(true);
             });
@@ -3470,8 +3534,7 @@ public class MainController implements Initializable, NMEAHandler {
     private void updateNodeListContent() {
         mNodeListItems.clear();
         for (RoutingNode node : mRoutingNodes) {
-            // TODO we can only resolve way names but not addresses
-            QueryItem item = new QueryItem(node.getType() == RoutingNode.TYPE.START ? "Start" : "Finsh", node.getName(),
+            QueryItem item = new QueryItem(node.getType() == RoutingNode.TYPE.START ? "Start" : "Finish", node.getName(),
                     node.getImage(), node.getCoordsPos());
             mNodeListItems.add(item);
         }

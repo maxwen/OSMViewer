@@ -23,7 +23,7 @@ public class RoutingNode extends ImageView {
         END
     }
 
-    // TODO store osmId of building if any
+    // osmId of building if any
     public RoutingNode(TYPE type, Point2D coordsPos, long edgeId, long wayId, long osmId) {
         super(type == TYPE.START ? OSMStyle.getNodeTypeImage(OSMUtils.POI_TYPE_ROUTING_START) : OSMStyle.getNodeTypeImage(OSMUtils.POI_TYPE_ROUTING_FINISH));
         mType = type;

@@ -9,8 +9,6 @@ import java.io.File;
 import java.util.List;
 
 public class RoutingWrapper {
-    private List<Double> lastBBox;
-
     static {
         System.loadLibrary("routing");
     }
@@ -22,21 +20,11 @@ public class RoutingWrapper {
     }
 
     private String getSQLQueryEdgeShortest() {
-
-        if (lastBBox != null) {
-            return String.format("SELECT id, source, target, length AS cost, CASE WHEN reverseCost IS cost THEN length ELSE reverseCost END FROM edgeTable WHERE ROWID IN (SELECT rowid FROM cache_edgeTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", lastBBox.get(0), lastBBox.get(1), lastBBox.get(2), lastBBox.get(3));
-        } else {
-            return "SELECT id, source, target, length AS cost, CASE WHEN reverseCost IS cost THEN length ELSE reverseCost END FROM edgeTable";
-        }
+        return "SELECT id, source, target, length AS cost, CASE WHEN reverseCost IS cost THEN length ELSE reverseCost END FROM edgeTable";
     }
 
-
     private String getSQLQueryEdge() {
-        if (lastBBox != null) {
-            return String.format("SELECT id, source, target, cost, reverseCost FROM edgeTable WHERE ROWID IN (SELECT rowid FROM cache_edgeTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f))", lastBBox.get(0), lastBBox.get(1), lastBBox.get(2), lastBBox.get(3));
-        } else {
-            return "SELECT id, source, target, cost, reverseCost FROM edgeTable";
-        }
+        return "SELECT id, source, target, cost, reverseCost FROM edgeTable";
     }
 
     private String getSQLQueryRestriction() {
