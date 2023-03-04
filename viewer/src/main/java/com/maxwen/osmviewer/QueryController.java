@@ -4,14 +4,18 @@ import com.github.cliftonlabs.json_simple.JsonArray;
 import com.github.cliftonlabs.json_simple.JsonException;
 import com.github.cliftonlabs.json_simple.JsonObject;
 import com.github.cliftonlabs.json_simple.Jsoner;
+import com.maxwen.osmviewer.routing.Route;
+import com.maxwen.osmviewer.routing.RoutingWrapper;
 import com.maxwen.osmviewer.shared.GISUtils;
 import com.maxwen.osmviewer.shared.LogUtils;
 import com.maxwen.osmviewer.shared.OSMUtils;
 import javafx.scene.Node;
+import javafx.scene.paint.Color;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Polyline;
 import org.sqlite.SQLiteConfig;
 
+import java.io.File;
 import java.sql.*;
 import java.util.*;
 
@@ -26,6 +30,8 @@ public class QueryController {
     private Connection mNodeConnection;
     private Connection mAdminConnection;
     private Connection mLinesConnection;
+    private Connection mRoutesConnection;
+
     private static QueryController sInstance;
     private boolean mConnected;
     private final String mDBHome;
@@ -52,6 +58,9 @@ public class QueryController {
             mNodeConnection = connect("jdbc:sqlite:" + mDBHome + "/nodes.db");
             mAdminConnection = connect("jdbc:sqlite:" + mDBHome + "/admin.db");
             mLinesConnection = connect("jdbc:sqlite:" + mDBHome + "/lines.db");
+
+            openRoutesDB();
+
             mConnected = true;
 
             LogUtils.log("edges = " + getTableSize(mEdgeConnection, "edgeTable"));
@@ -78,6 +87,7 @@ public class QueryController {
             mNodeConnection.close();
             mAdminConnection.close();
             mLinesConnection.close();
+            mRoutesConnection.close();
             mConnected = false;
         } catch (SQLException e) {
             LogUtils.error("disconnectAll", e);
@@ -99,6 +109,24 @@ public class QueryController {
         stmt.close();
         return conn;
     }
+
+    private Connection connectWritable(String url) throws SQLException {
+        Connection conn = null;
+        SQLiteConfig config = new SQLiteConfig();
+        config.enableLoadExtension(true);
+        conn = DriverManager.getConnection(url, config.toProperties());
+        Statement stmt = conn.createStatement();
+        stmt.execute("PRAGMA cache_size=40000");
+        stmt.execute("PRAGMA page_size=4096");
+        stmt.execute("PRAGMA temp_store=MEMORY");
+        stmt.execute("PRAGMA journal_mode=OFF");
+        stmt.execute("PRAGMA synchronous=OFF");
+        stmt.execute("PRAGMA locking_mode=EXCLUSIVE");
+        stmt.execute("SELECT load_extension('mod_spatialite')");
+        stmt.close();
+        return conn;
+    }
+
 
     private String filterListToIn(List<Integer> typeFilterList) {
         if (typeFilterList != null) {
@@ -1200,7 +1228,7 @@ public class QueryController {
         JsonArray edgeList = new JsonArray();
         try {
             stmt = mEdgeConnection.createStatement();
-            String sql = String.format("SELECT id, wayId, AsText(geom), length FROM edgeTable WHERE id=%d", edgeId);
+            String sql = String.format("SELECT id, wayId, AsText(geom), length, startRef, endRef, streetInfo, streetType FROM edgeTable WHERE id=%d", edgeId);
             rs = stmt.executeQuery(sql);
             while (rs.next()) {
                 JsonObject edge = new JsonObject();
@@ -1208,6 +1236,11 @@ public class QueryController {
                 edge.put("wayId", rs.getLong(2));
                 edge.put("coords", createCoordsFromLineString(rs.getString(3)));
                 edge.put("length", rs.getLong(4));
+                edge.put("startRef", rs.getLong(5));
+                edge.put("endRef", rs.getLong(6));
+                edge.put("streetInfo", rs.getLong(7));
+                edge.put("streetType", rs.getLong(8));
+
                 edgeList.add(edge);
             }
             if (edgeList.size() == 1) {
@@ -1233,7 +1266,7 @@ public class QueryController {
         JsonArray edgeList = new JsonArray();
         try {
             stmt = mEdgeConnection.createStatement();
-            String sql = String.format("SELECT id, wayId, AsText(geom) FROM edgeTable WHERE ROWID IN (SELECT rowid FROM cache_edgeTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND id=%d ",lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, edgeId);
+            String sql = String.format("SELECT id, wayId, AsText(geom) FROM edgeTable WHERE ROWID IN (SELECT rowid FROM cache_edgeTable_geom WHERE mbr = FilterMbrIntersects(%f, %f, %f, %f)) AND id=%d ", lonRangeMin, latRangeMin, lonRangeMax, latRangeMax, edgeId);
             rs = stmt.executeQuery(sql);
             while (rs.next()) {
                 JsonObject edge = new JsonObject();
@@ -1292,11 +1325,17 @@ public class QueryController {
         } catch (SQLException e) {
         }
         try {
-            way.put("name", rs.getString("name"));
+            String name = rs.getString("name");
+            if (name != null) {
+                way.put("name", name);
+            }
         } catch (SQLException e) {
         }
         try {
-            way.put("ref", rs.getString("ref"));
+            String ref = rs.getString("ref");
+            if (ref != null) {
+                way.put("ref", ref);
+            }
         } catch (SQLException e) {
         }
         try {
@@ -1385,5 +1424,152 @@ public class QueryController {
             }
         }
         return null;
+    }
+
+    public String escapeSQLString(String s) {
+        return s.replace("'", "''");
+    }
+
+    public void createRoutesDB() {
+        if (mRoutesConnection != null) {
+            return;
+        }
+
+        Statement stmt = null;
+
+        try {
+            mRoutesConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/routes.db");
+            stmt = mRoutesConnection.createStatement();
+            String sql;
+            sql = "SELECT InitSpatialMetaData(1)";
+            stmt.execute(sql);
+            sql = "CREATE TABLE IF NOT EXISTS routeTable (id INTEGER PRIMARY KEY, startPoint JSON, endPoint JSON, type INTEGER, edgeIdList JSON)";
+            stmt.execute(sql);
+            sql = "SELECT AddGeometryColumn('routeTable', 'geom', 4326, 'LINESTRING', 2)";
+            stmt.execute(sql);
+            sql = "SELECT CreateMbrCache('routeTable', 'geom')";
+            stmt.execute(sql);
+
+        } catch (SQLException e) {
+            LogUtils.error("createRoutesDB", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public boolean routesDBExists() {
+        return new File(mDBHome + "/routes.db").exists();
+    }
+
+    public void connectRoutesDB() {
+        if (mRoutesConnection != null) {
+            return;
+        }
+
+        try {
+            mRoutesConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/routes.db");
+        } catch (SQLException e) {
+            LogUtils.error("mRoutesConnection", e);
+        }
+    }
+
+    public void openRoutesDB() {
+        if (routesDBExists()) {
+            connectRoutesDB();
+        } else {
+            createRoutesDB();
+        }
+    }
+
+    public void clearAllRoutes() {
+        Statement stmt = null;
+
+        try {
+            stmt = mRoutesConnection.createStatement();
+
+            String sql = "DELETE FROM routeTable";
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("clearAllRoutes", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public boolean hasSavedRoutes() {
+        return getTableSize(mRoutesConnection, "routeTable") != 0;
+    }
+
+    public void addRoute(Route route) {
+        Statement stmt = null;
+
+        try {
+            stmt = mRoutesConnection.createStatement();
+            String startPointStr = "'" + Jsoner.serialize(route.getStartPoint().toJson()) + "'";
+            String endPointStr = "'" + Jsoner.serialize(route.getEndPoint().toJson()) + "'";
+            String edgeIdListStr = "'" + Jsoner.serialize(route.getEdgeIdList()) + "'";
+
+            String lineString = GISUtils.createLineStringFromCoords(route.getCoords());
+
+            String sql = String.format("INSERT INTO routeTable (startPoint, endPoint, type, edgeIdList, geom) VALUES(%s, %s, %d, %s, LineFromText(%s, 4326))", startPointStr, endPointStr, route.getType().ordinal(), edgeIdListStr, lineString);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("addRoute", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public void getRoutes(List<Polyline> routePolylines, MainController controller) {
+        Statement stmt = null;
+
+        try {
+            stmt = mRoutesConnection.createStatement();
+            ResultSet rs;
+            String sql = "SELECT startPoint, endPoint, type, AsText(geom) FROM routeTable";
+            rs = stmt.executeQuery(sql);
+
+            while (rs.next()) {
+                RoutingWrapper.TYPE type = RoutingWrapper.TYPE.values()[rs.getInt(3)];
+                Polyline polyline = controller.displayCoordsPolyline(createCoordsFromLineString(rs.getString(4)));
+                switch (type) {
+                    case FASTEST:
+                        polyline.setStroke(Color.RED);
+                        break;
+                    case ALT:
+                        polyline.setStroke(Color.GREEN);
+                        break;
+                    case SHORTEST:
+                        polyline.setStroke(Color.BLUE);
+                        break;
+                }
+                routePolylines.add(polyline);
+
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getRoutes", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
     }
 }

@@ -15,7 +15,8 @@ struct path_element_tt {
 typedef struct path_element_tt path_element_tt;
 
 extern path_element_tt* compute_trsp(const char *file, const char *sqlEdge, const char *sqlRestriction, int doVertex,
-        long startEdge, double startPos, long endEdge, double endPos, path_element_tt* path, int* path_count);
+        long startEdge, double startPos, long endEdge, double endPos, path_element_tt* path, int* path_count,
+        double* streetTypeCostFactorElems);
 
 extern void reset_data();
 
@@ -25,14 +26,15 @@ JNIEXPORT void JNICALL Java_com_maxwen_osmviewer_routing_RoutingWrapper_resetDat
 
 JNIEXPORT void JNICALL Java_com_maxwen_osmviewer_routing_RoutingWrapper_computeRouteNative(JNIEnv *env, jobject obj,
         jstring file, jstring sqlEdgeQuery, jstring sqlRestriction, int doVertex,
-        long startEdge, double startPos, long endEdge, double endPos, jobject routeString)
+        long startEdge, double startPos, long endEdge, double endPos, jobject routeString,
+        jdoubleArray streetTypeCostFactor)
 {
     const char* fileCharPointer = env->GetStringUTFChars(file, NULL);
     const char* sqlEdgeQueryCharPointer = env->GetStringUTFChars(sqlEdgeQuery, NULL);
     const char* sqlRestrictionCharPointer = env->GetStringUTFChars(sqlRestriction, NULL);
+    jdouble* streetTypeCostFactorElems = env->GetDoubleArrayElements(streetTypeCostFactor, NULL);
 
-    /*cout << fileCharPointer << endl;
-    cout << sqlEdgeQueryCharPointer << endl;
+    /*cout << sqlEdgeQueryCharPointer << endl;
     cout << sqlRestrictionCharPointer << endl;
     cout << doVertex << " " << startEdge << " " << startPos << " " << endEdge << " " << endPos << endl;*/
 
@@ -43,7 +45,7 @@ JNIEXPORT void JNICALL Java_com_maxwen_osmviewer_routing_RoutingWrapper_computeR
     int path_count;
 
     path = compute_trsp(fileCharPointer, sqlEdgeQueryCharPointer, sqlRestrictionCharPointer, doVertex,
-        startEdge, startPos, endEdge, endPos, path, &path_count);
+        startEdge, startPos, endEdge, endPos, path, &path_count, streetTypeCostFactorElems);
 
     if (path != NULL) {
         env->CallObjectMethod(routeString, mid, env->NewStringUTF("["));
@@ -59,6 +61,7 @@ JNIEXPORT void JNICALL Java_com_maxwen_osmviewer_routing_RoutingWrapper_computeR
         }
         env->CallObjectMethod(routeString, mid, env->NewStringUTF("]"));
     }
+    env->ReleaseDoubleArrayElements(streetTypeCostFactor, streetTypeCostFactorElems, 0);
     free(path);
 }
 }

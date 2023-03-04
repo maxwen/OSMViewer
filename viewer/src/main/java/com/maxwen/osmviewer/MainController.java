@@ -4,6 +4,7 @@ import com.github.cliftonlabs.json_simple.JsonArray;
 import com.github.cliftonlabs.json_simple.JsonObject;
 import com.github.cliftonlabs.json_simple.Jsoner;
 import com.maxwen.osmviewer.nmea.NMEAHandler;
+import com.maxwen.osmviewer.routing.Route;
 import com.maxwen.osmviewer.routing.RoutingWrapper;
 import com.maxwen.osmviewer.shared.Config;
 import com.maxwen.osmviewer.shared.GISUtils;
@@ -47,6 +48,7 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class MainController implements Initializable, NMEAHandler {
     public static final int ROTATE_X_VALUE = 60;
@@ -175,8 +177,9 @@ public class MainController implements Initializable, NMEAHandler {
     private List<RoutingNode> mRoutingNodes = new ArrayList<>();
     private Point2D mMouseClickedNodePos;
     private Point2D mMouseClickedCoordsPos;
-    private Polyline mRoutePolyline;
-    private List<Long> mRouteEdgeIdList = new ArrayList<>();
+
+    private List<Polyline> mRoutePolylineList = new ArrayList<>();
+    private List<Route> mRouteEdgeIdList = new ArrayList<>();
     private boolean mMapLoading;
     private LoadMapDataTask mLoadMapDataTask;
     private boolean mSidePaneExpanded;
@@ -585,41 +588,34 @@ public class MainController implements Initializable, NMEAHandler {
     public class CalcRouteTask extends Task<Void> {
         private long mStartEdgeId;
         private long mEndEdgeId;
-        private List<Long> mEdgeIdList = new ArrayList<>();
+        private List<Route> mRouteList = new ArrayList<>();
 
         public CalcRouteTask(long startEdgeId, long endEdgeId) {
             mStartEdgeId = startEdgeId;
             mEndEdgeId = endEdgeId;
         }
 
-        public List<Long> getRouteEdgeIdList() {
-            return mEdgeIdList;
-        }
-
         @Override
         protected Void call() throws Exception {
-            long t = System.currentTimeMillis();
             RoutingWrapper routing = new RoutingWrapper();
             LogUtils.log("mStartEdgeId = " + mStartEdgeId + " mEndEdgeId = " + mEndEdgeId);
-            JsonArray route = routing.computeRoute(mStartEdgeId, 0.f, mEndEdgeId, 0.f);
-            if (route != null) {
-                route.forEach(edgeId -> {
-                    mEdgeIdList.add(((BigDecimal) edgeId).longValue());
-                });
-                if (mEdgeIdList.get(0) != mStartEdgeId) {
-                    mEdgeIdList.add(0, mStartEdgeId);
+            for (RoutingWrapper.TYPE type : RoutingWrapper.routeTypes) {
+                long t = System.currentTimeMillis();
+                JsonArray routeEdgeIdList = routing.computeRoute(mStartEdgeId, 0.f, mEndEdgeId, 0.f, type);
+                if (routeEdgeIdList != null) {
+                    if (GISUtils.getLongValue(routeEdgeIdList.get(0)) != mStartEdgeId) {
+                        routeEdgeIdList.add(0, mStartEdgeId);
+                    }
+                    if (GISUtils.getLongValue(routeEdgeIdList.get(routeEdgeIdList.size() - 1)) != mEndEdgeId) {
+                        routeEdgeIdList.add(mEndEdgeId);
+                    }
+                    Route route = new Route(getRoutingStart(), getRoutingEnd(), type);
+                    route.setEdgeList(routeEdgeIdList);
+                    mRouteList.add(route);
                 }
-                if (mEdgeIdList.get(mEdgeIdList.size() - 1) != mEndEdgeId) {
-                    mEdgeIdList.add(mEndEdgeId);
-                }
-                LogUtils.log("route edges = " + mEdgeIdList.size());
+                LogUtils.log("route edges = " + routeEdgeIdList.size() + " time = " + (System.currentTimeMillis() - t));
             }
-            //routing.resetData();
-            LogUtils.log("CalcRouteTask time = " + (System.currentTimeMillis() - t));
-
-            // TODO save route in db?
-
-            createRoutePolylineList(mEdgeIdList);
+            routing.resetData();
 
             return null;
         }
@@ -1350,7 +1346,7 @@ public class MainController implements Initializable, NMEAHandler {
                 if (newValue != null) {
                     JsonArray coords = newValue.getCoords();
                     //infoLabel.setText(newValue.getName());
-                    centerMapOnLocationWithZoom((double) coords.get(0), (double) coords.get(1), 17);
+                    centerMapOnCoordinatesWithZoom((double) coords.get(0), (double) coords.get(1), 17);
                     addToLocationHistory(coords);
                 }
             }
@@ -1381,7 +1377,7 @@ public class MainController implements Initializable, NMEAHandler {
             public void changed(ObservableValue<? extends QueryItem> observable, QueryItem oldValue, QueryItem newValue) {
                 if (newValue != null) {
                     JsonArray coords = newValue.getCoords();
-                    centerMapOnLocationWithZoom((double) coords.get(0), (double) coords.get(1), 17);
+                    centerMapOnCoordinatesWithZoom((double) coords.get(0), (double) coords.get(1), 17);
                 }
             }
         });
@@ -1758,9 +1754,8 @@ public class MainController implements Initializable, NMEAHandler {
                 mTrackingPane.getChildren().add(mTrackingShape.getShape());
             }
         }
-        if (mRoutePolyline != null) {
-            mRoutingPane.getChildren().add(mRoutePolyline);
-        }
+        mRoutingPane.getChildren().addAll(mRoutePolylineList);
+
         if (mTrackMode || mTrackReplayMode) {
             if (isPositionVisible(mMapGPSPos)) {
                 addGPSDot();
@@ -1836,9 +1831,11 @@ public class MainController implements Initializable, NMEAHandler {
                     MainController.this);
             LogUtils.log("doLoadMapData getWaysInBboxWithGeom time = " + (System.currentTimeMillis() - t));
         }
-        if (mRouteEdgeIdList.size() != 0) {
-            createRoutePolylineList(mRouteEdgeIdList);
-        }
+
+        t = System.currentTimeMillis();
+        QueryController.getInstance().getRoutes(mRoutePolylineList, this);
+        LogUtils.log("doLoadMapData getRoutes time = " + (System.currentTimeMillis() - t));
+
         mWayPolylines.get(MainController.STREET_LAYER_LEVEL).add(mOutlineRect);
         updateFakeShapes();
     }
@@ -1927,9 +1924,8 @@ public class MainController implements Initializable, NMEAHandler {
         if (mSelectedEdgeShape != null) {
             mRoutingPane.getChildren().add(mSelectedEdgeShape);
         }
-        if (mRoutePolyline != null) {
-            mRoutingPane.getChildren().add(mRoutePolyline);
-        }
+
+        mRoutingPane.getChildren().addAll(mRoutePolylineList);
 
         if (mTrackingShape != null) {
             mTrackingPane.getChildren().add(mTrackingShape.getShape());
@@ -2019,11 +2015,11 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private Point2D coordinateToDisplay(JsonArray coord, int zoom) {
-        return coordinateToDisplay(coord.getDouble(0), coord.getDouble(1), mMapZoom);
+        return coordinateToDisplay(coord.getDouble(0), coord.getDouble(1), zoom);
     }
 
     private Point2D coordinateToDisplay(Point2D coord, int zoom) {
-        return coordinateToDisplay(coord.getX(), coord.getY(), mMapZoom);
+        return coordinateToDisplay(coord.getX(), coord.getY(), zoom);
     }
 
     Point2D displayToCoordinate(double x, double y, int zoom) {
@@ -2098,19 +2094,30 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
 
-    private void centerMapOnLocation(double lon, double lat) {
+    private void centerMapOnCoordinates(double lon, double lat) {
         mCenter = new Point2D(lon, lat);
         calcMapCenterPos();
         calcMapZeroPos(false);
         maybeLoadMapData(() -> showShapeAtCenter());
     }
 
-    private void centerMapOnLocationWithZoom(double lon, double lat, int minZoom) {
-        if (mMapZoom < minZoom) {
-            mMapZoom = minZoom;
-            zoomLabel.setText(String.valueOf(mMapZoom));
-        }
-        centerMapOnLocation(lon, lat);
+    private void centerMapOnDisplay(Point2D pos) {
+        mCenterPos = pos;
+        calcCenterCoord();
+        calcMapZeroPos(false);
+        loadMapData(null);
+    }
+
+    private void centerMapOnCoordinatesWithZoom(double lon, double lat, int zoom) {
+        mMapZoom = zoom;
+        zoomLabel.setText(String.valueOf(mMapZoom));
+        centerMapOnCoordinates(lon, lat);
+    }
+
+    private void centerMapOnDisplayWithZoom(Point2D pos, int zoom) {
+        mMapZoom = zoom;
+        zoomLabel.setText(String.valueOf(mMapZoom));
+        centerMapOnDisplay(pos);
     }
 
     private void calcMapCenterPos() {
@@ -2859,21 +2866,32 @@ public class MainController implements Initializable, NMEAHandler {
         mRoutingNodes.add(routingNode);
         saveRoutingNodes();
 
-        ResolvePositionTask task = new ResolvePositionTask(routingNode.getCoordsPos(), routingNode.getWayId(), routingNode.getOsmId());
-        task.setOnSucceeded((succeededEvent) -> {
-            String name = null;
-            JsonObject way = task.getResolvedWay();
-            JsonObject area = task.getResolvedArea();
-            if (area != null) {
-                name = (String) area.get("name");
-            }
-            if (name == null && way != null) {
-                name = (String) way.get("name");
-            }
-            routingNode.setName(name);
+        if (edgeId != 0) {
+            ResolvePositionTask task = new ResolvePositionTask(routingNode.getCoordsPos(), routingNode.getWayId(), routingNode.getOsmId());
+            task.setOnSucceeded((succeededEvent) -> {
+                String name = null;
+                JsonObject way = task.getResolvedWay();
+                JsonObject area = task.getResolvedArea();
+                if (area != null) {
+                    name = (String) area.get("name");
+                }
+                if (name == null && way != null) {
+                    name = (String) way.get("name");
+                }
+                routingNode.setName(name);
+                updateNodeListContent();
+            });
+            mExecutorService.submit(task);
+        } else {
             updateNodeListContent();
-        });
-        mExecutorService.submit(task);
+        }
+    }
+
+    private void removeRoutingNode(RoutingNode node) {
+        mRoutingNodes.remove(node);
+        saveRoutingNodes();
+        updateNodeListContent();
+        drawShapes();
     }
 
     private void updateRoutingNode(RoutingNode routingNode, boolean updateSize) {
@@ -2901,6 +2919,7 @@ public class MainController implements Initializable, NMEAHandler {
         Point2D paneZeroPos = mNodePane.localToScreen(0, 0);
         Point2D nodePos = node.getPos();
         Point2D pos = calcNodePanePos(nodePos, paneZeroPos);
+
         node.setX(pos.getX() - node.getFitWidth() / 2);
         node.setY(pos.getY() - node.getFitHeight());
     }
@@ -2921,16 +2940,13 @@ public class MainController implements Initializable, NMEAHandler {
         if (node != null) {
             menuItem = new MenuItem(" Remove");
             menuItem.setOnAction(ev -> {
-                mRoutingNodes.remove(node);
-                saveRoutingNodes();
-                updateNodeListContent();
-                drawShapes();
+                removeRoutingNode(node);
             });
             menuItem.setStyle("-fx-font-size: 20");
             mContextMenu.getItems().add(menuItem);
         } else {
-            if (!hasRoutingStart() || !hasRoutingEnd()) {
-                menuItem = new MenuItem(hasRoutingStart() ? " Add finish" : " Add start");
+            if (getRoutingStart() == null || getRoutingEnd() == null) {
+                menuItem = new MenuItem(getRoutingStart() != null ? " Add finish" : " Add start");
                 menuItem.setOnAction(ev -> {
                     // find closest edge
                     JsonObject edge = getClosestEdgeOnPos(mMouseClickedCoordsPos);
@@ -2946,7 +2962,7 @@ public class MainController implements Initializable, NMEAHandler {
                         }
                         LogUtils.log("addRoutingNode: use minimal distance edge = " + edge + " osmId = " + osmId);
 
-                        addRoutingNode(hasRoutingStart() ? RoutingNode.TYPE.END : RoutingNode.TYPE.START, mMouseClickedCoordsPos,
+                        addRoutingNode(hasRoutingStart() ? RoutingNode.TYPE.FINISH : RoutingNode.TYPE.START, mMouseClickedCoordsPos,
                                 (long) mSelectedEdge.get("id"),
                                 (long) mSelectedEdge.get("wayId"), osmId);
                         drawShapes();
@@ -2958,16 +2974,23 @@ public class MainController implements Initializable, NMEAHandler {
                 mContextMenu.getItems().add(menuItem);
             }
         }
-        if (hasRoutingStart() && hasRoutingEnd()) {
+        if (isCalcRoutePossible()) {
             menuItem = new MenuItem(" Calc route ");
             menuItem.setOnAction(ev -> {
-                mRoutingPane.getChildren().remove(mRoutePolyline);
+                clearRoute();
                 CalcRouteTask task = new CalcRouteTask(getRoutingStart().getEdgeId(), getRoutingEnd().getEdgeId());
                 task.setOnSucceeded((event) -> {
                     LogUtils.log("CalcRouteTask succeededEvent");
                     stopProgress();
-                    mRouteEdgeIdList = task.getRouteEdgeIdList();
+                    mRouteEdgeIdList.clear();
+                    mRouteEdgeIdList.addAll(task.mRouteList);
                     drawShapes();
+
+                    // change mapzoom to show route
+                    int zoom = getMapZoomToShowRoute();
+                    BoundingBox bbox = getRouteBoundingBox(zoom);
+                    Point2D center = new Point2D(bbox.getCenterX(), bbox.getCenterY());
+                    centerMapOnDisplayWithZoom(center, zoom);
                 });
                 task.setOnRunning((event) -> {
                     startProgress();
@@ -2980,16 +3003,23 @@ public class MainController implements Initializable, NMEAHandler {
             menuItem.setStyle("-fx-font-size: 20");
             mContextMenu.getItems().add(menuItem);
         }
-        if (hasRoutingStart() && hasRoutingEnd()) {
+        if (isCalcRoutePossible()) {
             menuItem = new MenuItem(" Revert route ");
             menuItem.setOnAction(ev -> {
-                mRoutingPane.getChildren().remove(mRoutePolyline);
+                clearRoute();
                 CalcRouteTask task = new CalcRouteTask(getRoutingEnd().getEdgeId(), getRoutingStart().getEdgeId());
                 task.setOnSucceeded((event) -> {
                     LogUtils.log("CalcRouteTask succeededEvent");
                     stopProgress();
-                    mRouteEdgeIdList = task.getRouteEdgeIdList();
+                    mRouteEdgeIdList.clear();
+                    mRouteEdgeIdList.addAll(task.mRouteList);
                     drawShapes();
+
+                    // change mapzoom to show route
+                    int zoom = getMapZoomToShowRoute();
+                    BoundingBox bbox = getRouteBoundingBox(zoom);
+                    Point2D center = new Point2D(bbox.getCenterX(), bbox.getCenterY());
+                    centerMapOnDisplayWithZoom(center, zoom);
                 });
                 task.setOnRunning((event) -> {
                     startProgress();
@@ -3002,36 +3032,36 @@ public class MainController implements Initializable, NMEAHandler {
             menuItem.setStyle("-fx-font-size: 20");
             mContextMenu.getItems().add(menuItem);
         }
-        if (hasRoutingStart() || hasRoutingEnd()) {
+        if (isCalcRoutePossible()) {
             menuItem = new MenuItem(" Clear route ");
             menuItem.setOnAction(ev -> {
-                mRoutingPane.getChildren().remove(mRoutePolyline);
-                mRoutePolyline = null;
-                mRoutingNodes.clear();
-                saveRoutingNodes();
+                clearRoute();
+                //mRoutingNodes.removeAll(mRoutingNodes.stream().filter(routingNode -> routingNode.getType() != RoutingNode.TYPE.PIN).collect(Collectors.toList()));
+                //saveRoutingNodes();
                 drawShapes();
             });
             menuItem.setStyle("-fx-font-size: 20");
             mContextMenu.getItems().add(menuItem);
         }
-        if (hasRoutingStart()) {
-            menuItem = new MenuItem(" Go to start ");
-            menuItem.setOnAction(ev -> {
-                Point2D pos = getRoutingStart().getCoordsPos();
-                centerMapOnLocationWithZoom(pos.getX(), pos.getY(), 17);
-            });
-            menuItem.setStyle("-fx-font-size: 20");
-            mContextMenu.getItems().add(menuItem);
-        }
-        if (hasRoutingEnd()) {
-            menuItem = new MenuItem(" Go to finish ");
-            menuItem.setOnAction(ev -> {
-                Point2D pos = getRoutingEnd().getCoordsPos();
-                centerMapOnLocationWithZoom(pos.getX(), pos.getY(), 17);
-            });
-            menuItem.setStyle("-fx-font-size: 20");
-            mContextMenu.getItems().add(menuItem);
-        }
+        mContextMenu.getItems().add(new SeparatorMenuItem());
+        menuItem = new MenuItem(" Remember location ");
+        menuItem.setOnAction(ev -> {
+            JsonObject edge = getClosestEdgeOnPos(mMouseClickedCoordsPos);
+            Point2D pos = coordinateToDisplay(mMouseClickedCoordsPos, mMapZoom);
+            OSMShape shape = findShapeAtPoint(pos, OSMUtils.SELECT_AREA_TYPE);
+            long osmId = -1;
+            if (shape != null) {
+                osmId = shape.getOSMId();
+            }
+
+            addRoutingNode(RoutingNode.TYPE.PIN, mMouseClickedCoordsPos,
+                    edge != null ? (long) edge.get("id") : 0,
+                    edge != null ? (long) edge.get("wayId") : 0, osmId);
+            drawShapes();
+        });
+        menuItem.setStyle("-fx-font-size: 20");
+        mContextMenu.getItems().add(menuItem);
+
         mContextMenu.getItems().add(new SeparatorMenuItem());
 
         menuItem = new MenuItem(" Toggle 3D ");
@@ -3153,32 +3183,34 @@ public class MainController implements Initializable, NMEAHandler {
             RoutingNode node = new RoutingNode((JsonObject) nodes.get(i));
             mRoutingNodes.add(node);
 
-            ResolvePositionTask task = new ResolvePositionTask(node.getCoordsPos(), node.getWayId(), node.getOsmId());
-            task.setOnSucceeded((succeededEvent) -> {
-                LogUtils.log("restoreRoutingNodes: ResolvePositionTask succeededEvent");
-                JsonObject edge = task.getResolvedEdge();
-                if (edge != null) {
-                    node.setEdgeId((long) edge.get("id"));
-                    LogUtils.log("resolved node = " + node.toJson() + " edgeId = " + node.getEdgeId());
-                }
-                String name = null;
-                JsonObject way = task.getResolvedWay();
-                JsonObject area = task.getResolvedArea();
-                if (area != null) {
-                    name = (String) area.get("name");
-                }
-                if (name == null && way != null) {
-                    name = (String) way.get("name");
-                }
-                node.setName(name);
-                updateNodeListContent();
-            });
-            mExecutorService.submit(task);
+            if (node.getWayId() != 0) {
+                ResolvePositionTask task = new ResolvePositionTask(node.getCoordsPos(), node.getWayId(), node.getOsmId());
+                task.setOnSucceeded((succeededEvent) -> {
+                    LogUtils.log("restoreRoutingNodes: ResolvePositionTask succeededEvent");
+                    JsonObject edge = task.getResolvedEdge();
+                    if (edge != null) {
+                        node.setEdgeId((long) edge.get("id"));
+                        LogUtils.log("resolved node = " + node.toJson() + " edgeId = " + node.getEdgeId());
+                    }
+                    String name = null;
+                    JsonObject way = task.getResolvedWay();
+                    JsonObject area = task.getResolvedArea();
+                    if (area != null) {
+                        name = (String) area.get("name");
+                    }
+                    if (name == null && way != null) {
+                        name = (String) way.get("name");
+                    }
+                    node.setName(name);
+                    updateNodeListContent();
+                });
+                mExecutorService.submit(task);
+            }
         }
     }
 
     private boolean hasRoutingStart() {
-        return mRoutingNodes.stream().filter(routingNode -> routingNode.getType() == RoutingNode.TYPE.START).count() != 0;
+            return mRoutingNodes.stream().filter(routingNode -> routingNode.getType() == RoutingNode.TYPE.START && routingNode.getEdgeId() != -1).count() != 0;
     }
 
     private RoutingNode getRoutingStart() {
@@ -3186,57 +3218,15 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private boolean hasRoutingEnd() {
-        return mRoutingNodes.stream().filter(routingNode -> routingNode.getType() == RoutingNode.TYPE.END).count() != 0;
+        return mRoutingNodes.stream().filter(routingNode -> routingNode.getType() == RoutingNode.TYPE.FINISH && routingNode.getEdgeId() != -1).count() != 0;
     }
 
     private RoutingNode getRoutingEnd() {
-        return mRoutingNodes.stream().filter(routingNode -> routingNode.getType() == RoutingNode.TYPE.END).findFirst().get();
+        return mRoutingNodes.stream().filter(routingNode -> routingNode.getType() == RoutingNode.TYPE.FINISH).findFirst().get();
     }
 
-    private void createRoutePolylineList(List<Long> edgeList) {
-        long t = System.currentTimeMillis();
-        mRoutePolyline = new Polyline();
-        int i = 0;
-        long length = 0;
-        JsonArray lastCoords = null;
-        for (Long edgeId : edgeList) {
-            JsonObject edge = QueryController.getInstance().getEdgeEntryForId(edgeId);
-            if (edge != null) {
-                JsonArray coords = (JsonArray) edge.get("coords");
-                length += GISUtils.getLongValue(edge.get("length"));
-                JsonArray coord = new JsonArray();
-
-                if (lastCoords != null && !coords.get(0).equals(lastCoords)) {
-                    // reverse
-                    // first point is the same as last one of prev edge
-                    int start = i == 0 ? coords.size() - 1 : coords.size() - 2;
-                    for (int j = start; j >= 0; j--) {
-                        coord = (JsonArray) coords.get(j);
-                        Point2D pos = coordinateToDisplay(coord, mMapZoom);
-                        mRoutePolyline.getPoints().add(pos.getX());
-                        mRoutePolyline.getPoints().add(pos.getY());
-                    }
-                } else {
-                    // first point is the same as last one of prev edge
-                    int start = i == 0 ? 0 : 1;
-                    for (int j = start; j < coords.size(); j++) {
-                        coord = (JsonArray) coords.get(j);
-                        Point2D pos = coordinateToDisplay(coord, mMapZoom);
-                        mRoutePolyline.getPoints().add(pos.getX());
-                        mRoutePolyline.getPoints().add(pos.getY());
-                    }
-                }
-                lastCoords = coord;
-            } else {
-                LogUtils.error("Failed to resolve edge from route edgeId = " + edgeId);
-            }
-            i++;
-        }
-        mRoutePolyline.setStrokeWidth(2);
-        mRoutePolyline.setStroke(Color.RED);
-        mRoutePolyline.setTranslateX(-mMapZero.getX());
-        mRoutePolyline.setTranslateY(-mMapZero.getY());
-        LogUtils.log("createRoutePolylineList time = " + (System.currentTimeMillis() - t) + " distance(m) = " + length);
+    private boolean isCalcRoutePossible() {
+        return hasRoutingStart() && hasRoutingEnd();
     }
 
     private void startProgress() {
@@ -3291,7 +3281,7 @@ public class MainController implements Initializable, NMEAHandler {
         if (mLocationHistoryIndex != 0) {
             mLocationHistoryIndex--;
             JsonArray coords = (JsonArray) mLocationHistory.get(mLocationHistoryIndex);
-            centerMapOnLocation(GISUtils.getDoubleValue(coords.get(0)), GISUtils.getDoubleValue(coords.get(1)));
+            centerMapOnCoordinates(GISUtils.getDoubleValue(coords.get(0)), GISUtils.getDoubleValue(coords.get(1)));
         }
     }
 
@@ -3299,7 +3289,7 @@ public class MainController implements Initializable, NMEAHandler {
         if (mLocationHistoryIndex < mLocationHistory.size() - 1) {
             mLocationHistoryIndex++;
             JsonArray coords = (JsonArray) mLocationHistory.get(mLocationHistoryIndex);
-            centerMapOnLocation(GISUtils.getDoubleValue(coords.get(0)), GISUtils.getDoubleValue(coords.get(1)));
+            centerMapOnCoordinates(GISUtils.getDoubleValue(coords.get(0)), GISUtils.getDoubleValue(coords.get(1)));
         }
     }
 
@@ -3534,7 +3524,7 @@ public class MainController implements Initializable, NMEAHandler {
     private void updateNodeListContent() {
         mNodeListItems.clear();
         for (RoutingNode node : mRoutingNodes) {
-            QueryItem item = new QueryItem(node.getType() == RoutingNode.TYPE.START ? "Start" : "Finish", node.getName(),
+            QueryItem item = new QueryItem(node.getTitle(), node.getName(),
                     node.getImage(), node.getCoordsPos());
             mNodeListItems.add(item);
         }
@@ -3550,6 +3540,35 @@ public class MainController implements Initializable, NMEAHandler {
                 LogUtils.error("loadTileStyleConfig", e);
             }
         }
+    }
+
+    private void clearRoute() {
+        mRoutePolylineList.clear();
+        mRouteEdgeIdList.clear();
+        QueryController.getInstance().clearAllRoutes();
+    }
+
+    private int getMapZoomToShowRoute() {
+        int zoom = mMapZoom;
+        while (zoom >= MIN_ZOOM) {
+            Point2D startPos = coordinateToDisplay(getRoutingStart().getCoordsPos(), zoom);
+            Point2D endPos = coordinateToDisplay(getRoutingEnd().getCoordsPos(), zoom);
+
+            double distance = Math.abs(startPos.distance(endPos));
+            if (distance < mScene.getWidth() && distance < (mScene.getHeight() - bottomPane.getHeight() - topPane.getHeight())) {
+                return zoom;
+            }
+            zoom--;
+        }
+        return mMapZoom;
+    }
+
+    private BoundingBox getRouteBoundingBox(int zoom) {
+        Point2D startPos = coordinateToDisplay(getRoutingStart().getCoordsPos(), zoom);
+        Point2D endPos = coordinateToDisplay(getRoutingEnd().getCoordsPos(), zoom);
+        double minX = startPos.getX() < endPos.getX() ? startPos.getX() : endPos.getX();
+        double minY = startPos.getY() < endPos.getY() ? startPos.getY() : endPos.getY();
+        return new BoundingBox(minX, minY, Math.abs(startPos.getX() - endPos.getX()), Math.abs(startPos.getY() - endPos.getY()));
     }
 }
 

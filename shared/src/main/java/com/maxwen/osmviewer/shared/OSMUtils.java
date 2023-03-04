@@ -131,8 +131,9 @@ public class OSMUtils {
             POI_TYPE_PARKING);
 
     public static final HashSet<Integer> mAdminLevelSet = new HashSet<>();
+
     static {
-        mAdminLevelSet.addAll(Set.of(2,4,6,8));
+        mAdminLevelSet.addAll(Set.of(2, 4, 6, 8));
     }
 
     public static boolean isValidOnewayEnter(int oneway, long crossingRef, JsonObject edge) {
@@ -167,17 +168,13 @@ public class OSMUtils {
     }
 
     public static double getStreetTypeCostFactor(int streetTypeId) {
-        if (streetTypeId == STREET_TYPE_MOTORWAY){
+        if (streetTypeId == STREET_TYPE_MOTORWAY ||
+                streetTypeId == STREET_TYPE_MOTORWAY_LINK) {
             return 0.6;
         }
-        if (streetTypeId == STREET_TYPE_MOTORWAY_LINK) {
+        if (streetTypeId == STREET_TYPE_TRUNK ||
+                streetTypeId == STREET_TYPE_TRUNK_LINK) {
             return 0.8;
-        }
-        if (streetTypeId == STREET_TYPE_TRUNK) {
-            return 0.8;
-        }
-        if (streetTypeId == STREET_TYPE_TRUNK_LINK) {
-            return 1.0;
         }
         if (streetTypeId == STREET_TYPE_PRIMARY ||
                 streetTypeId == STREET_TYPE_PRIMARY_LINK) {
@@ -195,6 +192,49 @@ public class OSMUtils {
             return 1.8;
         }
         return 2.0;
+    }
+
+    public static int getStreetType(int streetTypeId) {
+        if (streetTypeId == STREET_TYPE_MOTORWAY ||
+                streetTypeId == STREET_TYPE_MOTORWAY_LINK) {
+            return 0;
+        }
+        if (streetTypeId == STREET_TYPE_TRUNK ||
+                streetTypeId == STREET_TYPE_TRUNK_LINK) {
+            return 1;
+        }
+        if (streetTypeId == STREET_TYPE_PRIMARY ||
+                streetTypeId == STREET_TYPE_PRIMARY_LINK) {
+            return 2;
+        }
+        if (streetTypeId == STREET_TYPE_SECONDARY ||
+                streetTypeId == STREET_TYPE_SECONDARY_LINK) {
+            return 3;
+        }
+        if (streetTypeId == STREET_TYPE_TERTIARY ||
+                streetTypeId == STREET_TYPE_TERTIARY_LINK) {
+            return 4;
+        }
+        if (streetTypeId == STREET_TYPE_RESIDENTIAL ||
+                streetTypeId == STREET_TYPE_ROAD) {
+            return 5;
+        }
+        return 6;
+    }
+
+    public static int getStreetTypeSpeed(int streetType) {
+        switch (streetType) {
+            case 0:
+                return 100;
+            case 1:
+                return 90;
+            case 2:
+                return 80;
+            case 3:
+                return 70;
+            default:
+                return 50;
+        }
     }
 
     public static int getAccessCostFactor(JsonObject tags, int streetTypeId) {
@@ -241,5 +281,13 @@ public class OSMUtils {
         }
 
         return 1;
+    }
+
+    public static JsonArray reverseCoordsArray(JsonArray coords) {
+        JsonArray reverseCoords = new JsonArray();
+        for (int k = coords.size() - 1; k >= 0; k--) {
+            reverseCoords.add(coords.get(k));
+        }
+        return reverseCoords;
     }
 }

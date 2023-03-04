@@ -194,8 +194,8 @@ public class GISUtils {
         return parseCoords(lineString);
     }
 
-    public static String createCoordsString(JsonArray coords) {
-        // { ref, lon, lat)
+    private static String createRefCoordsString(JsonArray coords) {
+        // [{ ref, lon, lat) { ref, lon, lat) { ref, lon, lat) ...]
         StringBuffer sb = new StringBuffer();
         coords.stream().sequential().forEach(entry -> {
             JsonObject obj = (JsonObject) entry;
@@ -204,23 +204,40 @@ public class GISUtils {
         return sb.toString();
     }
 
+    public static String createLineStringFromRefCoords(JsonArray coords) {
+        String lineString = "'LINESTRING(";
+        String coordString = createRefCoordsString(coords);
+        coordString = coordString.substring(0, coordString.length() - 1);
+        return lineString + coordString + ")'";
+    }
+
+    private static String createArrayCoordsString(JsonArray coords) {
+        // [[ lon, lat][ lon, lat][ lon, lat][ lon, lat]...]
+        StringBuffer sb = new StringBuffer();
+        coords.stream().sequential().forEach(entry -> {
+            JsonArray obj = (JsonArray) entry;
+            sb.append(obj.get(0) + " " + obj.get(1) + ",");
+        });
+        return sb.toString();
+    }
+
     public static String createLineStringFromCoords(JsonArray coords) {
         String lineString = "'LINESTRING(";
-        String coordString = createCoordsString(coords);
+        String coordString = createArrayCoordsString(coords);
         coordString = coordString.substring(0, coordString.length() - 1);
         return lineString + coordString + ")'";
     }
 
     public static String createPolygonFromCoords(JsonArray coords) {
         String lineString = "'POLYGON((";
-        String coordString = createCoordsString(coords);
+        String coordString = createRefCoordsString(coords);
         coordString = coordString.substring(0, coordString.length() - 1);
         return lineString + coordString + "))'";
     }
 
     public static String createMultiPolygonFromCoords(JsonArray coords) {
         String lineString = "'MULTIPOLYGON(((";
-        String coordString = createCoordsString(coords);
+        String coordString = createRefCoordsString(coords);
         coordString = coordString.substring(0, coordString.length() - 1);
         return lineString + coordString + ")))'";
     }

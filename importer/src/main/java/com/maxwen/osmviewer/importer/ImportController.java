@@ -14,9 +14,7 @@ import com.wolt.osm.parallelpbf.entity.RelationMember;
 import com.wolt.osm.parallelpbf.entity.Way;
 import org.sqlite.SQLiteConfig;
 
-import java.awt.*;
 import java.io.File;
-import java.math.BigDecimal;
 import java.sql.*;
 import java.util.*;
 import java.util.List;
@@ -565,7 +563,7 @@ public class ImportController {
             String sql;
             sql = "SELECT InitSpatialMetaData(1)";
             stmt.execute(sql);
-            sql = "CREATE TABLE IF NOT EXISTS edgeTable (id INTEGER PRIMARY KEY AUTOINCREMENT, startRef INTEGER, endRef INTEGER, length INTEGER, wayId INTEGER, source INTEGER, target INTEGER, cost REAL, reverseCost REAL, streetInfo INTEGER)";
+            sql = "CREATE TABLE IF NOT EXISTS edgeTable (id INTEGER PRIMARY KEY AUTOINCREMENT, startRef INTEGER, endRef INTEGER, length INTEGER, wayId INTEGER, source INTEGER, target INTEGER, cost REAL, reverseCost REAL, streetInfo INTEGER, streetType INTEGER)";
             stmt.execute(sql);
             sql = "CREATE INDEX IF NOT EXISTS startRef_idx ON edgeTable (startRef)";
             stmt.execute(sql);
@@ -1849,7 +1847,7 @@ public class ImportController {
                 if (isPolygon) {
                     geomString = GISUtils.createMultiPolygonFromCoords(coords);
                 } else {
-                    geomString = GISUtils.createLineStringFromCoords(coords);
+                    geomString = GISUtils.createLineStringFromRefCoords(coords);
                 }
                 String tagsString = stripAndEscapeTags(tags, ImportMapping.getInstance().getRequiredAreaTags());
 
@@ -1976,7 +1974,7 @@ public class ImportController {
                 }
             }
 
-            String lineString = GISUtils.createLineStringFromCoords(coords);
+            String lineString = GISUtils.createLineStringFromRefCoords(coords);
 
             JsonArray refList = new JsonArray();
             refList.addAll(way.getNodes());
@@ -2058,16 +2056,16 @@ public class ImportController {
         }
     }
 
-    private void addToEdgeTable(long startRef, long endRef, long length, long wayId, double cost, double reverseCost, int streetInfo, JsonArray coords) {
+    private void addToEdgeTable(long startRef, long endRef, long length, long wayId, double cost, double reverseCost, int streetInfo, int streetType, JsonArray coords) {
         JsonArray edgeList = getEdgeEntryForStartAndEndPointAndWayId(startRef, endRef, wayId);
         if (edgeList.size() == 0) {
-            String lineString = GISUtils.createLineStringFromCoords(coords);
+            String lineString = GISUtils.createLineStringFromRefCoords(coords);
 
             Statement stmt = null;
             try {
                 stmt = mEdgeConnection.createStatement();
-                String sql = String.format("INSERT INTO edgeTable (startRef, endRef, length, wayId, source, target, cost, reverseCost, streetInfo, geom) VALUES(%d, %d, %d, %d, %d, %d, %f, %f, %d, LineFromText(%s, 4326))"
-                        , startRef, endRef, length, wayId, 0, 0, cost, reverseCost, streetInfo, lineString);
+                String sql = String.format("INSERT INTO edgeTable (startRef, endRef, length, wayId, source, target, cost, reverseCost, streetInfo, streetType, geom) VALUES(%d, %d, %d, %d, %d, %d, %f, %f, %d, %d, LineFromText(%s, 4326))"
+                        , startRef, endRef, length, wayId, 0, 0, cost, reverseCost, streetInfo, streetType, lineString);
                 stmt.execute(sql);
             } catch (SQLException e) {
                 LogUtils.error("addToEdgeTable", e);
@@ -2534,7 +2532,7 @@ public class ImportController {
         if (tags != null) {
             accessFactor = getAccessCostFactor(tags, streetTypeId);
         }
-        double streetTypeFactor = getStreetTypeCostFactor(streetTypeId);
+        double streetTypeFactor = 1; //getStreetTypeCostFactor(streetTypeId);
 
         cost = (distance * streetTypeFactor *
                 accessFactor * crossingFactor);
@@ -3285,7 +3283,8 @@ public class ImportController {
                     JsonArray edgeCoords = createRefsCoords(refList);
                     if (edgeCoords.size() >= 2) {
                         JsonObject costs = getCostsOfWay(wayId, tags, distance, crossingFactor, typeInfo, maxspeed);
-                        addToEdgeTable(startRef, endRef, distance, wayId, (double) costs.get("cost"), (double) costs.get("reverseCost"), streetTypeInfo, edgeCoords);
+                        addToEdgeTable(startRef, endRef, distance, wayId, (double) costs.get("cost"), (double) costs.get("reverseCost"), streetTypeInfo,
+                                OSMUtils.getStreetType(streetTypeId), edgeCoords);
                     }
                     refNodeList = new ArrayList<>();
                     distance = 0;
@@ -3302,7 +3301,8 @@ public class ImportController {
                 JsonArray edgeCoords = createRefsCoords(refList);
                 if (edgeCoords.size() >= 2) {
                     JsonObject costs = getCostsOfWay(wayId, tags, distance, crossingFactor, typeInfo, maxspeed);
-                    addToEdgeTable(startRef, endRef, distance, wayId, (double) costs.get("cost"), (double) costs.get("reverseCost"), streetTypeInfo, edgeCoords);
+                    addToEdgeTable(startRef, endRef, distance, wayId, (double) costs.get("cost"), (double) costs.get("reverseCost"), streetTypeInfo,
+                            OSMUtils.getStreetType(streetTypeId), edgeCoords);
                 }
             }
         }
