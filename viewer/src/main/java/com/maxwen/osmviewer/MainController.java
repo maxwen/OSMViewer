@@ -17,6 +17,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
 import javafx.concurrent.WorkerStateEvent;
+import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -45,10 +46,10 @@ import java.io.*;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 public class MainController implements Initializable, NMEAHandler {
     public static final int ROTATE_X_VALUE = 60;
@@ -116,7 +117,8 @@ public class MainController implements Initializable, NMEAHandler {
     Pane mainPane;
     VBox filterContent;
     VBox sidePane;
-    VBox nodeListContent;
+    VBox savedNodeListContent;
+    VBox routeNodeListContent;
 
     private static final int MIN_ZOOM = 4;
     private static final int MAX_ZOOM = 20;
@@ -175,6 +177,8 @@ public class MainController implements Initializable, NMEAHandler {
     private Polyline mSelectedEdgeShape;
     private ResolvePositionTask mResolvePositionTask;
     private List<RoutingNode> mRoutingNodes = new ArrayList<>();
+    private List<RoutingNode> mSavedNodes = new ArrayList<>();
+
     private Point2D mMouseClickedNodePos;
     private Point2D mMouseClickedCoordsPos;
 
@@ -184,11 +188,12 @@ public class MainController implements Initializable, NMEAHandler {
     private LoadMapDataTask mLoadMapDataTask;
     private boolean mSidePaneExpanded;
     private ObservableList<QueryItem> mQueryItems = FXCollections.observableArrayList();
-
-    private ObservableList<QueryItem> mNodeListItems = FXCollections.observableArrayList();
+    private ObservableList<RoutingNode> mRouteNodesListItems = FXCollections.observableArrayList();
+    private ObservableList<RoutingNode> mSavedNodesListItems = FXCollections.observableArrayList();
 
     private ProgressIndicator mQueryListProgress;
-    private ProgressIndicator mLoadMapProgress;
+    private ProgressIndicator mProgress;
+    private Button mProgressStop;
     private MenuButton mFilterHeader;
     private Rectangle mOutlineRect;
     private JsonObject mTileStyle;
@@ -218,7 +223,8 @@ public class MainController implements Initializable, NMEAHandler {
     private TextField mQueryField;
     private QueryTaskPOI mQueryTask;
     private String mQueryText;
-    private ListView<QueryItem> mNodesListView;
+    private ListView<RoutingNode> mSavedNodesListView;
+    private ListView<RoutingNode> mRouteNodesListView;
 
     private static final int HTTP_READ_TIMEOUT = 30000;
     private static final int HTTP_CONNECTION_TIMEOUT = 30000;
@@ -365,6 +371,9 @@ public class MainController implements Initializable, NMEAHandler {
             if (mMapZoom >= 14) {
                 // updateRoutingNode depends on calc point so dont do before added
                 for (RoutingNode node : mRoutingNodes) {
+                    updateRoutingNode(node, true);
+                }
+                for (RoutingNode node : mSavedNodes) {
                     updateRoutingNode(node, true);
                 }
             }
@@ -598,6 +607,7 @@ public class MainController implements Initializable, NMEAHandler {
         @Override
         protected Void call() throws Exception {
             RoutingWrapper routing = new RoutingWrapper();
+            routing.clearRoute();
             LogUtils.log("mStartEdgeId = " + mStartEdgeId + " mEndEdgeId = " + mEndEdgeId);
             for (RoutingWrapper.TYPE type : RoutingWrapper.routeTypes) {
                 long t = System.currentTimeMillis();
@@ -616,6 +626,61 @@ public class MainController implements Initializable, NMEAHandler {
                 LogUtils.log("route edges = " + routeEdgeIdList.size() + " time = " + (System.currentTimeMillis() - t));
             }
             routing.resetData();
+
+            return null;
+        }
+    }
+
+    public class CalcRouteTaskExternal extends Task<Void> {
+        private long mStartEdgeId;
+        private long mEndEdgeId;
+        private List<Route> mRouteList = new ArrayList<>();
+        private Process mProcess;
+
+        public CalcRouteTaskExternal(long startEdgeId, long endEdgeId) {
+            mStartEdgeId = startEdgeId;
+            mEndEdgeId = endEdgeId;
+        }
+
+        public void destroy() {
+            if (mProcess != null) {
+                LogUtils.log("CalcRouteTaskExternal: destroy" );
+
+                mProcess.destroy();
+                mProcess = null;
+            }
+            cancel();
+        }
+
+        @Override
+        protected Void call() throws Exception {
+            LogUtils.log("CalcRouteTaskExternal: mStartEdgeId = " + mStartEdgeId + " mEndEdgeId = " + mEndEdgeId);
+
+            String calcRoutePath = System.getProperty("osm.calc_route.path");
+            ProcessBuilder pb = new ProcessBuilder("/bin/sh", calcRoutePath, String.valueOf(mStartEdgeId), String.valueOf(mEndEdgeId));
+            pb.inheritIO();
+            mProcess = pb.start();
+            int exitCode = mProcess.waitFor();
+            LogUtils.log("CalcRouteTaskExternal: exitCode = " + exitCode);
+
+            if (mProcess != null) {
+                mProcess = null;
+
+                for (RoutingWrapper.TYPE type : RoutingWrapper.routeTypes) {
+                    JsonArray routeEdgeIdList = QueryController.getInstance().getEdgeIdListForCalcRoute(mStartEdgeId, mEndEdgeId, type);
+                    if (routeEdgeIdList != null) {
+                        if (GISUtils.getLongValue(routeEdgeIdList.get(0)) != mStartEdgeId) {
+                            routeEdgeIdList.add(0, mStartEdgeId);
+                        }
+                        if (GISUtils.getLongValue(routeEdgeIdList.get(routeEdgeIdList.size() - 1)) != mEndEdgeId) {
+                            routeEdgeIdList.add(mEndEdgeId);
+                        }
+                        Route route = new Route(getRoutingStart(), getRoutingEnd(), type);
+                        route.setEdgeList(routeEdgeIdList);
+                        mRouteList.add(route);
+                    }
+                }
+            }
 
             return null;
         }
@@ -915,7 +980,7 @@ public class MainController implements Initializable, NMEAHandler {
         @Override
         public EventHandler<WorkerStateEvent> getRunningEvent() {
             return event -> {
-                startProgress();
+                startProgress(false);
             };
         }
 
@@ -986,9 +1051,13 @@ public class MainController implements Initializable, NMEAHandler {
         VBox.setVgrow(searchContent, Priority.ALWAYS);
         createSearchContent();
 
-        nodeListContent = new VBox();
-        VBox.setVgrow(nodeListContent, Priority.ALWAYS);
-        createNodeListContent();
+        savedNodeListContent = new VBox();
+        VBox.setVgrow(savedNodeListContent, Priority.ALWAYS);
+        createSavedNodeListContent();
+
+        routeNodeListContent = new VBox();
+        VBox.setVgrow(routeNodeListContent, Priority.ALWAYS);
+        createRouteNodeListContent();
 
         TabPane tabPane = new TabPane();
         VBox.setVgrow(tabPane, Priority.ALWAYS);
@@ -1000,13 +1069,18 @@ public class MainController implements Initializable, NMEAHandler {
         filterTab.setStyle("-fx-font-size: 16");
         filterTab.setClosable(false);
 
-        Tab nodeListTab = new Tab("Nodes", nodeListContent);
+        Tab nodeListTab = new Tab("Nodes", savedNodeListContent);
         nodeListTab.setStyle("-fx-font-size: 16");
         nodeListTab.setClosable(false);
+
+        Tab routeTab = new Tab("Route", routeNodeListContent);
+        routeTab.setStyle("-fx-font-size: 16");
+        routeTab.setClosable(false);
 
         tabPane.getTabs().add(searchTab);
         tabPane.getTabs().add(filterTab);
         tabPane.getTabs().add(nodeListTab);
+        tabPane.getTabs().add(routeTab);
 
         sidePane.getChildren().add(tabPane);
 
@@ -1036,9 +1110,15 @@ public class MainController implements Initializable, NMEAHandler {
         mainPane = new Pane();
         mainStackPane.getChildren().add(mainPane);
 
-        mLoadMapProgress = new ProgressIndicator();
-        rootPane.getChildren().add(mLoadMapProgress);
-        mLoadMapProgress.setVisible(false);
+        mProgress = new ProgressIndicator();
+        rootPane.getChildren().add(mProgress);
+        mProgress.setVisible(false);
+
+        mProgressStop = new Button();
+        mProgressStop.setText("Cancel");
+        rootPane.getChildren().add(mProgressStop);
+        mProgressStop.setTranslateY(mProgress.getHeight());
+        mProgressStop.setVisible(false);
 
         topPane.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
         infoPane.setBackground(new Background(new BackgroundFill(Color.rgb(0, 0, 0, 0.2), null, null)));
@@ -1083,7 +1163,12 @@ public class MainController implements Initializable, NMEAHandler {
             }
         });
 
-        restoreRoutingNodes();
+        restoreSavedNodes();
+        if (QueryController.getInstance().hasSavedRoutes()) {
+            QueryController.getInstance().loadRoute(this);
+        } else {
+            restoreRoutingNodes();
+        }
     }
 
     private void createLabels() {
@@ -1362,28 +1447,54 @@ public class MainController implements Initializable, NMEAHandler {
         mQueryListProgress.setVisible(false);
     }
 
-    private void createNodeListContent() {
-        mNodesListView = new ListView<>();
+    private void createSavedNodeListContent() {
+        mSavedNodesListView = new ListView<>();
 
         VBox listViewLayout = new VBox(0);
         VBox.setVgrow(listViewLayout, Priority.ALWAYS);
-        listViewLayout.getChildren().add(mNodesListView);
-        VBox.setVgrow(mNodesListView, Priority.ALWAYS);
+        listViewLayout.getChildren().add(mSavedNodesListView);
+        VBox.setVgrow(mSavedNodesListView, Priority.ALWAYS);
 
-        mNodesListView.setItems(mNodeListItems);
-        mNodesListView.setCellFactory(queryListView -> new QueryListViewCell());
-        mNodesListView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<QueryItem>() {
+        mSavedNodesListView.setItems(mSavedNodesListItems);
+        mSavedNodesListView.setCellFactory(queryListView -> new NodeListViewCell(this));
+        mSavedNodesListView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<RoutingNode>() {
             @Override
-            public void changed(ObservableValue<? extends QueryItem> observable, QueryItem oldValue, QueryItem newValue) {
+            public void changed(ObservableValue<? extends RoutingNode> observable, RoutingNode oldValue, RoutingNode newValue) {
                 if (newValue != null) {
-                    JsonArray coords = newValue.getCoords();
-                    centerMapOnCoordinatesWithZoom((double) coords.get(0), (double) coords.get(1), 17);
+                    Point2D coords = newValue.getCoordsPos();
+                    centerMapOnCoordinatesWithZoom(coords.getX(), coords.getY(), 17);
                 }
             }
         });
 
         StackPane listViewPane = new StackPane();
-        nodeListContent.getChildren().add(listViewPane);
+        savedNodeListContent.getChildren().add(listViewPane);
+        VBox.setVgrow(listViewPane, Priority.ALWAYS);
+        listViewPane.getChildren().add(listViewLayout);
+    }
+
+    private void createRouteNodeListContent() {
+        mRouteNodesListView = new ListView<>();
+
+        VBox listViewLayout = new VBox(0);
+        VBox.setVgrow(listViewLayout, Priority.ALWAYS);
+        listViewLayout.getChildren().add(mRouteNodesListView);
+        VBox.setVgrow(mRouteNodesListView, Priority.ALWAYS);
+
+        mRouteNodesListView.setItems(mRouteNodesListItems);
+        mRouteNodesListView.setCellFactory(queryListView -> new NodeListViewCell(this));
+        mRouteNodesListView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<RoutingNode>() {
+            @Override
+            public void changed(ObservableValue<? extends RoutingNode> observable, RoutingNode oldValue, RoutingNode newValue) {
+                if (newValue != null) {
+                    Point2D coords = newValue.getCoordsPos();
+                    centerMapOnCoordinatesWithZoom(coords.getX(), coords.getY(), 17);
+                }
+            }
+        });
+
+        StackPane listViewPane = new StackPane();
+        routeNodeListContent.getChildren().add(listViewPane);
         VBox.setVgrow(listViewPane, Priority.ALWAYS);
         listViewPane.getChildren().add(listViewLayout);
     }
@@ -1841,7 +1952,7 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     public void loadFirstMapData() {
-        startProgress();
+        startProgress(false);
         calcMapCenterPos();
         calcMapZeroPos(true);
         loadMapData(null);
@@ -1959,6 +2070,11 @@ public class MainController implements Initializable, NMEAHandler {
                 updateRoutingNode(node, false);
             }
             mNodePane.getChildren().addAll(mRoutingNodes);
+
+            for (RoutingNode node : mSavedNodes) {
+                updateRoutingNode(node, false);
+            }
+            mNodePane.getChildren().addAll(mSavedNodes);
         }
         for (OSMTextLabel label : mLabelShapeList) {
             updateLabelShape(label);
@@ -2864,7 +2980,32 @@ public class MainController implements Initializable, NMEAHandler {
         RoutingNode routingNode = new RoutingNode(type, coordsPos, edgeId, wayId, osmId);
         updateRoutingNode(routingNode, true);
         mRoutingNodes.add(routingNode);
-        saveRoutingNodes();
+        if (edgeId != 0) {
+            ResolvePositionTask task = new ResolvePositionTask(routingNode.getCoordsPos(), routingNode.getWayId(), routingNode.getOsmId());
+            task.setOnSucceeded((succeededEvent) -> {
+                String name = null;
+                JsonObject way = task.getResolvedWay();
+                JsonObject area = task.getResolvedArea();
+                if (area != null) {
+                    name = (String) area.get("name");
+                }
+                if (name == null && way != null) {
+                    name = (String) way.get("name");
+                }
+                routingNode.setName(name);
+                updateRouteNodeListContent();
+                storeRoutingNodes();
+            });
+            mExecutorService.submit(task);
+        } else {
+            updateRouteNodeListContent();
+        }
+    }
+
+    private void addPinNode(RoutingNode.TYPE type, Point2D coordsPos, long edgeId, long wayId, long osmId) {
+        RoutingNode routingNode = new RoutingNode(type, coordsPos, edgeId, wayId, osmId);
+        updateRoutingNode(routingNode, true);
+        mSavedNodes.add(routingNode);
 
         if (edgeId != 0) {
             ResolvePositionTask task = new ResolvePositionTask(routingNode.getCoordsPos(), routingNode.getWayId(), routingNode.getOsmId());
@@ -2879,18 +3020,25 @@ public class MainController implements Initializable, NMEAHandler {
                     name = (String) way.get("name");
                 }
                 routingNode.setName(name);
-                updateNodeListContent();
+                updateSavedNodeListContent();
+                storeSavedNodes();
             });
             mExecutorService.submit(task);
         } else {
-            updateNodeListContent();
+            updateSavedNodeListContent();
         }
     }
 
-    private void removeRoutingNode(RoutingNode node) {
-        mRoutingNodes.remove(node);
-        saveRoutingNodes();
-        updateNodeListContent();
+    public void removeCustomNode(RoutingNode node) {
+        if (node.getType() == RoutingNode.TYPE.PIN) {
+            mSavedNodes.remove(node);
+            updateSavedNodeListContent();
+            storeSavedNodes();
+        } else {
+            mRoutingNodes.remove(node);
+            updateRouteNodeListContent();
+            storeRoutingNodes();
+        }
         drawShapes();
     }
 
@@ -2940,13 +3088,13 @@ public class MainController implements Initializable, NMEAHandler {
         if (node != null) {
             menuItem = new MenuItem(" Remove");
             menuItem.setOnAction(ev -> {
-                removeRoutingNode(node);
+                removeCustomNode(node);
             });
             menuItem.setStyle("-fx-font-size: 20");
             mContextMenu.getItems().add(menuItem);
         } else {
-            if (getRoutingStart() == null || getRoutingEnd() == null) {
-                menuItem = new MenuItem(getRoutingStart() != null ? " Add finish" : " Add start");
+            if (!hasRoutingStart() || !hasRoutingEnd()) {
+                menuItem = new MenuItem(hasRoutingStart() ? " Add finish" : " Add start");
                 menuItem.setOnAction(ev -> {
                     // find closest edge
                     JsonObject edge = getClosestEdgeOnPos(mMouseClickedCoordsPos);
@@ -2977,28 +3125,7 @@ public class MainController implements Initializable, NMEAHandler {
         if (isCalcRoutePossible()) {
             menuItem = new MenuItem(" Calc route ");
             menuItem.setOnAction(ev -> {
-                clearRoute();
-                CalcRouteTask task = new CalcRouteTask(getRoutingStart().getEdgeId(), getRoutingEnd().getEdgeId());
-                task.setOnSucceeded((event) -> {
-                    LogUtils.log("CalcRouteTask succeededEvent");
-                    stopProgress();
-                    mRouteEdgeIdList.clear();
-                    mRouteEdgeIdList.addAll(task.mRouteList);
-                    drawShapes();
-
-                    // change mapzoom to show route
-                    int zoom = getMapZoomToShowRoute();
-                    BoundingBox bbox = getRouteBoundingBox(zoom);
-                    Point2D center = new Point2D(bbox.getCenterX(), bbox.getCenterY());
-                    centerMapOnDisplayWithZoom(center, zoom);
-                });
-                task.setOnRunning((event) -> {
-                    startProgress();
-                });
-                task.setOnCancelled((event) -> {
-                    stopProgress();
-                });
-                mExecutorService.submit(task);
+                calcRoute(getRoutingStart(), getRoutingEnd());
             });
             menuItem.setStyle("-fx-font-size: 20");
             mContextMenu.getItems().add(menuItem);
@@ -3006,28 +3133,7 @@ public class MainController implements Initializable, NMEAHandler {
         if (isCalcRoutePossible()) {
             menuItem = new MenuItem(" Revert route ");
             menuItem.setOnAction(ev -> {
-                clearRoute();
-                CalcRouteTask task = new CalcRouteTask(getRoutingEnd().getEdgeId(), getRoutingStart().getEdgeId());
-                task.setOnSucceeded((event) -> {
-                    LogUtils.log("CalcRouteTask succeededEvent");
-                    stopProgress();
-                    mRouteEdgeIdList.clear();
-                    mRouteEdgeIdList.addAll(task.mRouteList);
-                    drawShapes();
-
-                    // change mapzoom to show route
-                    int zoom = getMapZoomToShowRoute();
-                    BoundingBox bbox = getRouteBoundingBox(zoom);
-                    Point2D center = new Point2D(bbox.getCenterX(), bbox.getCenterY());
-                    centerMapOnDisplayWithZoom(center, zoom);
-                });
-                task.setOnRunning((event) -> {
-                    startProgress();
-                });
-                task.setOnCancelled((event) -> {
-                    stopProgress();
-                });
-                mExecutorService.submit(task);
+                calcRoute(getRoutingEnd(), getRoutingStart());
             });
             menuItem.setStyle("-fx-font-size: 20");
             mContextMenu.getItems().add(menuItem);
@@ -3036,8 +3142,6 @@ public class MainController implements Initializable, NMEAHandler {
             menuItem = new MenuItem(" Clear route ");
             menuItem.setOnAction(ev -> {
                 clearRoute();
-                //mRoutingNodes.removeAll(mRoutingNodes.stream().filter(routingNode -> routingNode.getType() != RoutingNode.TYPE.PIN).collect(Collectors.toList()));
-                //saveRoutingNodes();
                 drawShapes();
             });
             menuItem.setStyle("-fx-font-size: 20");
@@ -3054,7 +3158,7 @@ public class MainController implements Initializable, NMEAHandler {
                 osmId = shape.getOSMId();
             }
 
-            addRoutingNode(RoutingNode.TYPE.PIN, mMouseClickedCoordsPos,
+            addPinNode(RoutingNode.TYPE.PIN, mMouseClickedCoordsPos,
                     edge != null ? (long) edge.get("id") : 0,
                     edge != null ? (long) edge.get("wayId") : 0, osmId);
             drawShapes();
@@ -3167,7 +3271,17 @@ public class MainController implements Initializable, NMEAHandler {
         }
     }
 
-    private void saveRoutingNodes() {
+    private void storeSavedNodes() {
+        JsonArray nodes = new JsonArray();
+        for (RoutingNode node : mSavedNodes) {
+            nodes.add(node.toJson());
+            LogUtils.log("saved node = " + node.toJson() + " edgeId = " + node.getEdgeId());
+        }
+        Config.getInstance().put("savedNodes", nodes);
+        Config.getInstance().save();
+    }
+
+    private void storeRoutingNodes() {
         JsonArray nodes = new JsonArray();
         for (RoutingNode node : mRoutingNodes) {
             nodes.add(node.toJson());
@@ -3177,10 +3291,79 @@ public class MainController implements Initializable, NMEAHandler {
         Config.getInstance().save();
     }
 
+    private void restoreSavedNodes() {
+        JsonArray nodes = (JsonArray) Config.getInstance().get("savedNodes", new JsonArray());
+        for (int i = 0; i < nodes.size(); i++) {
+            RoutingNode node = new RoutingNode((JsonObject) nodes.get(i));
+            if (node.getType() != RoutingNode.TYPE.PIN) {
+                continue;
+            }
+            mSavedNodes.add(node);
+
+            if (node.getWayId() != 0) {
+                ResolvePositionTask task = new ResolvePositionTask(node.getCoordsPos(), node.getWayId(), node.getOsmId());
+                task.setOnSucceeded((succeededEvent) -> {
+                    LogUtils.log("restoreSavedNodes: ResolvePositionTask succeededEvent");
+                    JsonObject edge = task.getResolvedEdge();
+                    if (edge != null) {
+                        node.setEdgeId((long) edge.get("id"));
+                        LogUtils.log("resolved node = " + node.toJson() + " edgeId = " + node.getEdgeId());
+                    }
+                    String name = null;
+                    JsonObject way = task.getResolvedWay();
+                    JsonObject area = task.getResolvedArea();
+                    if (area != null) {
+                        name = (String) area.get("name");
+                    }
+                    if (name == null && way != null) {
+                        name = (String) way.get("name");
+                    }
+                    node.setName(name);
+                    updateSavedNodeListContent();
+                });
+                updateSavedNodeListContent();
+                mExecutorService.submit(task);
+            }
+        }
+    }
+
+    public void restoreRoutingNode(JsonObject routingNode) {
+        RoutingNode node = new RoutingNode(routingNode);
+        mRoutingNodes.add(node);
+
+        if (node.getWayId() != 0) {
+            ResolvePositionTask task = new ResolvePositionTask(node.getCoordsPos(), node.getWayId(), node.getOsmId());
+            task.setOnSucceeded((succeededEvent) -> {
+                LogUtils.log("restoreRouteNode: ResolvePositionTask succeededEvent");
+                JsonObject edge = task.getResolvedEdge();
+                if (edge != null) {
+                    node.setEdgeId((long) edge.get("id"));
+                    LogUtils.log("resolved node = " + node.toJson() + " edgeId = " + node.getEdgeId());
+                }
+                String name = null;
+                JsonObject way = task.getResolvedWay();
+                JsonObject area = task.getResolvedArea();
+                if (area != null) {
+                    name = (String) area.get("name");
+                }
+                if (name == null && way != null) {
+                    name = (String) way.get("name");
+                }
+                node.setName(name);
+                updateRouteNodeListContent();
+            });
+            updateRouteNodeListContent();
+            mExecutorService.submit(task);
+        }
+    }
+
     private void restoreRoutingNodes() {
         JsonArray nodes = (JsonArray) Config.getInstance().get("routingNodes", new JsonArray());
         for (int i = 0; i < nodes.size(); i++) {
             RoutingNode node = new RoutingNode((JsonObject) nodes.get(i));
+            if (node.getType() != RoutingNode.TYPE.START && node.getType() != RoutingNode.TYPE.FINISH) {
+                continue;
+            }
             mRoutingNodes.add(node);
 
             if (node.getWayId() != 0) {
@@ -3202,15 +3385,16 @@ public class MainController implements Initializable, NMEAHandler {
                         name = (String) way.get("name");
                     }
                     node.setName(name);
-                    updateNodeListContent();
+                    updateRouteNodeListContent();
                 });
+                updateRouteNodeListContent();
                 mExecutorService.submit(task);
             }
         }
     }
 
     private boolean hasRoutingStart() {
-            return mRoutingNodes.stream().filter(routingNode -> routingNode.getType() == RoutingNode.TYPE.START && routingNode.getEdgeId() != -1).count() != 0;
+        return mRoutingNodes.stream().filter(routingNode -> routingNode.getType() == RoutingNode.TYPE.START && routingNode.getEdgeId() != -1).count() != 0;
     }
 
     private RoutingNode getRoutingStart() {
@@ -3229,12 +3413,16 @@ public class MainController implements Initializable, NMEAHandler {
         return hasRoutingStart() && hasRoutingEnd();
     }
 
-    private void startProgress() {
-        mLoadMapProgress.setVisible(true);
+    private void startProgress(boolean withCancel) {
+        mProgress.setVisible(true);
+        if (withCancel) {
+            mProgressStop.setVisible(true);
+        }
     }
 
     private void stopProgress() {
-        mLoadMapProgress.setVisible(false);
+        mProgress.setVisible(false);
+        mProgressStop.setVisible(false);
     }
 
     private void updateListContent() {
@@ -3521,12 +3709,17 @@ public class MainController implements Initializable, NMEAHandler {
         }
     }
 
-    private void updateNodeListContent() {
-        mNodeListItems.clear();
+    private void updateSavedNodeListContent() {
+        mSavedNodesListItems.clear();
+        for (RoutingNode node : mSavedNodes) {
+            mSavedNodesListItems.add(node);
+        }
+    }
+
+    private void updateRouteNodeListContent() {
+        mRouteNodesListItems.clear();
         for (RoutingNode node : mRoutingNodes) {
-            QueryItem item = new QueryItem(node.getTitle(), node.getName(),
-                    node.getImage(), node.getCoordsPos());
-            mNodeListItems.add(item);
+            mRouteNodesListItems.add(node);
         }
     }
 
@@ -3546,6 +3739,8 @@ public class MainController implements Initializable, NMEAHandler {
         mRoutePolylineList.clear();
         mRouteEdgeIdList.clear();
         QueryController.getInstance().clearAllRoutes();
+        storeRoutingNodes();
+        drawShapes();
     }
 
     private int getMapZoomToShowRoute() {
@@ -3569,6 +3764,33 @@ public class MainController implements Initializable, NMEAHandler {
         double minX = startPos.getX() < endPos.getX() ? startPos.getX() : endPos.getX();
         double minY = startPos.getY() < endPos.getY() ? startPos.getY() : endPos.getY();
         return new BoundingBox(minX, minY, Math.abs(startPos.getX() - endPos.getX()), Math.abs(startPos.getY() - endPos.getY()));
+    }
+
+    private void calcRoute(RoutingNode startPoint, RoutingNode endPoint) {
+        CalcRouteTaskExternal task = new CalcRouteTaskExternal(startPoint.getEdgeId(), endPoint.getEdgeId());
+        task.setOnSucceeded((event) -> {
+            LogUtils.log("CalcRouteTaskExternal succeededEvent");
+            stopProgress();
+            mRouteEdgeIdList.clear();
+            mRouteEdgeIdList.addAll(task.mRouteList);
+            drawShapes();
+
+            // change mapzoom to show route
+            int zoom = getMapZoomToShowRoute();
+            BoundingBox bbox = getRouteBoundingBox(zoom);
+            Point2D center = new Point2D(bbox.getCenterX(), bbox.getCenterY());
+            centerMapOnDisplayWithZoom(center, zoom);
+        });
+        task.setOnRunning((event) -> {
+            clearRoute();
+            startProgress(true);
+            mProgressStop.setOnAction(event1 -> task.destroy());
+        });
+        task.setOnCancelled((event) -> {
+            LogUtils.log("CalcRouteTaskExternal cancelEvent");
+            stopProgress();
+        });
+        mExecutorService.submit(task);
     }
 }
 

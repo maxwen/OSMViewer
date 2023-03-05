@@ -3,10 +3,16 @@ package com.maxwen.osmviewer.routing;
 import com.github.cliftonlabs.json_simple.JsonArray;
 import com.github.cliftonlabs.json_simple.JsonException;
 import com.github.cliftonlabs.json_simple.Jsoner;
+import com.maxwen.osmviewer.shared.GISUtils;
 import com.maxwen.osmviewer.shared.LogUtils;
 import com.maxwen.osmviewer.shared.OSMUtils;
+import org.sqlite.SQLiteConfig;
 
 import java.io.File;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 
 public class RoutingWrapper {
@@ -14,10 +20,13 @@ public class RoutingWrapper {
         System.loadLibrary("routing");
     }
 
+    private Connection mRoutesConnection;
+    private String mDBHome;
+
     private String getEdgeDBPath() {
-        String dbHome = System.getProperty("osm.db.path");
-        dbHome = System.getenv().getOrDefault("OSM_DB_PATH", dbHome);
-        return new File(dbHome + "/edge.db").getAbsolutePath();
+        mDBHome = System.getProperty("osm.db.path");
+        mDBHome = System.getenv().getOrDefault("OSM_DB_PATH", mDBHome);
+        return new File(mDBHome + "/edge.db").getAbsolutePath();
     }
 
     public enum TYPE {
@@ -43,19 +52,7 @@ public class RoutingWrapper {
         return sStreetTypeCostFactorFastest;
     }
 
-    private String createCostWhenClause(TYPE type) {
-        return String.format("(CASE WHEN streetType = 0 THEN cost * %f WHEN streetType = 1 THEN cost * %f WHEN streetType = 2 THEN cost * %f" +
-                        " WHEN streetType = 3 THEN cost * %f  WHEN streetType = 4 THEN cost * %f  WHEN streetType = 5 THEN cost * %f" +
-                        " ELSE cost * %f END)", getStreetTypeCostFactor(type)[0], getStreetTypeCostFactor(type)[1], getStreetTypeCostFactor(type)[2],
-                getStreetTypeCostFactor(type)[3], getStreetTypeCostFactor(type)[4], getStreetTypeCostFactor(type)[5], getStreetTypeCostFactor(type)[6]);
-    }
-
-    private String createReverseCostWhenClause(TYPE type) {
-        return String.format("(CASE WHEN cost = reverseCost THEN %s ELSE reverseCost END)", createCostWhenClause(type));
-    }
-
     private String getSQLQueryEdge() {
-        //return String.format("SELECT id, source, target, %s AS cost, %s AS reverseCost FROM edgeTable", createCostWhenClause(), createReverseCostWhenClause());
         return String.format("SELECT id, source, target, cost, reverseCost, streetType FROM edgeTable");
     }
 
@@ -71,6 +68,7 @@ public class RoutingWrapper {
         JsonArray route = null;
         try {
             route = (JsonArray) Jsoner.deserialize(routeString.toString());
+            //addRoute(startEdgeId, endEdgeId, type, route);
         } catch (JsonException e) {
             LogUtils.error("computeRoute", e);
         }
@@ -83,4 +81,111 @@ public class RoutingWrapper {
 
     public native void resetData();
 
+    private Connection connectWritable(String url) throws SQLException {
+        Connection conn = null;
+        SQLiteConfig config = new SQLiteConfig();
+        config.enableLoadExtension(true);
+        conn = DriverManager.getConnection(url, config.toProperties());
+        Statement stmt = conn.createStatement();
+        stmt.execute("PRAGMA cache_size=40000");
+        stmt.execute("PRAGMA page_size=4096");
+        stmt.execute("PRAGMA temp_store=MEMORY");
+        stmt.execute("PRAGMA journal_mode=OFF");
+        stmt.execute("PRAGMA synchronous=OFF");
+        stmt.execute("PRAGMA locking_mode=EXCLUSIVE");
+        stmt.execute("SELECT load_extension('mod_spatialite')");
+        stmt.close();
+        return conn;
+    }
+
+    public void createRoutesDB() {
+        if (mRoutesConnection != null) {
+            return;
+        }
+
+        Statement stmt = null;
+
+        try {
+            mRoutesConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/routes.db");
+            stmt = mRoutesConnection.createStatement();
+            String sql;
+            sql = "CREATE TABLE IF NOT EXISTS routeEdgeIdTable (id INTEGER PRIMARY KEY AUTOINCREMENT, startEdgeId INTEGER, endEdgeId INTEGER, type INTEGER, edgeIdList JSON)";
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("createRoutesDB", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public boolean routesDBExists() {
+        return new File(mDBHome + "/routes.db").exists();
+    }
+
+    public void connectRoutesDB() {
+        if (mRoutesConnection != null) {
+            return;
+        }
+
+        try {
+            mRoutesConnection = connectWritable("jdbc:sqlite:" + mDBHome + "/routes.db");
+        } catch (SQLException e) {
+            LogUtils.error("mRoutesConnection", e);
+        }
+    }
+
+    public void openRoutesDB() {
+        if (routesDBExists()) {
+            connectRoutesDB();
+        } else {
+            createRoutesDB();
+        }
+    }
+
+    public void clearRoute() {
+        Statement stmt = null;
+
+        try {
+            stmt = mRoutesConnection.createStatement();
+
+            String sql = "DELETE FROM routeEdgeIdTable";
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("clearRoute", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    public void addRoute(long startEdgeId, long endEdgeId, TYPE type, JsonArray edgeIdList) {
+        Statement stmt = null;
+
+        try {
+            stmt = mRoutesConnection.createStatement();
+            String edgeIdListStr = "'" + Jsoner.serialize(edgeIdList) + "'";
+
+            String sql = String.format("INSERT INTO routeEdgeIdTable (startEdgeId, endEdgeId, type, edgeIdList) VALUES(%d, %d, %d, %s)",
+                    startEdgeId, endEdgeId, type.ordinal(), edgeIdListStr);
+            stmt.execute(sql);
+        } catch (SQLException e) {
+            LogUtils.error("addRoute", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
 }

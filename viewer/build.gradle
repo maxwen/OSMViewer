@@ -23,6 +23,7 @@ application {
     mainClass = 'com.maxwen.osmviewer.Main'
     applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db2",
                                  "-Dosm.tiles.path=${System.properties['user.home']}/Maps/osm/tiles",
+                                 "-Dosm.calc_route.path=" + file("${buildDir}/../calc_route/routing-1.0-SNAPSHOT/bin/routing").absolutePath,
                                  "-Djava.library.path=" + file("${buildDir}/libs/routing/shared").absolutePath,
                                  "-Xmx8192m", "-Dprism.verbose=true", "-Dprism.forceGPU=true" ]
 }
@@ -76,6 +77,7 @@ model {
 }
 
 classes.dependsOn 'routingSharedLibrary'
+
 compileKotlin {
     kotlinOptions {
         jvmTarget = "1.8"

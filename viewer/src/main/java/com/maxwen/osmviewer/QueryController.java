@@ -35,6 +35,8 @@ public class QueryController {
     private static QueryController sInstance;
     private boolean mConnected;
     private final String mDBHome;
+    private static final String CALC_ROUTE_DB = "calc_route.db";
+    private Connection mCalcRouteConnection;
 
     public static QueryController getInstance() {
         if (sInstance == null) {
@@ -60,6 +62,7 @@ public class QueryController {
             mLinesConnection = connect("jdbc:sqlite:" + mDBHome + "/lines.db");
 
             openRoutesDB();
+            openCalcRouteDB();
 
             mConnected = true;
 
@@ -88,6 +91,7 @@ public class QueryController {
             mAdminConnection.close();
             mLinesConnection.close();
             mRoutesConnection.close();
+            mCalcRouteConnection.close();
             mConnected = false;
         } catch (SQLException e) {
             LogUtils.error("disconnectAll", e);
@@ -1443,7 +1447,7 @@ public class QueryController {
             String sql;
             sql = "SELECT InitSpatialMetaData(1)";
             stmt.execute(sql);
-            sql = "CREATE TABLE IF NOT EXISTS routeTable (id INTEGER PRIMARY KEY, startPoint JSON, endPoint JSON, type INTEGER, edgeIdList JSON)";
+            sql = "CREATE TABLE IF NOT EXISTS routeTable (id INTEGER PRIMARY KEY AUTOINCREMENT, startPoint JSON, endPoint JSON, type INTEGER, edgeIdList JSON, wayIdList JSON, streetTypeMap JSON)";
             stmt.execute(sql);
             sql = "SELECT AddGeometryColumn('routeTable', 'geom', 4326, 'LINESTRING', 2)";
             stmt.execute(sql);
@@ -1479,11 +1483,7 @@ public class QueryController {
     }
 
     public void openRoutesDB() {
-        if (routesDBExists()) {
-            connectRoutesDB();
-        } else {
-            createRoutesDB();
-        }
+        createRoutesDB();
     }
 
     public void clearAllRoutes() {
@@ -1518,10 +1518,13 @@ public class QueryController {
             String startPointStr = "'" + Jsoner.serialize(route.getStartPoint().toJson()) + "'";
             String endPointStr = "'" + Jsoner.serialize(route.getEndPoint().toJson()) + "'";
             String edgeIdListStr = "'" + Jsoner.serialize(route.getEdgeIdList()) + "'";
+            String wayIdListStr = "'" + Jsoner.serialize(route.getWayIdList()) + "'";
+            String streetTypeMapStr = "'" + Jsoner.serialize(route.getStreetTypeMap()) + "'";
 
             String lineString = GISUtils.createLineStringFromCoords(route.getCoords());
 
-            String sql = String.format("INSERT INTO routeTable (startPoint, endPoint, type, edgeIdList, geom) VALUES(%s, %s, %d, %s, LineFromText(%s, 4326))", startPointStr, endPointStr, route.getType().ordinal(), edgeIdListStr, lineString);
+            String sql = String.format("INSERT INTO routeTable (startPoint, endPoint, type, edgeIdList, wayIdList, streetTypeMap, geom) VALUES(%s, %s, %d, %s, %s, %s, LineFromText(%s, 4326))",
+                    startPointStr, endPointStr, route.getType().ordinal(), edgeIdListStr, wayIdListStr, streetTypeMapStr, lineString);
             stmt.execute(sql);
         } catch (SQLException e) {
             LogUtils.error("addRoute", e);
@@ -1571,5 +1574,96 @@ public class QueryController {
             } catch (SQLException e) {
             }
         }
+    }
+
+    public void loadRoute(MainController controller) {
+        Statement stmt = null;
+
+        try {
+            stmt = mRoutesConnection.createStatement();
+            ResultSet rs;
+            String sql = "SELECT startPoint, endPoint FROM routeTable";
+            rs = stmt.executeQuery(sql);
+
+            while (rs.next()) {
+                String startPointString = rs.getString(1);
+                try {
+                    if (startPointString != null && startPointString.length() != 0) {
+                        JsonObject startPoint = (JsonObject) Jsoner.deserialize(startPointString);
+                        controller.restoreRoutingNode(startPoint);
+                    }
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+                String endPointString = rs.getString(2);
+                try {
+                    if (endPointString != null && endPointString.length() != 0) {
+                        JsonObject endPoint = (JsonObject) Jsoner.deserialize(endPointString);
+                        controller.restoreRoutingNode(endPoint);
+                    }
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+                break;
+            }
+        } catch (SQLException e) {
+            LogUtils.error("loadRoute", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+    }
+
+    private String getCalcRouteDBPath() {
+        return new File(mDBHome + "/" + CALC_ROUTE_DB).getAbsolutePath();
+    }
+
+    public void openCalcRouteDB() {
+        if (mCalcRouteConnection != null) {
+            return;
+        }
+        try {
+            mCalcRouteConnection = connect("jdbc:sqlite:" + getCalcRouteDBPath());
+        } catch (SQLException e) {
+            LogUtils.error("openCalcRouteDB", e);
+        }
+    }
+
+    public JsonArray getEdgeIdListForCalcRoute(long startEdgeId, long endEdgeId, RoutingWrapper.TYPE type) {
+        Statement stmt = null;
+
+        try {
+            stmt = mCalcRouteConnection.createStatement();
+            ResultSet rs;
+            String sql = String.format("SELECT edgeIdList FROM routeEdgeIdTable WHERE startEdgeId=%d AND endEdgeId=%d AND type=%d",
+                            startEdgeId, endEdgeId, type.ordinal());
+            rs = stmt.executeQuery(sql);
+
+            while (rs.next()) {
+                String edgeIdListString = rs.getString(1);
+                try {
+                    if (edgeIdListString != null && edgeIdListString.length() != 0) {
+                        JsonArray edgeIdList = (JsonArray) Jsoner.deserialize(edgeIdListString);
+                        return edgeIdList;
+                    }
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+            }
+        } catch (SQLException e) {
+            LogUtils.error("getEdgeIdListForCalcRoute", e);
+        } finally {
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch (SQLException e) {
+            }
+        }
+        return null;
     }
 }
