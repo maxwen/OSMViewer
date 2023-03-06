@@ -4,7 +4,7 @@ import com.github.cliftonlabs.json_simple.JsonArray;
 import com.github.cliftonlabs.json_simple.JsonException;
 import com.github.cliftonlabs.json_simple.JsonObject;
 import com.github.cliftonlabs.json_simple.Jsoner;
-import com.maxwen.osmviewer.routing.Route;
+import com.maxwen.osmviewer.model.Route;
 import com.maxwen.osmviewer.routing.RoutingWrapper;
 import com.maxwen.osmviewer.shared.GISUtils;
 import com.maxwen.osmviewer.shared.LogUtils;
@@ -1330,14 +1330,14 @@ public class QueryController {
         }
         try {
             String name = rs.getString("name");
-            if (name != null) {
+            if (name != null && name.length() != 0) {
                 way.put("name", name);
             }
         } catch (SQLException e) {
         }
         try {
             String ref = rs.getString("ref");
-            if (ref != null) {
+            if (ref != null && ref.length() != 0) {
                 way.put("ref", ref);
             }
         } catch (SQLException e) {
@@ -1483,7 +1483,11 @@ public class QueryController {
     }
 
     public void openRoutesDB() {
-        createRoutesDB();
+        if (!routesDBExists()) {
+            createRoutesDB();
+        } else {
+            connectRoutesDB();
+        }
     }
 
     public void clearAllRoutes() {
@@ -1582,7 +1586,7 @@ public class QueryController {
         try {
             stmt = mRoutesConnection.createStatement();
             ResultSet rs;
-            String sql = "SELECT startPoint, endPoint FROM routeTable";
+            String sql = "SELECT startPoint, endPoint, type, edgeIdList, wayIdList, streetTypeMap FROM routeTable";
             rs = stmt.executeQuery(sql);
 
             while (rs.next()) {
@@ -1604,7 +1608,35 @@ public class QueryController {
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());
                 }
-                break;
+                RoutingWrapper.TYPE type = RoutingWrapper.TYPE.values()[rs.getInt(3)];
+                JsonArray edgeIdList = new JsonArray();
+                String edgeIdListString = rs.getString(4);
+                try {
+                    if (edgeIdListString != null && edgeIdListString.length() != 0) {
+                        edgeIdList = (JsonArray) Jsoner.deserialize(edgeIdListString);
+                    }
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+                JsonArray wayIdList = new JsonArray();
+                String wayIdListString = rs.getString(5);
+                try {
+                    if (wayIdListString != null && wayIdListString.length() != 0) {
+                        wayIdList = (JsonArray) Jsoner.deserialize(wayIdListString);
+                    }
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+                JsonObject streetTypeMap = new JsonObject();
+                String streetTypeMapString = rs.getString(6);
+                try {
+                    if (streetTypeMapString != null && streetTypeMapString.length() != 0) {
+                        streetTypeMap = (JsonObject) Jsoner.deserialize(streetTypeMapString);
+                    }
+                } catch (JsonException e) {
+                    LogUtils.log(e.getMessage());
+                }
+                controller.restoreRouteData(type, edgeIdList, wayIdList, streetTypeMap);
             }
         } catch (SQLException e) {
             LogUtils.error("loadRoute", e);

@@ -1,9 +1,9 @@
-package com.maxwen.osmviewer.routing
+package com.maxwen.osmviewer.model
 
 import com.github.cliftonlabs.json_simple.JsonArray
 import com.github.cliftonlabs.json_simple.JsonObject
 import com.maxwen.osmviewer.QueryController
-import com.maxwen.osmviewer.RoutingNode
+import com.maxwen.osmviewer.routing.RoutingWrapper
 import com.maxwen.osmviewer.shared.GISUtils
 import com.maxwen.osmviewer.shared.LogUtils
 import com.maxwen.osmviewer.shared.OSMUtils
@@ -42,8 +42,6 @@ class Route(val startPoint: RoutingNode, val endPoint: RoutingNode, val type: Ro
 
         var lastRef: Long = 0
         var revertFirstEdge = false
-        var length = 0L
-        var time = 0.0
 
         mStreetTypeMap.put("0", 0.0)
         mStreetTypeMap.put("1", 0.0)
@@ -95,7 +93,6 @@ class Route(val startPoint: RoutingNode, val endPoint: RoutingNode, val type: Ro
                 val edgeLength = GISUtils.getLongValue(edge["length"])
                 val streetType = GISUtils.getLongValue(edge["streetType"])
 
-                length += edgeLength
                 wayLength += edgeLength
 
                 val key = streetType.toString()
@@ -107,17 +104,20 @@ class Route(val startPoint: RoutingNode, val endPoint: RoutingNode, val type: Ro
                     val way = QueryController.getInstance().getWayEntryForId(wayId)
                     var wayString = ""
                     if (way.containsKey("name")) {
-                        wayString += way.get("name")
+                        wayString += way.get("name").toString()
                     }
                     if (way.containsKey("ref")) {
-                        wayString += if (wayString.isNotEmpty()) "/" else "" + way.get("ref")
+                        if (wayString.isNotEmpty()) {
+                            wayString +=  " / "
+                        }
+                        wayString += way.get("ref")
                     }
                     if (wayString.isNotEmpty() && lastWayString != wayString) {
                         val wayEntry = JsonObject()
                         wayEntry.put("wayId", wayId)
                         wayEntry.put("name", wayString)
                         wayEntry.put("length", 0)
-                        wayEntry.put("pos", 0)
+                        wayEntry.put("pos", coords[0])
 
                         mWayIdList.add(wayEntry)
 
@@ -132,16 +132,5 @@ class Route(val startPoint: RoutingNode, val endPoint: RoutingNode, val type: Ro
                 LogUtils.error("Failed to resolve edge from route edgeId = $edgeId")
             }
         }
-        mStreetTypeMap.forEach { entry ->
-            run {
-                val speed = OSMUtils.getStreetTypeSpeed(entry.key.toInt())
-                val km = ceil(GISUtils.getDoubleValue(entry.value) / 1000)
-                time += km / speed.toDouble()
-            }
-        }
-        val hours = time.toInt()
-        val minutes = ((time - hours) * 0.6 * 100).toInt()
-        LogUtils.log("length = " + length / 1000 + " streetTypeMap = " + mStreetTypeMap + " time = " + hours + ":" + minutes)
-        LogUtils.log("ways = " + mWayIdList)
     }
 }

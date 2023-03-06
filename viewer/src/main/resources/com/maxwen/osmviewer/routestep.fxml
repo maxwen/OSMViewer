@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.RowConstraints?>
+
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.text.Font?>
+<GridPane fx:id="gridPane" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity"
+          xmlns="http://javafx.com/javafx/8.0.65" xmlns:fx="http://javafx.com/fxml/1">
+    <children>
+        <HBox HBox.hgrow="ALWAYS">
+            <ImageView fx:id="image">
+                <HBox.margin>
+                    <Insets right="10.0"/>
+                </HBox.margin>
+            </ImageView>
+            <VBox fx:id="text" HBox.hgrow="ALWAYS" alignment="CENTER_LEFT">
+                <Label fx:id="mainText">
+                    <font>
+                        <Font size="16.0"/>
+                    </font>
+                </Label>
+                <Label fx:id="subText" >
+                    <font>
+                        <Font size="12.0"/>
+                    </font>
+                </Label>
+            </VBox>
+        </HBox>
+    </children>
+</GridPane>

@@ -1,4 +1,4 @@
-package com.maxwen.osmviewer;
+package com.maxwen.osmviewer.model;
 
 import com.github.cliftonlabs.json_simple.JsonArray;
 import javafx.scene.image.Image;
@@ -27,10 +27,6 @@ public class QueryItem {
 
     public Image getImage() {
         return mImage;
-    }
-
-    public Point2D getCoordsPos() {
-        return mCoords;
     }
 
     public JsonArray getCoords() {

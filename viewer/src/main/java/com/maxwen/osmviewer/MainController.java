@@ -3,8 +3,11 @@ package com.maxwen.osmviewer;
 import com.github.cliftonlabs.json_simple.JsonArray;
 import com.github.cliftonlabs.json_simple.JsonObject;
 import com.github.cliftonlabs.json_simple.Jsoner;
+import com.maxwen.osmviewer.model.QueryItem;
+import com.maxwen.osmviewer.model.RouteStep;
+import com.maxwen.osmviewer.model.RoutingNode;
 import com.maxwen.osmviewer.nmea.NMEAHandler;
-import com.maxwen.osmviewer.routing.Route;
+import com.maxwen.osmviewer.model.Route;
 import com.maxwen.osmviewer.routing.RoutingWrapper;
 import com.maxwen.osmviewer.shared.Config;
 import com.maxwen.osmviewer.shared.GISUtils;
@@ -17,7 +20,6 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
 import javafx.concurrent.WorkerStateEvent;
-import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -35,6 +37,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.*;
+import javafx.scene.text.Text;
 import javafx.scene.transform.Rotate;
 import javafx.stage.FileChooser;
 import javafx.stage.Popup;
@@ -46,7 +49,6 @@ import java.io.*;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -178,6 +180,7 @@ public class MainController implements Initializable, NMEAHandler {
     private ResolvePositionTask mResolvePositionTask;
     private List<RoutingNode> mRoutingNodes = new ArrayList<>();
     private List<RoutingNode> mSavedNodes = new ArrayList<>();
+    private JsonObject mRouteMap = new JsonObject();
 
     private Point2D mMouseClickedNodePos;
     private Point2D mMouseClickedCoordsPos;
@@ -190,6 +193,8 @@ public class MainController implements Initializable, NMEAHandler {
     private ObservableList<QueryItem> mQueryItems = FXCollections.observableArrayList();
     private ObservableList<RoutingNode> mRouteNodesListItems = FXCollections.observableArrayList();
     private ObservableList<RoutingNode> mSavedNodesListItems = FXCollections.observableArrayList();
+    private ObservableList<RouteStep> mRouteAListItems = FXCollections.observableArrayList();
+    private ObservableList<RouteStep> mRouteBListItems = FXCollections.observableArrayList();
 
     private ProgressIndicator mQueryListProgress;
     private ProgressIndicator mProgress;
@@ -198,6 +203,12 @@ public class MainController implements Initializable, NMEAHandler {
     private Rectangle mOutlineRect;
     private JsonObject mTileStyle;
     private JsonArray mAdminIdList;
+    private VBox mRouteAContent;
+    private VBox mRouteBContent;
+    private Text mRouteALength;
+    private Text mRouteATime;
+    private Text mRouteBLength;
+    private Text mRouteBTime;
 
     public boolean isTransparentWays() {
         return mTransparentWays;
@@ -225,6 +236,8 @@ public class MainController implements Initializable, NMEAHandler {
     private String mQueryText;
     private ListView<RoutingNode> mSavedNodesListView;
     private ListView<RoutingNode> mRouteNodesListView;
+    private ListView<RouteStep> mRouteAListView;
+    private ListView<RouteStep> mRouteBListView;
 
     private static final int HTTP_READ_TIMEOUT = 30000;
     private static final int HTTP_CONNECTION_TIMEOUT = 30000;
@@ -644,7 +657,7 @@ public class MainController implements Initializable, NMEAHandler {
 
         public void destroy() {
             if (mProcess != null) {
-                LogUtils.log("CalcRouteTaskExternal: destroy" );
+                LogUtils.log("CalcRouteTaskExternal: destroy");
 
                 mProcess.destroy();
                 mProcess = null;
@@ -710,6 +723,7 @@ public class MainController implements Initializable, NMEAHandler {
                 @Override
                 public void handle(WorkerStateEvent event) {
                     LogUtils.log("loadMapDataTask: LoadMapDataTask succeededEvent");
+                    stopProgress();
                     doUpdateMapData(bbox, mDoAfter);
                     mMapLoading = false;
                 }
@@ -723,7 +737,7 @@ public class MainController implements Initializable, NMEAHandler {
 
         @Override
         public EventHandler<WorkerStateEvent> getRunningEvent() {
-            return null;
+            return event -> startProgress(false);
         }
     }
 
@@ -1204,6 +1218,14 @@ public class MainController implements Initializable, NMEAHandler {
         quitButton.setGraphic(new ImageView(new Image("/images/ui/quit.png")));
         //quitButton.setShape(new Circle(40));
         quitButton.setOnAction(e -> {
+            mExecutorService.shutdown();
+            try {
+                if (!mExecutorService.awaitTermination(60, TimeUnit.SECONDS)) {
+                    mExecutorService.shutdownNow();
+                }
+            } catch (InterruptedException ex) {
+                mExecutorService.shutdownNow();
+            }
             Platform.exit();
         });
 
@@ -1417,12 +1439,6 @@ public class MainController implements Initializable, NMEAHandler {
         searchContent.getChildren().add(mFilterHeader);
 
         mQueryListView = new ListView<>();
-
-        VBox listViewLayout = new VBox(0);
-        VBox.setVgrow(listViewLayout, Priority.ALWAYS);
-        listViewLayout.getChildren().add(mQueryListView);
-        VBox.setVgrow(mQueryListView, Priority.ALWAYS);
-
         mQueryListView.setItems(mQueryItems);
         mQueryListView.setCellFactory(queryListView -> new QueryListViewCell());
         mQueryListView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<QueryItem>() {
@@ -1442,19 +1458,13 @@ public class MainController implements Initializable, NMEAHandler {
         VBox.setVgrow(listViewPane, Priority.ALWAYS);
 
         mQueryListProgress = new ProgressIndicator();
-        listViewPane.getChildren().add(listViewLayout);
+        listViewPane.getChildren().add(mQueryListView);
         listViewPane.getChildren().add(mQueryListProgress);
         mQueryListProgress.setVisible(false);
     }
 
     private void createSavedNodeListContent() {
         mSavedNodesListView = new ListView<>();
-
-        VBox listViewLayout = new VBox(0);
-        VBox.setVgrow(listViewLayout, Priority.ALWAYS);
-        listViewLayout.getChildren().add(mSavedNodesListView);
-        VBox.setVgrow(mSavedNodesListView, Priority.ALWAYS);
-
         mSavedNodesListView.setItems(mSavedNodesListItems);
         mSavedNodesListView.setCellFactory(queryListView -> new NodeListViewCell(this));
         mSavedNodesListView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<RoutingNode>() {
@@ -1467,20 +1477,49 @@ public class MainController implements Initializable, NMEAHandler {
             }
         });
 
-        StackPane listViewPane = new StackPane();
-        savedNodeListContent.getChildren().add(listViewPane);
-        VBox.setVgrow(listViewPane, Priority.ALWAYS);
-        listViewPane.getChildren().add(listViewLayout);
+        savedNodeListContent.getChildren().add(mSavedNodesListView);
     }
 
     private void createRouteNodeListContent() {
+        HBox routeButtons = new HBox();
+        routeButtons.setPadding(new Insets(10, 10, 10, 10));
+        Button calcRouteButton = new Button();
+        calcRouteButton.setStyle("-fx-font-size: 16");
+        calcRouteButton.setText("Calc");
+        calcRouteButton.setOnAction(event -> {
+            if (isCalcRoutePossible()) {
+                calcRoute(getRoutingStart(), getRoutingEnd());
+            }
+        });
+        routeButtons.getChildren().add(calcRouteButton);
+
+        Button revertRouteButton = new Button();
+        revertRouteButton.setStyle("-fx-font-size: 16");
+        revertRouteButton.setText("Revert");
+        revertRouteButton.setOnAction(event -> {
+            if (isCalcRoutePossible()) {
+                RoutingNode startNode = getRoutingStart();
+                RoutingNode endMode = getRoutingEnd();
+
+                startNode.revertType();
+                endMode.revertType();
+
+                updateRouteNodeListContent();
+            }
+        });
+        routeButtons.getChildren().add(revertRouteButton);
+
+        Button clearRouteButton = new Button();
+        clearRouteButton.setText("Clear");
+        clearRouteButton.setStyle("-fx-font-size: 16");
+        clearRouteButton.setOnAction(event -> {
+            clearRoute();
+            drawShapes();
+        });
+        routeButtons.getChildren().add(clearRouteButton);
+        routeNodeListContent.getChildren().add(routeButtons);
+
         mRouteNodesListView = new ListView<>();
-
-        VBox listViewLayout = new VBox(0);
-        VBox.setVgrow(listViewLayout, Priority.ALWAYS);
-        listViewLayout.getChildren().add(mRouteNodesListView);
-        VBox.setVgrow(mRouteNodesListView, Priority.ALWAYS);
-
         mRouteNodesListView.setItems(mRouteNodesListItems);
         mRouteNodesListView.setCellFactory(queryListView -> new NodeListViewCell(this));
         mRouteNodesListView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<RoutingNode>() {
@@ -1492,11 +1531,32 @@ public class MainController implements Initializable, NMEAHandler {
                 }
             }
         });
+        routeNodeListContent.getChildren().add(mRouteNodesListView);
 
-        StackPane listViewPane = new StackPane();
-        routeNodeListContent.getChildren().add(listViewPane);
-        VBox.setVgrow(listViewPane, Priority.ALWAYS);
-        listViewPane.getChildren().add(listViewLayout);
+        mRouteAContent = new VBox();
+        VBox.setVgrow(mRouteAContent, Priority.ALWAYS);
+
+        TabPane tabPane = new TabPane();
+        VBox.setVgrow(tabPane, Priority.ALWAYS);
+
+        Tab route1Tab = new Tab(RoutingWrapper.TYPE.FASTEST.name(), mRouteAContent);
+        route1Tab.setStyle("-fx-font-size: 16");
+        route1Tab.setClosable(false);
+
+        mRouteBContent = new VBox();
+        VBox.setVgrow(mRouteBContent, Priority.ALWAYS);
+
+        Tab route2Tab = new Tab(RoutingWrapper.TYPE.ALT.name(), mRouteBContent);
+        route2Tab.setStyle("-fx-font-size: 16");
+        route2Tab.setClosable(false);
+
+        tabPane.getTabs().add(route1Tab);
+        tabPane.getTabs().add(route2Tab);
+
+        createRouteAListContent();
+        createRouteBListContent();
+
+        routeNodeListContent.getChildren().add(tabPane);
     }
 
     private void createFilterContent() {
@@ -3122,7 +3182,7 @@ public class MainController implements Initializable, NMEAHandler {
                 mContextMenu.getItems().add(menuItem);
             }
         }
-        if (isCalcRoutePossible()) {
+        /*if (isCalcRoutePossible()) {
             menuItem = new MenuItem(" Calc route ");
             menuItem.setOnAction(ev -> {
                 calcRoute(getRoutingStart(), getRoutingEnd());
@@ -3146,7 +3206,7 @@ public class MainController implements Initializable, NMEAHandler {
             });
             menuItem.setStyle("-fx-font-size: 20");
             mContextMenu.getItems().add(menuItem);
-        }
+        }*/
         mContextMenu.getItems().add(new SeparatorMenuItem());
         menuItem = new MenuItem(" Remember location ");
         menuItem.setOnAction(ev -> {
@@ -3329,6 +3389,10 @@ public class MainController implements Initializable, NMEAHandler {
 
     public void restoreRoutingNode(JsonObject routingNode) {
         RoutingNode node = new RoutingNode(routingNode);
+        if (mRoutingNodes.contains(node)) {
+            return;
+        }
+
         mRoutingNodes.add(node);
 
         if (node.getWayId() != 0) {
@@ -3721,6 +3785,8 @@ public class MainController implements Initializable, NMEAHandler {
         for (RoutingNode node : mRoutingNodes) {
             mRouteNodesListItems.add(node);
         }
+        // TODO
+        mRouteNodesListView.setPrefHeight(mRoutingNodes.size() * 48.0);
     }
 
     private void loadTileStyleConfig() {
@@ -3740,6 +3806,8 @@ public class MainController implements Initializable, NMEAHandler {
         mRouteEdgeIdList.clear();
         QueryController.getInstance().clearAllRoutes();
         storeRoutingNodes();
+        mRouteAListItems.clear();
+        mRouteBListItems.clear();
         drawShapes();
     }
 
@@ -3780,6 +3848,11 @@ public class MainController implements Initializable, NMEAHandler {
             BoundingBox bbox = getRouteBoundingBox(zoom);
             Point2D center = new Point2D(bbox.getCenterX(), bbox.getCenterY());
             centerMapOnDisplayWithZoom(center, zoom);
+
+            mRouteMap.clear();
+            mRouteAListItems.clear();
+            mRouteBListItems.clear();
+            QueryController.getInstance().loadRoute(this);
         });
         task.setOnRunning((event) -> {
             clearRoute();
@@ -3791,6 +3864,108 @@ public class MainController implements Initializable, NMEAHandler {
             stopProgress();
         });
         mExecutorService.submit(task);
+    }
+
+    public void restoreRouteData(RoutingWrapper.TYPE type, JsonArray edgeIdList, JsonArray wayIdList, JsonObject streetTypeMap) {
+        LogUtils.log("restoreRouteData " + type.name());
+        JsonObject route = new JsonObject();
+        route.put("type", type.ordinal());
+        route.put("edgeIdList", edgeIdList);
+        route.put("wayIdList", wayIdList);
+        route.put("streetTypeMap", streetTypeMap);
+
+        mRouteMap.put(String.valueOf(type.ordinal()), route);
+
+        double time = 0.0;
+        double length = 0.0;
+        for (int i = 0; i < streetTypeMap.size(); i++) {
+            double streetTypeLength = GISUtils.getDoubleValue(streetTypeMap.get(String.valueOf(i)));
+            int speed = OSMUtils.getStreetTypeSpeed(i);
+            double km = Math.ceil(streetTypeLength / 1000);
+            time += km / (double) speed;
+            length += streetTypeLength;
+        }
+        int hours = (int) time;
+        int minutes = (int) ((time - hours) * 0.6 * 100);
+
+        if (type.ordinal() == 0) {
+            mRouteALength.setText((int) (length / 1000) + " km");
+            mRouteATime.setText(hours + "h " + minutes + "m");
+        }
+        if (type.ordinal() == 1) {
+            mRouteBLength.setText((int) (length / 1000) + " km");
+            mRouteBTime.setText(hours + "h " + minutes + "m");
+        }
+
+        for (int i = 0; i < wayIdList.size(); i++) {
+            JsonObject step = (JsonObject) wayIdList.get(i);
+            if (type.ordinal() == 0) {
+                mRouteAListItems.add(new RouteStep(step));
+            }
+            if (type.ordinal() == 1) {
+                mRouteBListItems.add(new RouteStep(step));
+            }
+        }
+    }
+
+    private void createRouteAListContent() {
+        VBox routeAStats = new VBox();
+        routeAStats.setPadding(new Insets(10, 10, 10, 10));
+
+        mRouteALength = new Text();
+        mRouteALength.setStyle("-fx-font-size: 16");
+        routeAStats.getChildren().add(mRouteALength);
+
+        mRouteATime = new Text();
+        mRouteATime.setStyle("-fx-font-size: 16");
+        routeAStats.getChildren().add(mRouteATime);
+
+        mRouteAContent.getChildren().add(routeAStats);
+
+        mRouteAListView = new ListView<>();
+        mRouteAListView.setItems(mRouteAListItems);
+        mRouteAListView.setCellFactory(queryListView -> new RouteStepListViewCell(this));
+        mRouteAListView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<RouteStep>() {
+            @Override
+            public void changed(ObservableValue<? extends RouteStep> observable, RouteStep oldValue, RouteStep newValue) {
+                if (newValue != null) {
+                    Point2D coords = newValue.getCoordsPos();
+                    centerMapOnCoordinatesWithZoom(coords.getX(), coords.getY(), 17);
+                }
+            }
+        });
+
+        mRouteAContent.getChildren().add(mRouteAListView);
+    }
+
+    private void createRouteBListContent() {
+        VBox routeBStats = new VBox();
+        routeBStats.setPadding(new Insets(10, 10, 10, 10));
+
+        mRouteBLength = new Text();
+        mRouteBLength.setStyle("-fx-font-size: 16");
+        routeBStats.getChildren().add(mRouteBLength);
+
+        mRouteBTime = new Text();
+        mRouteBTime.setStyle("-fx-font-size: 16");
+        routeBStats.getChildren().add(mRouteBTime);
+
+        mRouteBContent.getChildren().add(routeBStats);
+
+        mRouteBListView = new ListView<>();
+        mRouteBListView.setItems(mRouteBListItems);
+        mRouteBListView.setCellFactory(queryListView -> new RouteStepListViewCell(this));
+        mRouteBListView.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<RouteStep>() {
+            @Override
+            public void changed(ObservableValue<? extends RouteStep> observable, RouteStep oldValue, RouteStep newValue) {
+                if (newValue != null) {
+                    Point2D coords = newValue.getCoordsPos();
+                    centerMapOnCoordinatesWithZoom(coords.getX(), coords.getY(), 17);
+                }
+            }
+        });
+
+        mRouteBContent.getChildren().add(mRouteBListView);
     }
 }
 

@@ -1,5 +1,6 @@
 package com.maxwen.osmviewer;
 
+import com.maxwen.osmviewer.model.QueryItem;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.control.Label;

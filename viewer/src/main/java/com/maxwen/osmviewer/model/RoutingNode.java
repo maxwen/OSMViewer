@@ -1,8 +1,11 @@
-package com.maxwen.osmviewer;
+package com.maxwen.osmviewer.model;
 
 import com.github.cliftonlabs.json_simple.JsonObject;
+import com.maxwen.osmviewer.OSMStyle;
+import com.maxwen.osmviewer.shared.GISUtils;
 import com.maxwen.osmviewer.shared.OSMUtils;
 import com.sun.javafx.application.PlatformImpl;
+import com.sun.javafx.geom.Rectangle;
 import javafx.geometry.Point2D;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -18,7 +21,12 @@ public class RoutingNode extends ImageView {
     // if building
     private long mOsmId = -1;
 
-    enum TYPE {
+    @Override
+    public boolean equals(Object obj) {
+        return obj instanceof RoutingNode && mType == ((RoutingNode) obj).mType;
+    }
+
+    public enum TYPE {
         START,
         FINISH,
         PIN
@@ -37,14 +45,14 @@ public class RoutingNode extends ImageView {
 
     public RoutingNode(JsonObject node) {
         super();
-        mType = TYPE.values()[((BigDecimal) node.get("type")).intValue()];
-        double lon = ((BigDecimal) node.get("lon")).doubleValue();
-        double lat = ((BigDecimal) node.get("lat")).doubleValue();
+        mType = TYPE.values()[(int) GISUtils.getLongValue(node.get("type"))];
+        double lon = GISUtils.getDoubleValue(node.get("lon"));
+        double lat = GISUtils.getDoubleValue(node.get("lat"));
         mCoordsPos = new Point2D(lon, lat);
         mEdgeId = -1;
-        mWayId = ((BigDecimal) node.get("wayId")).longValue();
+        mWayId = GISUtils.getLongValue(node.get("wayId"));
         if (node.containsKey("osmId")) {
-            mOsmId = ((BigDecimal) node.get("osmId")).longValue();
+            mOsmId = GISUtils.getLongValue(node.get("osmId"));
         }
         setImage(getTypeImage());
 
@@ -64,6 +72,14 @@ public class RoutingNode extends ImageView {
 
     public TYPE getType() {
         return mType;
+    }
+
+    public void revertType() {
+        if (mType == TYPE.FINISH) {
+            mType = TYPE.START;
+        } else {
+            mType = TYPE.FINISH;
+        }
     }
 
     public long getEdgeId() {
@@ -105,6 +121,7 @@ public class RoutingNode extends ImageView {
         }
         return "None";
     }
+
     public JsonObject toJson() {
         JsonObject node = new JsonObject();
         node.put("lon", mCoordsPos.getX());
