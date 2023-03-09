@@ -54,7 +54,7 @@ public class RouteStepListViewCell extends ListCell<RouteStep> {
             }
 
             mainText.setText(node.getName());
-            subText.setText(node.getLength() + " km");
+            subText.setText(((double) node.getLength()) / 1000 + " km");
             image.setImage(node.getImage());
 
             setText(null);

@@ -6,6 +6,7 @@ import com.github.cliftonlabs.json_simple.Jsoner;
 import com.maxwen.osmviewer.shared.GISUtils;
 import com.maxwen.osmviewer.shared.LogUtils;
 import com.maxwen.osmviewer.shared.OSMUtils;
+import com.maxwen.osmviewer.shared.RouteUtils;
 import org.sqlite.SQLiteConfig;
 
 import java.io.File;
@@ -38,23 +39,13 @@ public class RoutingWrapper {
         return new File(mDBHome + "/" + CALC_ROUTE_DB).getAbsolutePath();
     }
 
-    public enum TYPE {
-        FASTEST,
-        ALT,
-        SHORTEST,
-    }
-
-    ;
-
-    public static List<TYPE> routeTypes = List.of(TYPE.FASTEST, TYPE.ALT);
-
     private static double[] sStreetTypeCostFactorFastest = {0.6, 0.8, 1.2, 1.4, 1.6, 1.8, 2.0};
     private static double[] sStreetTypeCostFactorAlt = {0.7, 0.8, 0.9, 1.4, 1.6, 1.8, 2.0};
     //private static double[] sStreetTypeCostFactorAlt = {0.8, 0.8, 0.8, 1.4, 1.6, 1.8, 2.0};
 
     private static double[] sStreetTypeCostFactorShortest = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
 
-    private double[] getStreetTypeCostFactor(TYPE type) {
+    private double[] getStreetTypeCostFactor(RouteUtils.TYPE type) {
         switch (type) {
             case FASTEST:
                 return sStreetTypeCostFactorFastest;
@@ -74,7 +65,7 @@ public class RoutingWrapper {
         return "SELECT target, toCost, viaPath FROM restrictionTable";
     }
 
-    public JsonArray computeRoute(long startEdgeId, double startPos, long endEdgeId, double endPos, TYPE type) {
+    public JsonArray computeRoute(long startEdgeId, double startPos, long endEdgeId, double endPos, RouteUtils.TYPE type) {
         LogUtils.log("computeRoute " + type);
         StringBuffer routeString = new StringBuffer();
         computeRouteNative(getEdgeDBPath(), getSQLQueryEdge(), getSQLQueryRestriction(), 0, startEdgeId, startPos, endEdgeId, endPos, routeString,
@@ -169,7 +160,7 @@ public class RoutingWrapper {
         }
     }
 
-    public void addRoute(long startEdgeId, long endEdgeId, TYPE type, JsonArray edgeIdList) {
+    public void addRoute(long startEdgeId, long endEdgeId, RouteUtils.TYPE type, JsonArray edgeIdList) {
         Statement stmt = null;
 
         try {

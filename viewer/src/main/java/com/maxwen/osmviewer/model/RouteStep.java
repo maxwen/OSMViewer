@@ -2,6 +2,7 @@ package com.maxwen.osmviewer.model;
 
 import com.github.cliftonlabs.json_simple.JsonArray;
 import com.github.cliftonlabs.json_simple.JsonObject;
+import com.maxwen.osmviewer.OSMStyle;
 import com.maxwen.osmviewer.shared.GISUtils;
 import javafx.geometry.Point2D;
 import javafx.scene.image.Image;
@@ -30,6 +31,10 @@ public class RouteStep {
         return (String) mRouteStep.get("name");
     }
 
+    public long getStreetType() {
+        return GISUtils.getLongValue(mRouteStep.get("streetType"));
+    }
+
     public Point2D getCoordsPos() {
         JsonArray pos = (JsonArray) mRouteStep.get("pos");
         double lon = GISUtils.getDoubleValue(pos.get(0));
@@ -38,8 +43,7 @@ public class RouteStep {
     }
 
     public Image getImage() {
-        // TODO image based on street type
-        return null;
+        return OSMStyle.getStreetTypeImage((int) getStreetType());
     }
 }
 

@@ -8,11 +8,7 @@ import com.maxwen.osmviewer.model.RouteStep;
 import com.maxwen.osmviewer.model.RoutingNode;
 import com.maxwen.osmviewer.nmea.NMEAHandler;
 import com.maxwen.osmviewer.model.Route;
-import com.maxwen.osmviewer.routing.RoutingWrapper;
-import com.maxwen.osmviewer.shared.Config;
-import com.maxwen.osmviewer.shared.GISUtils;
-import com.maxwen.osmviewer.shared.LogUtils;
-import com.maxwen.osmviewer.shared.OSMUtils;
+import com.maxwen.osmviewer.shared.*;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -162,6 +158,8 @@ public class MainController implements Initializable, NMEAHandler {
     private Pane mMapPane = new Pane();
     private Pane mNodePane = new Pane();
     private Pane mRoutingPane = new Pane();
+    private Pane mRoutingNodePane = new Pane();
+
     private Pane mTrackingPane = new Pane();
     private Pane mCountryPane = new Pane();
     private Pane mAreaPane = new Pane();
@@ -180,7 +178,7 @@ public class MainController implements Initializable, NMEAHandler {
     private ResolvePositionTask mResolvePositionTask;
     private List<RoutingNode> mRoutingNodes = new ArrayList<>();
     private List<RoutingNode> mSavedNodes = new ArrayList<>();
-    private JsonObject mRouteMap = new JsonObject();
+    private List<Route> mRouteList = new ArrayList<>();
 
     private Point2D mMouseClickedNodePos;
     private Point2D mMouseClickedCoordsPos;
@@ -381,15 +379,6 @@ public class MainController implements Initializable, NMEAHandler {
                     }
                 }
             }
-            if (mMapZoom >= 14) {
-                // updateRoutingNode depends on calc point so dont do before added
-                for (RoutingNode node : mRoutingNodes) {
-                    updateRoutingNode(node, true);
-                }
-                for (RoutingNode node : mSavedNodes) {
-                    updateRoutingNode(node, true);
-                }
-            }
             return null;
         }
 
@@ -512,10 +501,10 @@ public class MainController implements Initializable, NMEAHandler {
                 long t = System.currentTimeMillis();
                 QueryController.getInstance().getAreasInBboxWithGeom(bbox.get(0), bbox.get(1),
                         bbox.get(2), bbox.get(3), getAreaTypeListForZoom(mTransparentWays), mTransparentWays ? 0 : getSimplifyToleranceForZoom(),
-                        mTransparentWays ? 0 : getAreaMinSizeForZoom(), mAreaPolylines, MainController.this);
+                        mTransparentWays ? 0 : getAreaMinSizeForZoom(), mAreaPolylines, MainController.this, this);
 
                 QueryController.getInstance().getLinesInBboxWithGeom(bbox.get(0), bbox.get(1),
-                        bbox.get(2), bbox.get(3), getAreaTypeListForZoom(mTransparentWays), getSimplifyToleranceForZoom(), mAreaPolylines, MainController.this);
+                        bbox.get(2), bbox.get(3), getAreaTypeListForZoom(mTransparentWays), getSimplifyToleranceForZoom(), mAreaPolylines, MainController.this, this);
                 LogUtils.log("doLoadMapData LoadAreaTask time = " + (System.currentTimeMillis() - t));
             }
             return null;
@@ -523,28 +512,25 @@ public class MainController implements Initializable, NMEAHandler {
 
         @Override
         public EventHandler<WorkerStateEvent> getSucceedEvent() {
-            return new EventHandler<WorkerStateEvent>() {
-                @Override
-                public void handle(WorkerStateEvent event) {
-                    LogUtils.log("loadMapData: LoadAreaTask succeededEvent");
-                    mAreaPane.getChildren().clear();
+            return event -> {
+                LogUtils.log("loadMapData: LoadAreaTask succeededEvent");
+                mAreaPane.getChildren().clear();
 
-                    for (List<Node> polyList : mAreaPolylines.values()) {
-                        mAreaPane.getChildren().addAll(polyList);
-                    }
-                    drawShapes();
+                for (List<Node> polyList : mAreaPolylines.values()) {
+                    mAreaPane.getChildren().addAll(polyList);
                 }
+                drawShapes();
             };
         }
 
         @Override
         public EventHandler<WorkerStateEvent> getCancelEvent() {
-            return null;
+            return event -> LogUtils.log("loadMapData: LoadAreaTask cancelEvent");
         }
 
         @Override
         public EventHandler<WorkerStateEvent> getRunningEvent() {
-            return null;
+            return event -> LogUtils.log("loadMapData: LoadAreaTask runningEvent");
         }
     }
 
@@ -607,43 +593,6 @@ public class MainController implements Initializable, NMEAHandler {
         }
     }
 
-    public class CalcRouteTask extends Task<Void> {
-        private long mStartEdgeId;
-        private long mEndEdgeId;
-        private List<Route> mRouteList = new ArrayList<>();
-
-        public CalcRouteTask(long startEdgeId, long endEdgeId) {
-            mStartEdgeId = startEdgeId;
-            mEndEdgeId = endEdgeId;
-        }
-
-        @Override
-        protected Void call() throws Exception {
-            RoutingWrapper routing = new RoutingWrapper();
-            routing.clearRoute();
-            LogUtils.log("mStartEdgeId = " + mStartEdgeId + " mEndEdgeId = " + mEndEdgeId);
-            for (RoutingWrapper.TYPE type : RoutingWrapper.routeTypes) {
-                long t = System.currentTimeMillis();
-                JsonArray routeEdgeIdList = routing.computeRoute(mStartEdgeId, 0.f, mEndEdgeId, 0.f, type);
-                if (routeEdgeIdList != null) {
-                    if (GISUtils.getLongValue(routeEdgeIdList.get(0)) != mStartEdgeId) {
-                        routeEdgeIdList.add(0, mStartEdgeId);
-                    }
-                    if (GISUtils.getLongValue(routeEdgeIdList.get(routeEdgeIdList.size() - 1)) != mEndEdgeId) {
-                        routeEdgeIdList.add(mEndEdgeId);
-                    }
-                    Route route = new Route(getRoutingStart(), getRoutingEnd(), type);
-                    route.setEdgeList(routeEdgeIdList);
-                    mRouteList.add(route);
-                }
-                LogUtils.log("route edges = " + routeEdgeIdList.size() + " time = " + (System.currentTimeMillis() - t));
-            }
-            routing.resetData();
-
-            return null;
-        }
-    }
-
     public class CalcRouteTaskExternal extends Task<Void> {
         private long mStartEdgeId;
         private long mEndEdgeId;
@@ -670,7 +619,10 @@ public class MainController implements Initializable, NMEAHandler {
             LogUtils.log("CalcRouteTaskExternal: mStartEdgeId = " + mStartEdgeId + " mEndEdgeId = " + mEndEdgeId);
 
             String calcRoutePath = System.getProperty("osm.calc_route.path");
-            ProcessBuilder pb = new ProcessBuilder("/bin/sh", calcRoutePath, String.valueOf(mStartEdgeId), String.valueOf(mEndEdgeId));
+            calcRoutePath = System.getenv().getOrDefault("OSM_CALC_ROUTE_PATH", calcRoutePath);
+
+            ProcessBuilder pb = new ProcessBuilder("/bin/sh", calcRoutePath + "/routing/bin/routing", String.valueOf(mStartEdgeId), String.valueOf(mEndEdgeId));
+            pb.environment().put("ROUTING_OPTS", String.format("-Djava.library.path=%s/routing/lib", calcRoutePath));
             pb.inheritIO();
             mProcess = pb.start();
             int exitCode = mProcess.waitFor();
@@ -679,7 +631,7 @@ public class MainController implements Initializable, NMEAHandler {
             if (mProcess != null) {
                 mProcess = null;
 
-                for (RoutingWrapper.TYPE type : RoutingWrapper.routeTypes) {
+                for (RouteUtils.TYPE type : RouteUtils.routeTypes) {
                     JsonArray routeEdgeIdList = QueryController.getInstance().getEdgeIdListForCalcRoute(mStartEdgeId, mEndEdgeId, type);
                     if (routeEdgeIdList != null) {
                         if (GISUtils.getLongValue(routeEdgeIdList.get(0)) != mStartEdgeId) {
@@ -719,20 +671,17 @@ public class MainController implements Initializable, NMEAHandler {
 
         @Override
         public EventHandler<WorkerStateEvent> getSucceedEvent() {
-            return new EventHandler<WorkerStateEvent>() {
-                @Override
-                public void handle(WorkerStateEvent event) {
-                    LogUtils.log("loadMapDataTask: LoadMapDataTask succeededEvent");
-                    stopProgress();
-                    doUpdateMapData(bbox, mDoAfter);
-                    mMapLoading = false;
-                }
+            return event -> {
+                LogUtils.log("loadMapDataTask: LoadMapDataTask succeededEvent");
+                doUpdateMapData(bbox, mDoAfter);
+                stopProgress();
+                mMapLoading = false;
             };
         }
 
         @Override
         public EventHandler<WorkerStateEvent> getCancelEvent() {
-            return null;
+            return event -> stopProgress();
         }
 
         @Override
@@ -1118,6 +1067,12 @@ public class MainController implements Initializable, NMEAHandler {
         mOutlineRect.setStrokeWidth(1);
         mOutlineRect.setVisible(true);
 
+        mCalcPoint = new Circle();
+        mCalcPoint.setCenterX(0);
+        mCalcPoint.setCenterY(0);
+        mCalcPoint.setRadius(0);
+        mCalcPoint.setVisible(false);
+
         mRotate = new Rotate(-ROTATE_X_VALUE, Rotate.X_AXIS);
         mZRotate = new Rotate();
 
@@ -1151,11 +1106,13 @@ public class MainController implements Initializable, NMEAHandler {
 
         mainPane.getChildren().add(mNodePane);
         mainPane.getChildren().add(mRoutingPane);
+        mainPane.getChildren().add(mRoutingNodePane);
         mainPane.getChildren().add(mTrackingPane);
 
         // pass events through
         mNodePane.setDisable(true);
         mRoutingPane.setDisable(true);
+        mRoutingNodePane.setDisable(true);
         mTrackingPane.setDisable(true);
         mAreaPane.setDisable(true);
         mTilePane.setDisable(true);
@@ -1539,15 +1496,17 @@ public class MainController implements Initializable, NMEAHandler {
         TabPane tabPane = new TabPane();
         VBox.setVgrow(tabPane, Priority.ALWAYS);
 
-        Tab route1Tab = new Tab(RoutingWrapper.TYPE.FASTEST.name(), mRouteAContent);
-        route1Tab.setStyle("-fx-font-size: 16");
+        Tab route1Tab = new Tab(RouteUtils.TYPE.FASTEST.name(), mRouteAContent);
+        route1Tab.setStyle(String.format("-fx-font-size: 16; -fx-text-base-color: %s;",
+                Route.Companion.getRouteCSSColor(RouteUtils.TYPE.FASTEST)));
         route1Tab.setClosable(false);
 
         mRouteBContent = new VBox();
         VBox.setVgrow(mRouteBContent, Priority.ALWAYS);
 
-        Tab route2Tab = new Tab(RoutingWrapper.TYPE.ALT.name(), mRouteBContent);
-        route2Tab.setStyle("-fx-font-size: 16");
+        Tab route2Tab = new Tab(RouteUtils.TYPE.ALT.name(), mRouteBContent);
+        route2Tab.setStyle(String.format("-fx-font-size: 16; -fx-text-base-color: %s;",
+                Route.Companion.getRouteCSSColor(RouteUtils.TYPE.ALT)));
         route2Tab.setClosable(false);
 
         tabPane.getTabs().add(route1Tab);
@@ -1925,7 +1884,6 @@ public class MainController implements Initializable, NMEAHandler {
                 mTrackingPane.getChildren().add(mTrackingShape.getShape());
             }
         }
-        mRoutingPane.getChildren().addAll(mRoutePolylineList);
 
         if (mTrackMode || mTrackReplayMode) {
             if (isPositionVisible(mMapGPSPos)) {
@@ -1945,12 +1903,17 @@ public class MainController implements Initializable, NMEAHandler {
             }
         }
 
-        mCalcPoint = new Circle();
-        mCalcPoint.setCenterX(0);
-        mCalcPoint.setCenterY(0);
-        mCalcPoint.setRadius(0);
-        mCalcPoint.setVisible(false);
         mTrackingPane.getChildren().add(mCalcPoint);
+
+        if (mMapZoom >= 14) {
+            // updateRoutingNode depends on calc point so dont do before added
+            for (RoutingNode node : mRoutingNodes) {
+                updateRoutingNode(node, true);
+            }
+            for (RoutingNode node : mSavedNodes) {
+                updateRoutingNode(node, true);
+            }
+        }
 
         // we want transparent buildings to select
         mLoadAreaTask = new LoadAreaTask(bbox);
@@ -1967,6 +1930,10 @@ public class MainController implements Initializable, NMEAHandler {
         if (mTilePane.isVisible()) {
             mQueryTilesTask = new QueryMapTilesTask();
             mQueryTilesTask.submit(mExecutorService, mMapZoom);
+            // task will call drawShape at end whoch will add the route
+            //mRoutingPane.getChildren().addAll(mRoutePolylineList);
+        } else {
+            mRoutingPane.getChildren().addAll(mRoutePolylineList);
         }
 
         if (mLabelPane.isVisible()) {
@@ -2082,6 +2049,7 @@ public class MainController implements Initializable, NMEAHandler {
     private synchronized void drawShapes() {
         mNodePane.getChildren().clear();
         mRoutingPane.getChildren().clear();
+        mRoutingNodePane.getChildren().clear();
         mTrackingPane.getChildren().clear();
         mLabelPane.getChildren().clear();
 
@@ -2126,15 +2094,16 @@ public class MainController implements Initializable, NMEAHandler {
         }
 
         if (mMapZoom >= 14) {
+            // updateSize must be true cause draw shapes is called after adding a new node
             for (RoutingNode node : mRoutingNodes) {
-                updateRoutingNode(node, false);
+                updateRoutingNode(node, true);
             }
-            mNodePane.getChildren().addAll(mRoutingNodes);
+            mRoutingNodePane.getChildren().addAll(mRoutingNodes);
 
             for (RoutingNode node : mSavedNodes) {
-                updateRoutingNode(node, false);
+                updateRoutingNode(node, true);
             }
-            mNodePane.getChildren().addAll(mSavedNodes);
+            mRoutingNodePane.getChildren().addAll(mSavedNodes);
         }
         for (OSMTextLabel label : mLabelShapeList) {
             updateLabelShape(label);
@@ -2146,6 +2115,10 @@ public class MainController implements Initializable, NMEAHandler {
             s.setTranslateY(-mMapZero.getY());
         }
         for (Node s : mRoutingPane.getChildren()) {
+            s.setTranslateX(-mMapZero.getX());
+            s.setTranslateY(-mMapZero.getY());
+        }
+        for (Node s : mRoutingNodePane.getChildren()) {
             s.setTranslateX(-mMapZero.getX());
             s.setTranslateY(-mMapZero.getY());
         }
@@ -3038,8 +3011,9 @@ public class MainController implements Initializable, NMEAHandler {
 
     private void addRoutingNode(RoutingNode.TYPE type, Point2D coordsPos, long edgeId, long wayId, long osmId) {
         RoutingNode routingNode = new RoutingNode(type, coordsPos, edgeId, wayId, osmId);
-        updateRoutingNode(routingNode, true);
         mRoutingNodes.add(routingNode);
+        storeRoutingNodes();
+
         if (edgeId != 0) {
             ResolvePositionTask task = new ResolvePositionTask(routingNode.getCoordsPos(), routingNode.getWayId(), routingNode.getOsmId());
             task.setOnSucceeded((succeededEvent) -> {
@@ -3054,18 +3028,16 @@ public class MainController implements Initializable, NMEAHandler {
                 }
                 routingNode.setName(name);
                 updateRouteNodeListContent();
-                storeRoutingNodes();
+                drawShapes();
             });
             mExecutorService.submit(task);
-        } else {
-            updateRouteNodeListContent();
         }
     }
 
     private void addPinNode(RoutingNode.TYPE type, Point2D coordsPos, long edgeId, long wayId, long osmId) {
         RoutingNode routingNode = new RoutingNode(type, coordsPos, edgeId, wayId, osmId);
-        updateRoutingNode(routingNode, true);
         mSavedNodes.add(routingNode);
+        storeSavedNodes();
 
         if (edgeId != 0) {
             ResolvePositionTask task = new ResolvePositionTask(routingNode.getCoordsPos(), routingNode.getWayId(), routingNode.getOsmId());
@@ -3081,11 +3053,12 @@ public class MainController implements Initializable, NMEAHandler {
                 }
                 routingNode.setName(name);
                 updateSavedNodeListContent();
-                storeSavedNodes();
+                drawShapes();
             });
             mExecutorService.submit(task);
         } else {
             updateSavedNodeListContent();
+            drawShapes();
         }
     }
 
@@ -3111,8 +3084,9 @@ public class MainController implements Initializable, NMEAHandler {
         }
         Point2D coordsPos = routingNode.getCoordsPos();
         Point2D nodePos = coordinateToDisplay(coordsPos.getX(), coordsPos.getY(), mMapZoom);
-        Point2D paneZeroPos = mNodePane.localToScreen(0, 0);
+        Point2D paneZeroPos = mRoutingNodePane.localToScreen(0, 0);
         Point2D pos = calcNodePanePos(nodePos, paneZeroPos);
+
         routingNode.setX(pos.getX() - routingNode.getFitWidth() / 2);
         routingNode.setY(pos.getY() - routingNode.getFitHeight());
     }
@@ -3173,7 +3147,6 @@ public class MainController implements Initializable, NMEAHandler {
                         addRoutingNode(hasRoutingStart() ? RoutingNode.TYPE.FINISH : RoutingNode.TYPE.START, mMouseClickedCoordsPos,
                                 (long) mSelectedEdge.get("id"),
                                 (long) mSelectedEdge.get("wayId"), osmId);
-                        drawShapes();
                     } else {
                         LogUtils.log("addRoutingNode: failed to resolve edge for position");
                     }
@@ -3221,7 +3194,6 @@ public class MainController implements Initializable, NMEAHandler {
             addPinNode(RoutingNode.TYPE.PIN, mMouseClickedCoordsPos,
                     edge != null ? (long) edge.get("id") : 0,
                     edge != null ? (long) edge.get("wayId") : 0, osmId);
-            drawShapes();
         });
         menuItem.setStyle("-fx-font-size: 20");
         mContextMenu.getItems().add(menuItem);
@@ -3389,7 +3361,10 @@ public class MainController implements Initializable, NMEAHandler {
 
     public void restoreRoutingNode(JsonObject routingNode) {
         RoutingNode node = new RoutingNode(routingNode);
-        if (mRoutingNodes.contains(node)) {
+        if (node.getType() == RoutingNode.TYPE.FINISH && hasRoutingEnd()) {
+            return;
+        }
+        if (node.getType() == RoutingNode.TYPE.START && hasRoutingStart()) {
             return;
         }
 
@@ -3458,6 +3433,10 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private boolean hasRoutingStart() {
+        return mRoutingNodes.stream().filter(routingNode -> routingNode.getType() == RoutingNode.TYPE.START).count() != 0;
+    }
+
+    private boolean hasRoutingStartResolved() {
         return mRoutingNodes.stream().filter(routingNode -> routingNode.getType() == RoutingNode.TYPE.START && routingNode.getEdgeId() != -1).count() != 0;
     }
 
@@ -3466,6 +3445,10 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private boolean hasRoutingEnd() {
+        return mRoutingNodes.stream().filter(routingNode -> routingNode.getType() == RoutingNode.TYPE.FINISH).count() != 0;
+    }
+
+    private boolean hasRoutingEndResolved() {
         return mRoutingNodes.stream().filter(routingNode -> routingNode.getType() == RoutingNode.TYPE.FINISH && routingNode.getEdgeId() != -1).count() != 0;
     }
 
@@ -3474,7 +3457,7 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private boolean isCalcRoutePossible() {
-        return hasRoutingStart() && hasRoutingEnd();
+        return hasRoutingStartResolved() && hasRoutingEndResolved();
     }
 
     private void startProgress(boolean withCancel) {
@@ -3808,6 +3791,10 @@ public class MainController implements Initializable, NMEAHandler {
         storeRoutingNodes();
         mRouteAListItems.clear();
         mRouteBListItems.clear();
+        mRouteATime.setText("");
+        mRouteALength.setText("");
+        mRouteBTime.setText("");
+        mRouteBLength.setText("");
         drawShapes();
     }
 
@@ -3829,9 +3816,17 @@ public class MainController implements Initializable, NMEAHandler {
     private BoundingBox getRouteBoundingBox(int zoom) {
         Point2D startPos = coordinateToDisplay(getRoutingStart().getCoordsPos(), zoom);
         Point2D endPos = coordinateToDisplay(getRoutingEnd().getCoordsPos(), zoom);
-        double minX = startPos.getX() < endPos.getX() ? startPos.getX() : endPos.getX();
-        double minY = startPos.getY() < endPos.getY() ? startPos.getY() : endPos.getY();
-        return new BoundingBox(minX, minY, Math.abs(startPos.getX() - endPos.getX()), Math.abs(startPos.getY() - endPos.getY()));
+        double minX = Math.min(startPos.getX(), endPos.getX());
+        double minY = Math.min(startPos.getY(), endPos.getY());
+        double width = Math.abs(startPos.getX() - endPos.getX());
+        double height = Math.abs(startPos.getY() - endPos.getY());
+        return new BoundingBox(minX - width / 2, minY - height / 2, width + width / 2, height + height / 2);
+    }
+
+    private BoundingBox getRouteBoundingBoxCoords(int zoom, BoundingBox bbox) {
+        Point2D minPos = displayToCoordinate(bbox.getMinX(), bbox.getMinY(), zoom);
+        Point2D maxPos = displayToCoordinate(bbox.getMaxX(), bbox.getMaxX(), zoom);
+        return new BoundingBox(minPos.getX(), minPos.getY(), maxPos.getX(), maxPos.getY());
     }
 
     private void calcRoute(RoutingNode startPoint, RoutingNode endPoint) {
@@ -3849,9 +3844,13 @@ public class MainController implements Initializable, NMEAHandler {
             Point2D center = new Point2D(bbox.getCenterX(), bbox.getCenterY());
             centerMapOnDisplayWithZoom(center, zoom);
 
-            mRouteMap.clear();
+            mRouteList.clear();
             mRouteAListItems.clear();
             mRouteBListItems.clear();
+            mRouteATime.setText("");
+            mRouteALength.setText("");
+            mRouteBTime.setText("");
+            mRouteBLength.setText("");
             QueryController.getInstance().loadRoute(this);
         });
         task.setOnRunning((event) -> {
@@ -3866,15 +3865,12 @@ public class MainController implements Initializable, NMEAHandler {
         mExecutorService.submit(task);
     }
 
-    public void restoreRouteData(RoutingWrapper.TYPE type, JsonArray edgeIdList, JsonArray wayIdList, JsonObject streetTypeMap) {
+    public void restoreRouteData(RouteUtils.TYPE type, JsonArray edgeIdList, JsonArray wayIdList,
+                                 JsonObject streetTypeMap, JsonArray coords) {
         LogUtils.log("restoreRouteData " + type.name());
-        JsonObject route = new JsonObject();
-        route.put("type", type.ordinal());
-        route.put("edgeIdList", edgeIdList);
-        route.put("wayIdList", wayIdList);
-        route.put("streetTypeMap", streetTypeMap);
-
-        mRouteMap.put(String.valueOf(type.ordinal()), route);
+        Route route = new Route(getRoutingStart(), getRoutingEnd(), type,
+                edgeIdList, wayIdList, streetTypeMap, coords);
+        mRouteList.add(route);
 
         double time = 0.0;
         double length = 0.0;
@@ -3909,7 +3905,7 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private void createRouteAListContent() {
-        VBox routeAStats = new VBox();
+        HBox routeAStats = new HBox();
         routeAStats.setPadding(new Insets(10, 10, 10, 10));
 
         mRouteALength = new Text();
@@ -3919,6 +3915,7 @@ public class MainController implements Initializable, NMEAHandler {
         mRouteATime = new Text();
         mRouteATime.setStyle("-fx-font-size: 16");
         routeAStats.getChildren().add(mRouteATime);
+        HBox.setMargin(mRouteATime, new Insets(0, 10, 0, 10));
 
         mRouteAContent.getChildren().add(routeAStats);
 
@@ -3939,7 +3936,7 @@ public class MainController implements Initializable, NMEAHandler {
     }
 
     private void createRouteBListContent() {
-        VBox routeBStats = new VBox();
+        HBox routeBStats = new HBox();
         routeBStats.setPadding(new Insets(10, 10, 10, 10));
 
         mRouteBLength = new Text();
@@ -3949,6 +3946,7 @@ public class MainController implements Initializable, NMEAHandler {
         mRouteBTime = new Text();
         mRouteBTime.setStyle("-fx-font-size: 16");
         routeBStats.getChildren().add(mRouteBTime);
+        HBox.setMargin(mRouteBTime, new Insets(0, 10, 0, 10));
 
         mRouteBContent.getChildren().add(routeBStats);
 

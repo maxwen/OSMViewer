@@ -21,11 +21,6 @@ public class RoutingNode extends ImageView {
     // if building
     private long mOsmId = -1;
 
-    @Override
-    public boolean equals(Object obj) {
-        return obj instanceof RoutingNode && mType == ((RoutingNode) obj).mType;
-    }
-
     public enum TYPE {
         START,
         FINISH,

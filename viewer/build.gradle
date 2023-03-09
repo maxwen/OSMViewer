@@ -3,7 +3,6 @@ import org.gradle.internal.jvm.Jvm
 plugins {
     id 'java'
     id 'application'
-    id 'cpp'
     id 'org.openjfx.javafxplugin' version '0.0.13'
     id 'org.jetbrains.kotlin.jvm' version '1.8.10'
 }
@@ -17,14 +16,13 @@ sourceCompatibility = '13'
 targetCompatibility = '13'
 
 group 'com.maxwen'
-version '1.0-SNAPSHOT'
+version 'unspecified'
 
 application {
     mainClass = 'com.maxwen.osmviewer.Main'
     applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db2",
                                  "-Dosm.tiles.path=${System.properties['user.home']}/Maps/osm/tiles",
-                                 "-Dosm.calc_route.path=" + file("${buildDir}/../calc_route/routing-1.0-SNAPSHOT/bin/routing").absolutePath,
-                                 "-Djava.library.path=" + file("${buildDir}/libs/routing/shared").absolutePath,
+                                 "-Dosm.calc_route.path=" + file("${projectDir}/calc_route").absolutePath,
                                  "-Xmx8192m", "-Dprism.verbose=true", "-Dprism.forceGPU=true" ]
 }
 
@@ -51,33 +49,6 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 }
 
-model {
-    platforms {
-        x64 {
-            architecture "x86_64"
-        }
-    }
-
-    components {
-        routing(NativeLibrarySpec) {
-            targetPlatform "x64"
-            binaries.all {
-                def jvmHome = Jvm.current().javaHome
-                if (targetPlatform.operatingSystem.linux) {
-                    cppCompiler.args '-I', "${jvmHome}/include"
-                    cppCompiler.args '-I', "${jvmHome}/include/linux"
-                    cppCompiler.args '-D_FILE_OFFSET_BITS=64'
-                    linker.args '-L', "/home/maxl/Downloads/pgrouting/build/lib/"
-                    linker.args '-l', "pgrouting-3.4"
-                    linker.args '-l', "sqlite3"
-                }
-            }
-        }
-    }
-}
-
-classes.dependsOn 'routingSharedLibrary'
-
 compileKotlin {
     kotlinOptions {
         jvmTarget = "1.8"
@@ -88,3 +59,10 @@ compileTestKotlin {
         jvmTarget = "1.8"
     }
 }
+
+task copySharedLib(type: Copy) {
+    from(layout.projectDirectory.dir(file("${projectDir}/../routing/build/libs/routing/shared/librouting.so").absolutePath))
+    into(layout.projectDirectory.dir(file("${projectDir}/calc_route/routing/lib").absolutePath))
+}
+
+tasks.named("processResources") { finalizedBy("copySharedLib") }

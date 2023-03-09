@@ -2,9 +2,14 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/routing1/OSMViewer.routing1.iml" filepath="$PROJECT_DIR$/.idea/modules/routing1/OSMViewer.routing1.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/routing1/OSMViewer.routing1.main.iml" filepath="$PROJECT_DIR$/.idea/modules/routing1/OSMViewer.routing1.main.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/routing1/OSMViewer.routing1.test.iml" filepath="$PROJECT_DIR$/.idea/modules/routing1/OSMViewer.routing1.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/importer/OSMViewer.importer.iml" filepath="$PROJECT_DIR$/.idea/modules/importer/OSMViewer.importer.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/importer/OSMViewer.importer.main.iml" filepath="$PROJECT_DIR$/.idea/modules/importer/OSMViewer.importer.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/routing/OSMViewer.routing.iml" filepath="$PROJECT_DIR$/.idea/modules/routing/OSMViewer.routing.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/routing/OSMViewer.routing.main.iml" filepath="$PROJECT_DIR$/.idea/modules/routing/OSMViewer.routing.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/shared/OSMViewer.shared.iml" filepath="$PROJECT_DIR$/.idea/modules/shared/OSMViewer.shared.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/shared/OSMViewer.shared.main.iml" filepath="$PROJECT_DIR$/.idea/modules/shared/OSMViewer.shared.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/viewer/OSMViewer.viewer.iml" filepath="$PROJECT_DIR$/.idea/modules/viewer/OSMViewer.viewer.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/viewer/OSMViewer.viewer.main.iml" filepath="$PROJECT_DIR$/.idea/modules/viewer/OSMViewer.viewer.main.iml" />
     </modules>
   </component>
 </project>

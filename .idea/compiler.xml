@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="CompilerConfiguration">
-    <bytecodeTargetLevel target="13">
-      <module name="OSMViewer.routing1" target="17" />
-      <module name="OSMViewer.routing1.main" target="17" />
-      <module name="OSMViewer.routing1.test" target="17" />
-    </bytecodeTargetLevel>
+    <bytecodeTargetLevel target="13" />
   </component>
 </project>

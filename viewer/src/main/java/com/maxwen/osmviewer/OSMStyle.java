@@ -24,6 +24,8 @@ public class OSMStyle {
     private static HashMap<String, Paint> mAreaColors;
     private static HashMap<Integer, Paint> mCountryColors;
     private static HashMap<Integer, Image> mNodeImages;
+    private static HashMap<Integer, Image> mImages;
+
     private static final Image mDefaultNodeImage = new Image("/images/poi/star-3.png");
 
     private static void init() {
@@ -132,6 +134,9 @@ public class OSMStyle {
         mNodeImages.put(OSMUtils.POI_TYPE_ROUTING_FINISH, new Image("/images/poi/finish.png"));
         mNodeImages.put(OSMUtils.POI_TYPE_EATING, new Image("/images/poi/restaurant.png"));
 
+        mImages = new HashMap<>();
+        mImages.put(OSMUtils.IMAGE_TYPE_HIGHWAY, new Image("/images/poi/highway.png"));
+        mImages.put(OSMUtils.IMAGE_TYPE_ROAD, new Image("/images/poi/road.png"));
     }
 
     public static Image getNodeTypeImage(int nodeType) {
@@ -139,6 +144,13 @@ public class OSMStyle {
             init();
         }
         return mNodeImages.get(nodeType);
+    }
+
+    public static Image getImage(int imageType) {
+        if (mImages == null) {
+            init();
+        }
+        return mImages.get(imageType);
     }
 
     public static Image getDefaultNodeImage() {
@@ -489,5 +501,20 @@ public class OSMStyle {
         } else {*/
             areaLine.setFill(TRANSPARENT);
         //}
+    }
+
+    public static Image getStreetTypeImage(int streetType) {
+        switch (streetType) {
+            case 0:
+                return getImage(OSMUtils.IMAGE_TYPE_HIGHWAY);
+            case 1:
+                return getImage(OSMUtils.IMAGE_TYPE_ROAD);
+            case 2:
+                return getImage(OSMUtils.IMAGE_TYPE_ROAD);
+            case 3:
+                return getImage(OSMUtils.IMAGE_TYPE_ROAD);
+            default:
+                return getImage(OSMUtils.IMAGE_TYPE_ROAD);
+        }
     }
 }

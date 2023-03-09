@@ -3,6 +3,7 @@ package com.maxwen.osmviewer.shared;
 import com.github.cliftonlabs.json_simple.JsonArray;
 import com.github.cliftonlabs.json_simple.JsonObject;
 
+import java.awt.*;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -85,6 +86,9 @@ public class OSMUtils {
     public static final int CROSSING_TYPE_START = 98;
     public static final int CROSSING_TYPE_END = 99;
     public static final int CROSSING_TYPE_BARRIER = 10;
+
+    public static final int IMAGE_TYPE_HIGHWAY = 0;
+    public static final int IMAGE_TYPE_ROAD = 1;
 
     public static final Set<String> LANDUSE_NATURAL_TYPE_SET = Set.of("forest", "grass", "field", "farm", "farmland", "meadow",
             "greenfield", "brownfield", "farmyard", "recreation_ground", "village_green", "allotments", "orchard");

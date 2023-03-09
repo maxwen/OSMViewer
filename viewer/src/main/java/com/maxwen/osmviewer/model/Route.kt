@@ -3,17 +3,52 @@ package com.maxwen.osmviewer.model
 import com.github.cliftonlabs.json_simple.JsonArray
 import com.github.cliftonlabs.json_simple.JsonObject
 import com.maxwen.osmviewer.QueryController
-import com.maxwen.osmviewer.routing.RoutingWrapper
 import com.maxwen.osmviewer.shared.GISUtils
 import com.maxwen.osmviewer.shared.LogUtils
 import com.maxwen.osmviewer.shared.OSMUtils
-import kotlin.math.ceil
+import com.maxwen.osmviewer.shared.RouteUtils
+import javafx.scene.paint.Color
 
-class Route(val startPoint: RoutingNode, val endPoint: RoutingNode, val type: RoutingWrapper.TYPE) {
-    private val mCoords = JsonArray()
+class Route(val startPoint: RoutingNode, val endPoint: RoutingNode, val type: RouteUtils.TYPE) {
+    private var mCoords = JsonArray()
     private var mEdgeIdList = JsonArray()
     private var mWayIdList = JsonArray()
     private var mStreetTypeMap = JsonObject()
+
+    constructor(
+        startPoint: RoutingNode,
+        endPoint: RoutingNode,
+        type: RouteUtils.TYPE,
+        edgeIdList: JsonArray,
+        wayIdList: JsonArray,
+        streetTypeMap: JsonObject,
+        coords: JsonArray
+    ) : this(startPoint, endPoint, type) {
+        mEdgeIdList = edgeIdList
+        mWayIdList = wayIdList
+        mStreetTypeMap = streetTypeMap
+        mCoords = coords
+    }
+
+    companion object {
+        fun getRouteColor(type: RouteUtils.TYPE): Color {
+            when (type) {
+                RouteUtils.TYPE.FASTEST -> return Color.RED
+                RouteUtils.TYPE.ALT -> return Color.GREEN
+                RouteUtils.TYPE.SHORTEST -> return Color.BLUE
+                else ->  return Color.BLACK
+            }
+        }
+        fun getRouteCSSColor(type: RouteUtils.TYPE): String {
+            when (type) {
+                RouteUtils.TYPE.FASTEST -> return "red"
+                RouteUtils.TYPE.ALT -> return "green"
+                RouteUtils.TYPE.SHORTEST -> return "blue"
+                else ->  return "black"
+            }
+        }
+
+    }
 
     fun getCoords(): JsonArray {
         return mCoords
@@ -56,6 +91,7 @@ class Route(val startPoint: RoutingNode, val endPoint: RoutingNode, val type: Ro
         var lastWayString = ""
         var wayLength = 0L
         var lastWayEntry = JsonObject()
+        var lastStreetType = -1L
 
         mCoords.clear()
 
@@ -100,7 +136,7 @@ class Route(val startPoint: RoutingNode, val endPoint: RoutingNode, val type: Ro
                 mStreetTypeMap.put(key, streetTypeLength + edgeLength)
 
                 val wayId = GISUtils.getLongValue(edge["wayId"])
-                if (wayId != lastWayId) {
+                if (wayId != lastWayId || streetType != lastStreetType) {
                     val way = QueryController.getInstance().getWayEntryForId(wayId)
                     var wayString = ""
                     if (way.containsKey("name")) {
@@ -108,7 +144,7 @@ class Route(val startPoint: RoutingNode, val endPoint: RoutingNode, val type: Ro
                     }
                     if (way.containsKey("ref")) {
                         if (wayString.isNotEmpty()) {
-                            wayString +=  " / "
+                            wayString += " / "
                         }
                         wayString += way.get("ref")
                     }
@@ -118,6 +154,7 @@ class Route(val startPoint: RoutingNode, val endPoint: RoutingNode, val type: Ro
                         wayEntry.put("name", wayString)
                         wayEntry.put("length", 0)
                         wayEntry.put("pos", coords[0])
+                        wayEntry.put("streetType", streetType)
 
                         mWayIdList.add(wayEntry)
 
@@ -125,6 +162,7 @@ class Route(val startPoint: RoutingNode, val endPoint: RoutingNode, val type: Ro
                         lastWayString = wayString
                         lastWayEntry = wayEntry
                         wayLength = 0
+                        lastStreetType = streetType
                     }
                     lastWayId = wayId
                 }

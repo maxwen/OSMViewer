@@ -5,10 +5,11 @@ import com.github.cliftonlabs.json_simple.JsonException;
 import com.github.cliftonlabs.json_simple.JsonObject;
 import com.github.cliftonlabs.json_simple.Jsoner;
 import com.maxwen.osmviewer.model.Route;
-import com.maxwen.osmviewer.routing.RoutingWrapper;
 import com.maxwen.osmviewer.shared.GISUtils;
 import com.maxwen.osmviewer.shared.LogUtils;
 import com.maxwen.osmviewer.shared.OSMUtils;
+import com.maxwen.osmviewer.shared.RouteUtils;
+import javafx.concurrent.Task;
 import javafx.scene.Node;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Polygon;
@@ -249,7 +250,7 @@ public class QueryController {
 
     public JsonArray getAreasInBboxWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax,
                                             List<Integer> typeFilterList, double tolerance, long minSize,
-                                            Map<Integer, List<Node>> polylines, MainController controller) {
+                                            Map<Integer, List<Node>> polylines, MainController controller, Task task) {
         Statement stmt = null;
         JsonArray areas = new JsonArray();
 
@@ -320,9 +321,12 @@ public class QueryController {
                 }
                 controller.addToOSMCache(osmId, area);
                 areas.add(area);
+
+                if (task.isCancelled()) {
+                    break;
+                }
             }
             LogUtils.log("areas = " + areas.size());
-
         } catch (SQLException e) {
             LogUtils.log(e.getMessage());
         } finally {
@@ -338,7 +342,7 @@ public class QueryController {
 
     public JsonArray getLinesInBboxWithGeom(double lonRangeMin, double latRangeMin, double lonRangeMax, double latRangeMax,
                                             List<Integer> typeFilterList, double tolerance,
-                                            Map<Integer, List<Node>> polylines, MainController controller) {
+                                            Map<Integer, List<Node>> polylines, MainController controller, Task task) {
         Statement stmt = null;
         JsonArray areas = new JsonArray();
 
@@ -404,6 +408,9 @@ public class QueryController {
                     polylines.get(MainController.AREA_LAYER_LEVEL).add(polyline);
                 }
                 OSMStyle.amendLineArea(area, polyline, controller.getZoom());
+                if (task.isCancelled()) {
+                    break;
+                }
             }
         } catch (SQLException e) {
             LogUtils.log(e.getMessage());
@@ -1552,21 +1559,10 @@ public class QueryController {
             rs = stmt.executeQuery(sql);
 
             while (rs.next()) {
-                RoutingWrapper.TYPE type = RoutingWrapper.TYPE.values()[rs.getInt(3)];
+                RouteUtils.TYPE type = RouteUtils.TYPE.values()[rs.getInt(3)];
                 Polyline polyline = controller.displayCoordsPolyline(createCoordsFromLineString(rs.getString(4)));
-                switch (type) {
-                    case FASTEST:
-                        polyline.setStroke(Color.RED);
-                        break;
-                    case ALT:
-                        polyline.setStroke(Color.GREEN);
-                        break;
-                    case SHORTEST:
-                        polyline.setStroke(Color.BLUE);
-                        break;
-                }
+                polyline.setStroke(Route.Companion.getRouteColor(type));
                 routePolylines.add(polyline);
-
             }
         } catch (SQLException e) {
             LogUtils.error("getRoutes", e);
@@ -1586,7 +1582,7 @@ public class QueryController {
         try {
             stmt = mRoutesConnection.createStatement();
             ResultSet rs;
-            String sql = "SELECT startPoint, endPoint, type, edgeIdList, wayIdList, streetTypeMap FROM routeTable";
+            String sql = "SELECT startPoint, endPoint, type, edgeIdList, wayIdList, streetTypeMap, AsText(geom) FROM routeTable";
             rs = stmt.executeQuery(sql);
 
             while (rs.next()) {
@@ -1608,7 +1604,7 @@ public class QueryController {
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());
                 }
-                RoutingWrapper.TYPE type = RoutingWrapper.TYPE.values()[rs.getInt(3)];
+                RouteUtils.TYPE type = RouteUtils.TYPE.values()[rs.getInt(3)];
                 JsonArray edgeIdList = new JsonArray();
                 String edgeIdListString = rs.getString(4);
                 try {
@@ -1636,7 +1632,8 @@ public class QueryController {
                 } catch (JsonException e) {
                     LogUtils.log(e.getMessage());
                 }
-                controller.restoreRouteData(type, edgeIdList, wayIdList, streetTypeMap);
+                JsonArray coords = createCoordsFromLineString(rs.getString(7));
+                controller.restoreRouteData(type, edgeIdList, wayIdList, streetTypeMap, coords);
             }
         } catch (SQLException e) {
             LogUtils.error("loadRoute", e);
@@ -1665,14 +1662,14 @@ public class QueryController {
         }
     }
 
-    public JsonArray getEdgeIdListForCalcRoute(long startEdgeId, long endEdgeId, RoutingWrapper.TYPE type) {
+    public JsonArray getEdgeIdListForCalcRoute(long startEdgeId, long endEdgeId, RouteUtils.TYPE type) {
         Statement stmt = null;
 
         try {
             stmt = mCalcRouteConnection.createStatement();
             ResultSet rs;
             String sql = String.format("SELECT edgeIdList FROM routeEdgeIdTable WHERE startEdgeId=%d AND endEdgeId=%d AND type=%d",
-                            startEdgeId, endEdgeId, type.ordinal());
+                    startEdgeId, endEdgeId, type.ordinal());
             rs = stmt.executeQuery(sql);
 
             while (rs.next()) {
