@@ -6,9 +6,6 @@ plugins {
 group 'com.maxwen'
 version 'unspecified'
 
-sourceCompatibility = '13'
-targetCompatibility = '13'
-
 application {
     mainClass = 'com.maxwen.osmviewer.importer.Importer'
     applicationDefaultJvmArgs = ["-Dosm.db.path=${System.properties['user.home']}/Maps/osm/db", "-Dosm.map.path=${System.properties['user.home']}/Downloads/geofabrik", "-Xmx8192m"]
@@ -28,10 +25,6 @@ sourceSets.main {
     resources {
         srcDirs = ['src/main/resources']
     }
-}
-
-repositories {
-    mavenCentral()
 }
 
 dependencies {

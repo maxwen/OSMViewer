@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<module external.linked.project.id=":viewer:test" external.linked.project.path="$MODULE_DIR$/../../../viewer" external.root.project.path="$MODULE_DIR$/../../.." external.system.id="GRADLE" external.system.module.group="com.maxwen" external.system.module.type="sourceSet" external.system.module.version="1.0-SNAPSHOT" type="JAVA_MODULE" version="4">
+<module external.linked.project.id=":viewer:test" external.linked.project.path="$MODULE_DIR$/../../../viewer" external.root.project.path="$MODULE_DIR$/../../.." external.system.id="GRADLE" external.system.module.group="com.maxwen" external.system.module.type="sourceSet" external.system.module.version="unspecified" type="JAVA_MODULE" version="4">
   <component name="FacetManager">
     <facet type="kotlin-language" name="Kotlin">
-      <configuration version="5" platform="JVM 1.8" allPlatforms="JVM [1.8]" useProjectSettings="false">
+      <configuration version="5" platform="JVM 17" allPlatforms="JVM [17]" useProjectSettings="false">
         <compilerSettings>
           <option name="additionalArguments" value="-Xallow-no-source-files" />
         </compilerSettings>
@@ -17,6 +17,7 @@
                 <arg>$MODULE_DIR$/../../../viewer/build/classes/java/main</arg>
                 <arg>$MODULE_DIR$/../../../viewer/build/classes/kotlin/main</arg>
                 <arg>$MODULE_DIR$/../../../viewer/build/resources/main</arg>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-jdk8/1.8.20/73576ddf378c5b4f1f6b449fe6b119b8183fc078/kotlin-stdlib-jdk8-1.8.20.jar</arg>
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-fxml/17.0.2/1c65c10f9656d7d6c1424d4711cc56a9ee99220d/javafx-fxml-17.0.2-linux.jar</arg>
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-controls/17.0.2/c39c919f987496f86f04babacf2dd27d2bdb263e/javafx-controls-17.0.2-linux.jar</arg>
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-controls/17.0.2/f52640ea07a0d7fe2ac8b9f945ec58fa22ac1afd/javafx-controls-17.0.2.jar</arg>
@@ -29,18 +30,17 @@
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.xerial/sqlite-jdbc/3.34.0/fd29bb0124e3f79c80b2753162a6a3873c240bcf/sqlite-jdbc-3.34.0.jar</arg>
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.fazecast/jSerialComm/2.6.0/fcc80d4c9182a86e3e045cff82a1a00897aecdc/jSerialComm-2.6.0.jar</arg>
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.controlsfx/controlsfx/11.1.1/d303c563c23d5176346e8d05932afbec421060ae/controlsfx-11.1.1.jar</arg>
-                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-jdk8/1.8.10/7c002ac41f547a82e81dfebd2a20577a738dbf3f/kotlin-stdlib-jdk8-1.8.10.jar</arg>
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/junit/junit/4.13.2/8ac9e16d933b6fb43bc7f576336b8f4d7eb5ba12/junit-4.13.2.jar</arg>
-                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-jdk7/1.8.10/cb726a23c808a850a43e7d6b9d1ba91b02fe9f05/kotlin-stdlib-jdk7-1.8.10.jar</arg>
-                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/1.8.10/6d5560a229477df9406943d5feda5618e98eb64c/kotlin-stdlib-1.8.10.jar</arg>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-jdk7/1.8.20/3aa51faf20aae8b31e1a4bc54f8370673d7b7df4/kotlin-stdlib-jdk7-1.8.20.jar</arg>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/1.8.20/e72fc5e03ec6c064c678a6bd0d955c88d55b0c4a/kotlin-stdlib-1.8.20.jar</arg>
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.hamcrest/hamcrest-core/1.3/42a25dc3219429f0e5d060061f71acb49bf010a0/hamcrest-core-1.3.jar</arg>
-                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-common/1.8.10/a61b182458550492c12aee66157d7b524a63a5ec/kotlin-stdlib-common-1.8.10.jar</arg>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-common/1.8.20/5eddaaf234c8c49d03eebeb6a14feb7f90faca71/kotlin-stdlib-common-1.8.20.jar</arg>
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains/annotations/13.0/919f0dfe192fb4e063e7dacadee7f8bb9a2672a9/annotations-13.0.jar</arg>
               </args>
             </stringArg>
             <stringArg name="destination" arg="$MODULE_DIR$/../../../viewer/build/classes/kotlin/test" />
-            <stringArg name="jvmTarget" arg="1.8" />
-            <stringArg name="moduleName" arg="viewer" />
+            <stringArg name="jvmTarget" arg="17" />
+            <stringArg name="moduleName" arg="viewer_test" />
             <stringArg name="apiVersion" arg="1.8" />
             <stringArg name="languageVersion" arg="1.8" />
           </stringArguments>
@@ -49,17 +49,17 @@
               <args>
                 <arg>$MODULE_DIR$/../../../viewer/build/classes/java/main</arg>
                 <arg>$MODULE_DIR$/../../../viewer/build/classes/kotlin/main</arg>
-                <arg>$MODULE_DIR$/../../../viewer/build/libs/viewer-1.0-SNAPSHOT.jar</arg>
+                <arg>$MODULE_DIR$/../../../viewer/build/libs/viewer.jar</arg>
               </args>
             </arrayArg>
             <arrayArg name="pluginClasspaths">
               <args>
-                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-scripting-jvm/1.8.10/85d7bed036617120f09209e52f38cae13809176f/kotlin-scripting-jvm-1.8.10.jar</arg>
-                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-scripting-common/1.8.10/605352a419127937229ab574b50146a4bb4122fa/kotlin-scripting-common-1.8.10.jar</arg>
-                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/1.8.10/6d5560a229477df9406943d5feda5618e98eb64c/kotlin-stdlib-1.8.10.jar</arg>
-                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-common/1.8.10/a61b182458550492c12aee66157d7b524a63a5ec/kotlin-stdlib-common-1.8.10.jar</arg>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-scripting-jvm/1.8.20/51c8efbe177ebcaa89c82d01663c60060a120dd2/kotlin-scripting-jvm-1.8.20.jar</arg>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-scripting-common/1.8.20/f19996e3a40658541fe2108c483fd3301c4a3416/kotlin-scripting-common-1.8.20.jar</arg>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/1.8.20/e72fc5e03ec6c064c678a6bd0d955c88d55b0c4a/kotlin-stdlib-1.8.20.jar</arg>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-common/1.8.20/5eddaaf234c8c49d03eebeb6a14feb7f90faca71/kotlin-stdlib-common-1.8.20.jar</arg>
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains/annotations/13.0/919f0dfe192fb4e063e7dacadee7f8bb9a2672a9/annotations-13.0.jar</arg>
-                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-script-runtime/1.8.10/b13ea9c7e46d589139e56086a878763290e20bd5/kotlin-script-runtime-1.8.10.jar</arg>
+                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-script-runtime/1.8.20/c850771e723701f9d63dbcf641429c0f29290074/kotlin-script-runtime-1.8.20.jar</arg>
               </args>
             </arrayArg>
             <arrayArg name="pluginOptions" />
@@ -73,12 +73,14 @@
     <exclude-output />
     <content url="file://$MODULE_DIR$/../../../viewer/src/test">
       <sourceFolder url="file://$MODULE_DIR$/../../../viewer/src/test/java" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/../../../viewer/src/test/resources" type="java-test-resource" />
       <sourceFolder url="file://$MODULE_DIR$/../../../viewer/src/test/kotlin" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/../../../viewer/src/test/resources" type="java-test-resource" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="OSMViewer.viewer.main" />
+    <orderEntry type="module" module-name="OSMViewer.viewer.main" scope="RUNTIME" />
+    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.20" level="project" />
     <orderEntry type="library" name="Gradle: org.openjfx:javafx-fxml:linux:17.0.2" level="project" />
     <orderEntry type="library" name="Gradle: org.openjfx:javafx-controls:17.0.2" level="project" />
     <orderEntry type="library" name="Gradle: org.openjfx:javafx-controls:linux:17.0.2" level="project" />
@@ -91,12 +93,12 @@
     <orderEntry type="library" name="Gradle: org.xerial:sqlite-jdbc:3.34.0" level="project" />
     <orderEntry type="library" name="Gradle: com.fazecast:jSerialComm:2.6.0" level="project" />
     <orderEntry type="library" name="Gradle: org.controlsfx:controlsfx:11.1.1" level="project" />
-    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.10" level="project" />
     <orderEntry type="library" name="Gradle: junit:junit:4.13.2" level="project" />
-    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.10" level="project" />
-    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib:1.8.10" level="project" />
+    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.20" level="project" />
+    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib:1.8.20" level="project" />
     <orderEntry type="library" name="Gradle: org.hamcrest:hamcrest-core:1.3" level="project" />
-    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib-common:1.8.10" level="project" />
+    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib-common:1.8.20" level="project" />
     <orderEntry type="library" name="Gradle: org.jetbrains:annotations:13.0" level="project" />
   </component>
+  <component name="TestModuleProperties" production-module="OSMViewer.viewer.main" />
 </module>

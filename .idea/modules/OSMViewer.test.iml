@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<module external.linked.project.id=":routing:main" external.linked.project.path="$MODULE_DIR$/../../../routing" external.root.project.path="$MODULE_DIR$/../../.." external.system.id="GRADLE" external.system.module.group="com.maxwen" external.system.module.type="sourceSet" external.system.module.version="unspecified" type="JAVA_MODULE" version="4">
+<module external.linked.project.id="OSMViewer:test" external.linked.project.path="$MODULE_DIR$/../.." external.root.project.path="$MODULE_DIR$/../.." external.system.id="GRADLE" external.system.module.group="" external.system.module.type="sourceSet" external.system.module.version="unspecified" type="JAVA_MODULE" version="4">
   <component name="FacetManager">
     <facet type="kotlin-language" name="Kotlin">
-      <configuration version="5" platform="JVM 1.8" allPlatforms="JVM [1.8]" useProjectSettings="false">
+      <configuration version="5" platform="JVM 17" allPlatforms="JVM [17]" useProjectSettings="false">
         <compilerSettings>
           <option name="additionalArguments" value="-Xallow-no-source-files" />
         </compilerSettings>
@@ -14,9 +14,6 @@
           <stringArguments>
             <stringArg name="classpath">
               <args>
-                <arg>$MODULE_DIR$/../../../shared/build/classes/java/main</arg>
-                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.cliftonlabs/json-simple/3.1.1/572f41a859587fac33a5cb6d673f7c628f1350dd/json-simple-3.1.1.jar</arg>
-                <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.xerial/sqlite-jdbc/3.34.0/fd29bb0124e3f79c80b2753162a6a3873c240bcf/sqlite-jdbc-3.34.0.jar</arg>
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-jdk8/1.8.20/73576ddf378c5b4f1f6b449fe6b119b8183fc078/kotlin-stdlib-jdk8-1.8.20.jar</arg>
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-jdk7/1.8.20/3aa51faf20aae8b31e1a4bc54f8370673d7b7df4/kotlin-stdlib-jdk7-1.8.20.jar</arg>
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/1.8.20/e72fc5e03ec6c064c678a6bd0d955c88d55b0c4a/kotlin-stdlib-1.8.20.jar</arg>
@@ -24,14 +21,20 @@
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains/annotations/13.0/919f0dfe192fb4e063e7dacadee7f8bb9a2672a9/annotations-13.0.jar</arg>
               </args>
             </stringArg>
-            <stringArg name="destination" arg="$MODULE_DIR$/../../../routing/build/classes/kotlin/main" />
-            <stringArg name="jvmTarget" arg="1.8" />
-            <stringArg name="moduleName" arg="routing" />
+            <stringArg name="destination" arg="$MODULE_DIR$/../../build/classes/kotlin/test" />
+            <stringArg name="jvmTarget" arg="17" />
+            <stringArg name="moduleName" arg="OSMViewer_test" />
             <stringArg name="apiVersion" arg="1.8" />
             <stringArg name="languageVersion" arg="1.8" />
           </stringArguments>
           <arrayArguments>
-            <arrayArg name="friendPaths" />
+            <arrayArg name="friendPaths">
+              <args>
+                <arg>$MODULE_DIR$/../../build/classes/java/main</arg>
+                <arg>$MODULE_DIR$/../../build/classes/kotlin/main</arg>
+                <arg>$MODULE_DIR$/../../build/libs/OSMViewer.jar</arg>
+              </args>
+            </arrayArg>
             <arrayArg name="pluginClasspaths">
               <args>
                 <arg>$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-scripting-jvm/1.8.20/51c8efbe177ebcaa89c82d01663c60060a120dd2/kotlin-scripting-jvm-1.8.20.jar</arg>
@@ -49,16 +52,12 @@
     </facet>
   </component>
   <component name="NewModuleRootManager">
-    <output url="file://$MODULE_DIR$/../../../routing/build/classes/java/main" />
+    <output-test url="file://$MODULE_DIR$/../../build/classes/java/test" />
     <exclude-output />
-    <content url="file://$MODULE_DIR$/../../../routing/src/main">
-      <sourceFolder url="file://$MODULE_DIR$/../../../routing/src/main/java" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/../../../routing/src/main/resources" type="java-resource" />
-    </content>
+    <content url="file://$MODULE_DIR$/../../src/test" />
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="module" module-name="OSMViewer.shared.main" />
-    <orderEntry type="library" name="Gradle: com.github.cliftonlabs:json-simple:3.1.1" level="project" />
-    <orderEntry type="library" name="Gradle: org.xerial:sqlite-jdbc:3.34.0" level="project" />
+    <orderEntry type="module" module-name="OSMViewer.main" />
   </component>
+  <component name="TestModuleProperties" production-module="OSMViewer.main" />
 </module>
