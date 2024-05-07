@@ -8,6 +8,9 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/importer/OSMViewer.importer.test.iml" filepath="$PROJECT_DIR$/.idea/modules/importer/OSMViewer.importer.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/OSMViewer.main.iml" filepath="$PROJECT_DIR$/.idea/modules/OSMViewer.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/routing/OSMViewer.routing.iml" filepath="$PROJECT_DIR$/.idea/modules/routing/OSMViewer.routing.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/routing-lib/OSMViewer.routing-lib.iml" filepath="$PROJECT_DIR$/.idea/modules/routing-lib/OSMViewer.routing-lib.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/routing-lib/OSMViewer.routing-lib.main.iml" filepath="$PROJECT_DIR$/.idea/modules/routing-lib/OSMViewer.routing-lib.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/routing/OSMViewer.routing.cpp.iml" filepath="$PROJECT_DIR$/.idea/modules/routing/OSMViewer.routing.cpp.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/routing/OSMViewer.routing.main.iml" filepath="$PROJECT_DIR$/.idea/modules/routing/OSMViewer.routing.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/routing/OSMViewer.routing.test.iml" filepath="$PROJECT_DIR$/.idea/modules/routing/OSMViewer.routing.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/shared/OSMViewer.shared.iml" filepath="$PROJECT_DIR$/.idea/modules/shared/OSMViewer.shared.iml" />

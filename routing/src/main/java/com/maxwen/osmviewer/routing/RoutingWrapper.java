@@ -18,7 +18,7 @@ import java.util.List;
 
 public class RoutingWrapper {
     static {
-        System.loadLibrary("routing");
+        System.loadLibrary("routing-lib");
     }
 
     private Connection mRoutesConnection;

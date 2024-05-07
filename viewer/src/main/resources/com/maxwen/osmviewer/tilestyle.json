@@ -1,14 +1,14 @@
 {
-  "basic": {
-    "url": "https://api.maptiler.com/maps/basic-v2/",
-    "format": "png"
-  },
   "osm": {
     "url": "https://api.maptiler.com/maps/openstreetmap/",
     "format": "jpg"
   },
   "streets" : {
-    "url" : "https://api.maptiler.com/maps/streets-v2/",
+    "url" : "https://api.maptiler.com/maps/streets/",
     "format" : "png"
+  },
+  "satellite": {
+    "url": "https://api.maptiler.com/maps/satellite/",
+    "format": "jpg"
   }
 }

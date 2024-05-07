@@ -103,7 +103,7 @@ public class NMEAParser implements BasicNMEAHandler {
         gpsData.put("lon", new BigDecimal((float) this.lon));
         gpsData.put("speed", new BigDecimal((int) this.speed));
         gpsData.put("bearing", new BigDecimal((int) this.bearing));
-        gpsData.put("altitude", new BigDecimal((int) this.altitude));
+        gpsData.put("alt", new BigDecimal((int) this.altitude));
         handler.onLocation(gpsData);
 
     }
@@ -118,7 +118,7 @@ public class NMEAParser implements BasicNMEAHandler {
         gpsData.put("lon", new BigDecimal((float) this.lon));
         gpsData.put("speed", new BigDecimal((int) this.speed));
         gpsData.put("bearing", new BigDecimal((int) this.bearing));
-        gpsData.put("altitude", new BigDecimal((int) this.altitude));
+        gpsData.put("alt", new BigDecimal((int) this.altitude));
         handler.onLocation(gpsData);
     }
 

@@ -1,0 +1,6 @@
+[libraries]
+json-simple = "com.github.cliftonlabs:json-simple:3.1.1"
+sqlite-jdbc = "org.xerial:sqlite-jdbc:3.41.2.2"
+jSerialComm = "com.fazecast:jSerialComm:2.6.0"
+controlsfx = "org.controlsfx:controlsfx:11.1.1"
+parallelpbf = "com.wolt.osm:parallelpbf:0.3.1"

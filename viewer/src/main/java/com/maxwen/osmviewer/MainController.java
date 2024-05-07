@@ -119,7 +119,7 @@ public class MainController implements Initializable, NMEAHandler {
     VBox routeNodeListContent;
 
     private static final int MIN_ZOOM = 4;
-    private static final int MAX_ZOOM = 20;
+    private static final int MAX_ZOOM = 19;
     private int mMapZoom = 17;
     private Point2D mMapZero = new Point2D(0, 0);
     private Point2D mCenter = new Point2D(12.992203, 47.793938);
@@ -207,6 +207,8 @@ public class MainController implements Initializable, NMEAHandler {
     private Text mRouteATime;
     private Text mRouteBLength;
     private Text mRouteBTime;
+    private Polyline mTrackPolyline;
+    private JsonArray mTrackCoords;
 
     public boolean isTransparentWays() {
         return mTransparentWays;
@@ -794,7 +796,7 @@ public class MainController implements Initializable, NMEAHandler {
                 mUrl = (String) ((JsonObject) mTileStyle.get(TILE_STYLE)).get("url");
             } catch (Exception e) {
                 mFormat = "jpg";
-                mUrl = "https://api.maptiler.com/maps/openstreetmap/";
+                mUrl = "https://api.maptiler.com/maps/streets/";
             }
             mDownloadExecutorService = Executors.newFixedThreadPool(8);
             mXTileNum = (int) (mOutlineRect.getWidth() / GISUtils.TILESIZE) + 1;
@@ -813,7 +815,7 @@ public class MainController implements Initializable, NMEAHandler {
 
             for (int i = yTile - mYTileNum / 2; i <= yTile + mYTileNum / 2; i++) {
                 for (int j = xTile - mXTileNum / 2; j <= xTile + mXTileNum / 2; j++) {
-                    String relTilePath = zoom + "/" + j + "/" + i + "." + mFormat;
+                    String relTilePath = zoom + "/" + j + "/" + i + "@2x." + mFormat;
 
                     File tileFile = new File(mTilesHome, TILE_STYLE + "/" + relTilePath);
                     if (!tileFile.getParentFile().exists()) {
@@ -1256,21 +1258,6 @@ public class MainController implements Initializable, NMEAHandler {
                 stopReplayButton.setDisable(false);
                 pauseReplayButton.setDisable(false);
                 stepReplayButton.setDisable(false);
-            } else {
-                if (mCurrentTrackFile != null) {
-                    mTrackReplayThread = new TrackReplayThread();
-                    if (!mTrackReplayThread.setupReplay(mCurrentTrackFile, this)) {
-                        LogUtils.error("failed to setup replay thread");
-                        mTrackReplayThread = null;
-                    } else {
-                        mTrackReplayMode = true;
-                        mTrackReplayThread.startThread();
-                        startReplayButton.setDisable(true);
-                        stopReplayButton.setDisable(false);
-                        pauseReplayButton.setDisable(false);
-                        stepReplayButton.setDisable(false);
-                    }
-                }
             }
         });
         stopReplayButton.setGraphic(new ImageView(new Image("/images/ui/stop.png")));
@@ -1872,6 +1859,7 @@ public class MainController implements Initializable, NMEAHandler {
             mMapPane.getChildren().addAll(polyList);
         }
 
+
         if (mMapZoom >= 16) {
             if (mSelectdShape != null) {
                 mRoutingPane.getChildren().add(mSelectdShape.getShape());
@@ -1882,6 +1870,10 @@ public class MainController implements Initializable, NMEAHandler {
             }
             if (mTrackingShape != null) {
                 mTrackingPane.getChildren().add(mTrackingShape.getShape());
+            }
+            if (mTrackCoords != null) {
+                createTrackPolyline();
+                mRoutingPane.getChildren().add(mTrackPolyline);
             }
         }
 
@@ -1934,6 +1926,9 @@ public class MainController implements Initializable, NMEAHandler {
             //mRoutingPane.getChildren().addAll(mRoutePolylineList);
         } else {
             mRoutingPane.getChildren().addAll(mRoutePolylineList);
+            if (mTrackPolyline != null) {
+                mRoutingPane.getChildren().add(mTrackPolyline);
+            }
         }
 
         if (mLabelPane.isVisible()) {
@@ -2063,7 +2058,9 @@ public class MainController implements Initializable, NMEAHandler {
         if (mSelectedEdgeShape != null) {
             mRoutingPane.getChildren().add(mSelectedEdgeShape);
         }
-
+        if (mTrackPolyline != null) {
+            mRoutingPane.getChildren().add(mTrackPolyline);
+        }
         mRoutingPane.getChildren().addAll(mRoutePolylineList);
 
         if (mTrackingShape != null) {
@@ -2516,7 +2513,7 @@ public class MainController implements Initializable, NMEAHandler {
         posLabel.setText(String.format("%.5f:%.5f", mCenter.getX(), mCenter.getY()));
         int speed = ((BigDecimal) mGPSData.get("speed")).intValue();
         speedLabel.setText((int) (speed * 3.6) + "km/h");
-        int alt = ((BigDecimal) mGPSData.get("altitude")).intValue();
+        int alt = ((BigDecimal) mGPSData.get("alt")).intValue();
         altLabel.setText(alt + "m");
 
         calcMapCenterPos();
@@ -3252,22 +3249,35 @@ public class MainController implements Initializable, NMEAHandler {
                 }
 
                 mTrackReplayThread = new TrackReplayThread();
-                if (!mTrackReplayThread.setupReplay(mCurrentTrackFile, this)) {
+                mTrackCoords = new JsonArray();
+                JsonObject startPos = new JsonObject();
+                if (!mTrackReplayThread.setupReplay(mCurrentTrackFile, this, mTrackCoords, startPos)) {
                     LogUtils.error("failed to setup replay thread");
                     mTrackReplayThread = null;
                     mTrackReplayMode = false;
                 } else {
-                    borderPane.setBottom(bottomPane);
-                    mTrackMode = false;
-                    updateTrackMode();
-                    mTrackReplayMode = true;
-                    startReplayButton.setDisable(false);
-                    stopReplayButton.setDisable(true);
-                    pauseReplayButton.setDisable(true);
-                    stepReplayButton.setDisable(true);
-                    trackModeButton.setDisable(true);
-                    resetTracking();
+                    createTrackPolyline();
+                    drawShapes();
+
+                    JsonArray startPosCoord = (JsonArray) mTrackCoords.get(0);
+                    centerMapOnCoordinates((Double) startPosCoord.get(0), (Double) startPosCoord.get(1));
                 }
+            }
+        });
+        menuItem.setStyle("-fx-font-size: 20");
+        mMenuButtonMenu.getItems().add(menuItem);
+        menuItem = new MenuItem(" Start track ");
+        menuItem.setOnAction(ev -> {
+            if (!mTrackCoords.isEmpty()) {
+                borderPane.setBottom(bottomPane);
+                mTrackMode = false;
+                updateTrackMode();
+                startReplayButton.setDisable(false);
+                stopReplayButton.setDisable(true);
+                pauseReplayButton.setDisable(true);
+                stepReplayButton.setDisable(true);
+                trackModeButton.setDisable(true);
+                resetTracking();
             }
         });
         menuItem.setStyle("-fx-font-size: 20");
@@ -3964,6 +3974,14 @@ public class MainController implements Initializable, NMEAHandler {
         });
 
         mRouteBContent.getChildren().add(mRouteBListView);
+    }
+
+    void createTrackPolyline() {
+        if (mTrackCoords != null) {
+            mTrackPolyline = displayCoordsPolyline(mTrackCoords);
+            mTrackPolyline.setStrokeWidth(4);
+            mTrackPolyline.setStroke(Color.PLUM);
+        }
     }
 }
 

@@ -12,7 +12,7 @@
     <orderEntry type="module" module-name="OSMViewer.importer.main" />
     <orderEntry type="module" module-name="OSMViewer.shared.main" />
     <orderEntry type="library" name="Gradle: com.github.cliftonlabs:json-simple:3.1.1" level="project" />
-    <orderEntry type="library" name="Gradle: org.xerial:sqlite-jdbc:3.34.0" level="project" />
+    <orderEntry type="library" name="Gradle: org.xerial:sqlite-jdbc:3.41.2.2" level="project" />
     <orderEntry type="library" name="Gradle: com.wolt.osm:parallelpbf:0.3.1" level="project" />
     <orderEntry type="library" name="Gradle: junit:junit:4.13.2" level="project" />
     <orderEntry type="library" name="Gradle: com.google.protobuf:protobuf-java:3.12.2" level="project" />

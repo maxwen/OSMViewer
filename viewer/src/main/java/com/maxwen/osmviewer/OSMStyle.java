@@ -224,6 +224,7 @@ public class OSMStyle {
         if (natural.equals("grassland"))
             return mAreaColors.get("grassColor");
 
+
         return mAreaColors.get("naturalColor");
     }
 
@@ -306,10 +307,7 @@ public class OSMStyle {
     }
 
     private static double getRelativePenWidthForZoom(int zoom) {
-        if (zoom == 20) {
-            return 6.0;
-        }
-        if (zoom == 19) {
+        if (zoom >= 19) {
             return 3.0;
         }
         if (zoom == 18) {
@@ -331,10 +329,7 @@ public class OSMStyle {
     }
 
     private static int getRailwayPenWidthForZoom(int zoom) {
-        if (zoom == 20) {
-            return 12;
-        }
-        if (zoom == 19) {
+        if (zoom >= 19) {
             return 8;
         }
         if (zoom == 18) {
@@ -350,10 +345,7 @@ public class OSMStyle {
     }
 
     private static int getAdminLinePenWidthForZoom(int zoom) {
-        if (zoom == 20) {
-            return 8;
-        }
-        if (zoom == 19) {
+        if (zoom >= 19) {
             return 8;
         }
         if (zoom == 18) {
@@ -369,10 +361,7 @@ public class OSMStyle {
     }
 
     private static int getWaterPenWidthForZoom(int zoom) {
-        if (zoom == 20) {
-            return 12;
-        }
-        if (zoom == 19) {
+        if (zoom >= 19) {
             return 8;
         }
         if (zoom == 18) {
@@ -388,14 +377,11 @@ public class OSMStyle {
     }
 
     public static int getPoiSizeForZoom(int zoom, int baseSize) {
-        if (zoom == 20) {
-            return (int) (baseSize * 2.5);
-        }
-        if (zoom == 19) {
-            return (int) (baseSize * 2.0);
+        if (zoom >= 19) {
+            return (int) (baseSize * 1.4);
         }
         if (zoom == 18) {
-            return (int) (baseSize * 1.5);
+            return (int) (baseSize * 1.2);
         }
         return baseSize;
     }
@@ -507,12 +493,6 @@ public class OSMStyle {
         switch (streetType) {
             case 0:
                 return getImage(OSMUtils.IMAGE_TYPE_HIGHWAY);
-            case 1:
-                return getImage(OSMUtils.IMAGE_TYPE_ROAD);
-            case 2:
-                return getImage(OSMUtils.IMAGE_TYPE_ROAD);
-            case 3:
-                return getImage(OSMUtils.IMAGE_TYPE_ROAD);
             default:
                 return getImage(OSMUtils.IMAGE_TYPE_ROAD);
         }

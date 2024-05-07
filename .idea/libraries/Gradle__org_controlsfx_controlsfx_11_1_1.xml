@@ -1,5 +1,5 @@
 <component name="libraryTable">
-  <library name="Gradle: org.controlsfx:controlsfx:11.1.1">
+  <library name="Gradle: org.controlsfx:controlsfx:11.1.1" external-system-id="GRADLE">
     <CLASSES>
       <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.controlsfx/controlsfx/11.1.1/d303c563c23d5176346e8d05932afbec421060ae/controlsfx-11.1.1.jar!/" />
     </CLASSES>

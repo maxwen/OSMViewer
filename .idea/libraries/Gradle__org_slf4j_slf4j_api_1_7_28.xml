@@ -1,5 +1,5 @@
 <component name="libraryTable">
-  <library name="Gradle: org.slf4j:slf4j-api:1.7.28">
+  <library name="Gradle: org.slf4j:slf4j-api:1.7.28" external-system-id="GRADLE">
     <CLASSES>
       <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.slf4j/slf4j-api/1.7.28/2cd9b264f76e3d087ee21bfc99305928e1bdb443/slf4j-api-1.7.28.jar!/" />
     </CLASSES>

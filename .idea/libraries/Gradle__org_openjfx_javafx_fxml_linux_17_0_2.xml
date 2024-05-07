@@ -1,5 +1,5 @@
 <component name="libraryTable">
-  <library name="Gradle: org.openjfx:javafx-fxml:linux:17.0.2">
+  <library name="Gradle: org.openjfx:javafx-fxml:linux:17.0.2" external-system-id="GRADLE">
     <CLASSES>
       <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-fxml/17.0.2/1c65c10f9656d7d6c1424d4711cc56a9ee99220d/javafx-fxml-17.0.2-linux.jar!/" />
     </CLASSES>

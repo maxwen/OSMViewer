@@ -34,7 +34,7 @@ set APP_HOME=%DIRNAME%..
 for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 
 @rem Add default JVM options here. You can also use JAVA_OPTS and ROUTING_OPTS to pass JVM options to this script.
-set DEFAULT_JVM_OPTS="-Dosm.db.path=/home/maxl/Maps/osm/db2" "-Djava.library.path=/home/maxl/IdeaProjects/OSMViewer/routing/build/libs/routing/shared" "-Xmx8192m"
+set DEFAULT_JVM_OPTS="-Dosm.db.path=/home/maxl/Maps/osm/db2" "-Djava.library.path=/home/maxl/IdeaProjects/OSMViewer/routing-lib/build/lib/main/debug" "-Xmx8192m"
 
 @rem Find java.exe
 if defined JAVA_HOME goto findJavaFromJavaHome
@@ -68,7 +68,7 @@ goto fail
 :execute
 @rem Setup the command line
 
-set CLASSPATH=%APP_HOME%\lib\routing.jar;%APP_HOME%\lib\shared.jar;%APP_HOME%\lib\json-simple-3.1.1.jar;%APP_HOME%\lib\sqlite-jdbc-3.34.0.jar;%APP_HOME%\lib\kotlin-stdlib-jdk8-1.8.10.jar;%APP_HOME%\lib\kotlin-stdlib-jdk7-1.8.10.jar;%APP_HOME%\lib\kotlin-stdlib-1.8.10.jar;%APP_HOME%\lib\kotlin-stdlib-common-1.8.10.jar;%APP_HOME%\lib\annotations-13.0.jar
+set CLASSPATH=%APP_HOME%\lib\routing.jar;%APP_HOME%\lib\shared.jar;%APP_HOME%\lib\json-simple-3.1.1.jar;%APP_HOME%\lib\sqlite-jdbc-3.41.2.2.jar
 
 
 @rem Execute routing
