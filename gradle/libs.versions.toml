@@ -4,3 +4,12 @@ sqlite-jdbc = "org.xerial:sqlite-jdbc:3.41.2.2"
 jSerialComm = "com.fazecast:jSerialComm:2.6.0"
 controlsfx = "org.controlsfx:controlsfx:11.1.1"
 parallelpbf = "com.wolt.osm:parallelpbf:0.3.1"
+junit-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit-jupiter-engine" }
+junit-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit-jupiter-api" }
+
+[versions]
+junit-jupiter-engine = "5.10.1"
+junit-jupiter-api = "5.10.1"
+
+[plugins]
+jvm = { id = "org.jetbrains.kotlin.jvm", version = "1.9.22" }

@@ -1,5 +1,5 @@
 plugins {
-    id("java")
+    id("my-java-base")
     id("application")
 }
 
@@ -19,17 +19,13 @@ tasks.withType<Jar> {
     }
 }
 
-sourceSets.main {
-    java.setSrcDirs(listOf("src/main/java"))
-    resources.setSrcDirs(listOf("src/main/resources"))
-}
-
 dependencies {
     implementation(project(":shared"))
-    testImplementation("junit:junit:4.+")
     implementation(libs.json.simple)
     implementation(libs.sqlite.jdbc)
     implementation(libs.parallelpbf)
+    testImplementation(libs.junit.api)
+    testRuntimeOnly(libs.junit.engine)
 }
 
 tasks.register<Copy>("copyImportMapping") {

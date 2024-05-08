@@ -4,11 +4,25 @@
   <component name="GradleSettings">
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
+        <compositeConfiguration>
+          <compositeBuild compositeDefinitionSource="SCRIPT">
+            <builds>
+              <build path="$PROJECT_DIR$/gradle/plugins" name="plugins">
+                <projects>
+                  <project path="$PROJECT_DIR$/gradle/plugins" />
+                  <project path="$PROJECT_DIR$/gradle/plugins/java-plugins" />
+                </projects>
+              </build>
+            </builds>
+          </compositeBuild>
+        </compositeConfiguration>
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
         <option name="gradleJvm" value="17" />
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/gradle/plugins" />
+            <option value="$PROJECT_DIR$/gradle/plugins/java-plugins" />
             <option value="$PROJECT_DIR$/importer" />
             <option value="$PROJECT_DIR$/routing" />
             <option value="$PROJECT_DIR$/routing-lib" />

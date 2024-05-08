@@ -16,7 +16,8 @@ tasks.withType<CppCompile>().configureEach {
             "${jvmHome}/include",
             "-I",
             "${jvmHome}/include/linux",
-            "-D_FILE_OFFSET_BITS=64"
+            "-D_FILE_OFFSET_BITS=64",
+            "-O2"
         )
     )
 }
@@ -24,7 +25,7 @@ tasks.withType<LinkSharedLibrary>().configureEach {
     linkerArgs.addAll(
         listOf(
             "-L",
-            "/home/maxl/Downloads/pgrouting/build/lib/",
+            "${projectDir}/assets",
             "-l",
             "pgrouting-3.4",
             "-l",

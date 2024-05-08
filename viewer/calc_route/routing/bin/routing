@@ -112,7 +112,7 @@ case "$( uname )" in                #(
   NONSTOP* )        nonstop=true ;;
 esac
 
-CLASSPATH=$APP_HOME/lib/routing.jar:$APP_HOME/lib/shared.jar:$APP_HOME/lib/json-simple-3.1.1.jar:$APP_HOME/lib/sqlite-jdbc-3.41.2.2.jar
+CLASSPATH=$APP_HOME/lib/routing.jar:$APP_HOME/lib/shared.jar:$APP_HOME/lib/json-simple-3.1.1.jar:$APP_HOME/lib/sqlite-jdbc-3.41.2.2.jar:$APP_HOME/lib/kotlin-stdlib-1.9.22.jar:$APP_HOME/lib/annotations-13.0.jar
 
 
 # Determine the Java command to use to start the JVM.
@@ -200,7 +200,7 @@ fi
 
 
 # Add default JVM options here. You can also use JAVA_OPTS and ROUTING_OPTS to pass JVM options to this script.
-DEFAULT_JVM_OPTS='"-Dosm.db.path=/home/maxl/Maps/osm/db2" "-Djava.library.path=/home/maxl/IdeaProjects/OSMViewer/routing-lib/build/lib/main/debug" "-Xmx8192m"'
+DEFAULT_JVM_OPTS='"-Dosm.db.path=/home/maxl/Maps/osm/db2" "-Djava.library.path=/home/maxl/IdeaProjects/OSMViewer/routing-lib/build/lib/main/release" "-Xmx8192m"'
 
 # Collect all arguments for the java command:
 #   * DEFAULT_JVM_OPTS, JAVA_OPTS, JAVA_OPTS, and optsEnvironmentVar are not allowed to contain shell fragments,
